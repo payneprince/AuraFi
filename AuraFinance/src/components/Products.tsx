@@ -18,7 +18,7 @@ export function Products() {
     },
     {
       name: "AuraWallet",
-      image: "/images/wallet.jpg",
+      image: "/images/aurawallet-logo.jpeg",
       desc: "Send, receive, and manage money instantly with zero friction",
       features: ["QR payments", "Bill payments", "Split expenses", "Instant transfers"]
     },

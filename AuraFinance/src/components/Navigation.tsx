@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Menu, X, Moon, Sun } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
 
 export function Navigation() {
@@ -35,7 +36,7 @@ export function Navigation() {
     <nav className="fixed top-0 w-full z-50 glass border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <a href="/" className="flex items-center">
+          <Link href="/" className="flex items-center">
             <Image
               src="/images/suite.jpeg"
               alt="Aura Finance Logo"
@@ -43,15 +44,15 @@ export function Navigation() {
               height={32}
               className="object-contain rounded-lg"
             />
-          </a>
+          </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-            <a href="/#products" className="hover:text-teal transition">Products</a>
-            <a href="/#features" className="hover:text-teal transition">Features</a>
-            <a href="/#pricing" className="hover:text-teal transition">Pricing</a>
-            <a href="/about" className="hover:text-teal transition">About</a>
-            <a href="/blog" className="hover:text-teal transition">Blog</a>
-            <a href="/contact" className="hover:text-teal transition">Contact</a>
+            <Link href="/#products" className="hover:text-teal transition">Products</Link>
+            <Link href="/#features" className="hover:text-teal transition">Features</Link>
+            <Link href="/#pricing" className="hover:text-teal transition">Pricing</Link>
+            <Link href="/about" className="hover:text-teal transition">About</Link>
+            <Link href="/blog" className="hover:text-teal transition">Blog</Link>
+            <Link href="/contact" className="hover:text-teal transition">Contact</Link>
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
@@ -70,9 +71,9 @@ export function Navigation() {
               <>
                 <span className="px-4 py-2">Welcome, {session.user.name}</span>
                 <button onClick={() => signOut({ callbackUrl: '/' })} className="px-4 py-2 hover:text-teal transition">Logout</button>
-                <a href="/dashboard" className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white hover:opacity-90">
+                <Link href="/dashboard" className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white hover:opacity-90">
                   Dashboard
-                </a>
+                </Link>
               </>
             ) : (
               <>
@@ -93,12 +94,12 @@ export function Navigation() {
       {open && (
         <div className="md:hidden glass border-t">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <a href="/#products" className="block px-3 py-2">Products</a>
-            <a href="/#features" className="block px-3 py-2">Features</a>
-            <a href="/#pricing" className="block px-3 py-2">Pricing</a>
-            <a href="/about" className="block px-3 py-2">About</a>
-            <a href="/blog" className="block px-3 py-2">Blog</a>
-            <a href="/contact" className="block px-3 py-2">Contact</a>
+            <Link href="/#products" className="block px-3 py-2">Products</Link>
+            <Link href="/#features" className="block px-3 py-2">Features</Link>
+            <Link href="/#pricing" className="block px-3 py-2">Pricing</Link>
+            <Link href="/about" className="block px-3 py-2">About</Link>
+            <Link href="/blog" className="block px-3 py-2">Blog</Link>
+            <Link href="/contact" className="block px-3 py-2">Contact</Link>
             <div className="px-3 py-2 flex items-center justify-between">
               <span>Dark Mode</span>
               <button

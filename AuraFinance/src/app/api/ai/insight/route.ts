@@ -112,15 +112,16 @@ Rules:
       timestamp: new Date().toISOString(),
     });
 
-  } catch (error: any) {
-    console.error('❌ AI Route Fatal Error:', error.message || error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ AI Route Fatal Error:', errorMessage);
 
     return NextResponse.json(
       {
         success: false,
         message:
           'AuraAI is busy analyzing financial data. Try again in a few seconds.',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
       },
       { status: 500 }
     );

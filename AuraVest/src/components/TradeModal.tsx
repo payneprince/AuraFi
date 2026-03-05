@@ -46,6 +46,66 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
   const normalizedAmount = isLocalGhanaStock ? Math.floor(Number(amount || 0)) : Number(amount || 0);
   const estimatedTotal = amount && !isNaN(normalizedAmount) ? normalizedAmount * currentPrice : 0;
   const fee = estimatedTotal * 0.001;
+  const isWithinGseMarketHours = () => {
+    const now = new Date();
+    const day = now.getUTCDay();
+    const minutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const openMinutes = 10 * 60;
+    const closeMinutes = 15 * 60;
+    return day >= 1 && day <= 5 && minutes >= openMinutes && minutes < closeMinutes;
+  };
+
+  const syncPortfolioSnapshotCookie = (portfolio: any) => {
+    if (typeof document === 'undefined' || !portfolio) return;
+    const snapshot = {
+      totalValue: Number(portfolio.totalValue || 0),
+      change24h: Number(portfolio.change24h || 0),
+      changeAmount: Number(portfolio.changeAmount || 0),
+      updatedAt: new Date().toISOString(),
+    };
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `auravest_portfolio_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
+  const recalculatePortfolioFromHoldings = (updatedHoldings?: any[]) => {
+    const holdings = updatedHoldings || JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
+    const localPositions = JSON.parse(localStorage.getItem('auravest_local_positions') || '[]');
+    const groupedValues = new Map<string, number>();
+
+    holdings.forEach((holding: any) => {
+      const type = holding?.type || 'Stocks';
+      const currentValue = Number(holding?.currentValue || 0);
+      groupedValues.set(type, (groupedValues.get(type) || 0) + currentValue);
+    });
+
+    localPositions.forEach((position: any) => {
+      const amount = Number(position?.amount || 0);
+      groupedValues.set('Local Investments', (groupedValues.get('Local Investments') || 0) + amount);
+    });
+
+    const assets = Array.from(groupedValues.entries()).map(([type, value]) => ({ type, value, allocation: 0 }));
+    const totalValue = assets.reduce((sum, assetItem) => sum + assetItem.value, 0);
+    const changeAmount = holdings.reduce((sum: number, holding: any) => {
+      const value = Number(holding?.currentValue || 0);
+      const change = Number(holding?.change24h || 0);
+      return sum + (value * change / 100);
+    }, 0);
+    const change24h = totalValue > 0 ? (changeAmount / totalValue) * 100 : 0;
+
+    const normalizedAssets = assets.map((assetItem) => ({
+      ...assetItem,
+      allocation: totalValue > 0 ? Number(((assetItem.value / totalValue) * 100).toFixed(1)) : 0,
+    }));
+
+    const portfolioSnapshot = {
+      totalValue,
+      change24h: Number(change24h.toFixed(2)),
+      changeAmount: Number(changeAmount.toFixed(2)),
+      assets: normalizedAssets,
+    };
+    localStorage.setItem('auravest_portfolio', JSON.stringify(portfolioSnapshot));
+    syncPortfolioSnapshotCookie(portfolioSnapshot);
+  };
 
   const updateTradeHoldings = (trade: {
     type: 'buy' | 'sell';
@@ -140,6 +200,7 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
     }
 
     localStorage.setItem('auravest_trade_holdings', JSON.stringify(storedHoldings));
+    return storedHoldings;
   };
 
   const handleTrade = async () => {
@@ -156,6 +217,8 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
+    const tradeStatus = isLocalGhanaStock && !isWithinGseMarketHours() ? 'queued' : 'filled';
+
     const tradeData = {
       type: tradeType,
       asset: asset.symbol,
@@ -167,6 +230,7 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       total: estimatedTotal + fee,
       quantityType: isLocalGhanaStock ? 'shares' : 'units',
       orderType,
+      status: tradeStatus,
     };
 
     const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
@@ -174,16 +238,18 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       ...tradeData,
       id: `tx-${Date.now()}`,
       timestamp: new Date().toISOString(),
-      status: 'completed',
     });
     localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
 
-    updateTradeHoldings({
-      type: tradeType,
-      amount: normalizedAmount,
-      price: orderType === 'limit' && limitPrice ? Number(limitPrice) : currentPrice,
-      assetClass: resolvedAssetClass,
-    });
+    if (tradeStatus === 'filled') {
+      const updatedHoldings = updateTradeHoldings({
+        type: tradeType,
+        amount: normalizedAmount,
+        price: orderType === 'limit' && limitPrice ? Number(limitPrice) : currentPrice,
+        assetClass: resolvedAssetClass,
+      });
+      recalculatePortfolioFromHoldings(updatedHoldings);
+    }
 
     setIsProcessing(false);
 
@@ -198,6 +264,7 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       price: orderType === 'limit' && limitPrice ? Number(limitPrice) : currentPrice,
       total: estimatedTotal + fee,
       quantityType: isLocalGhanaStock ? 'shares' : 'units',
+      status: tradeStatus,
     });
     setShowSuccessModal(true);
   };

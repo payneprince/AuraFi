@@ -38,6 +38,18 @@ export default function MarketsPage() {
   const [watchlist, setWatchlist] = useState<any[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [tradeModal, setTradeModal] = useState<any>(null);
+
+  const syncPortfolioSnapshotCookie = (portfolio: any) => {
+    if (typeof document === 'undefined' || !portfolio) return;
+    const snapshot = {
+      totalValue: Number(portfolio.totalValue || 0),
+      change24h: Number(portfolio.change24h || 0),
+      changeAmount: Number(portfolio.changeAmount || 0),
+      updatedAt: new Date().toISOString(),
+    };
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `auravest_portfolio_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
   const [alertModal, setAlertModal] = useState<any>(null);
 
   const [successModal, setSuccessModal] = useState<any>(null);
@@ -516,6 +528,7 @@ export default function MarketsPage() {
     }));
 
     localStorage.setItem('auravest_portfolio', JSON.stringify(portfolio));
+    syncPortfolioSnapshotCookie(portfolio);
 
     const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
     transactions.unshift({

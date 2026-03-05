@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, ArrowDown, Shield, Users, Headphones, DollarSign, TrendingUp, Zap } from "lucide-react";
+import { Play, ArrowDown, Shield, Users, Headphones } from "lucide-react";
 
 export function Hero() {
   return (

@@ -1,8 +1,5 @@
 "use client";
 
-import { Code } from "lucide-react";
-import { Button } from "./ui/button";
-
 export function Integration() {
   const partners = [
     "Visa", "Mastercard", "PayPal", "Stripe", "Plaid", "Coinbase",

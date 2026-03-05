@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { portfolioData, recentTransactions, cryptoAssets, stockAssets, riskMetrics } from '@/lib/mockData';
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle } from 'lucide-react';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
@@ -10,13 +10,58 @@ import Gamification from '@/components/Gamification';
 import TradeModal from '@/components/TradeModal';
 import AssetDetailsModal from '@/components/AssetDetailsModal';
 import AuraAIInsight from '@/components/AuraAIInsight';
+import { getPortfolio } from '@/lib/mockAPI';
 
 export default function DashboardHome() {
-  const { totalValue = 0, change24h = 0, changeAmount = 0 } = portfolioData || {};
+  const getInitialPortfolio = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
+      if (storedPortfolio && Object.keys(storedPortfolio).length > 0) {
+        return storedPortfolio;
+      }
+    } catch (error) {
+      console.error('Failed to read initial portfolio from localStorage:', error);
+    }
+    return null;
+  };
+
+  const [portfolio, setPortfolio] = useState(getInitialPortfolio);
+  const isPortfolioReady = portfolio && typeof portfolio.totalValue === 'number';
+  const { totalValue = 0, change24h = 0, changeAmount = 0 } = portfolio || {};
   const isPositive = change24h >= 0;
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [tradeModal, setTradeModal] = useState<any>(null);
   const [showGamification, setShowGamification] = useState(false);
+  const [transactionFeed, setTransactionFeed] = useState<any[]>(recentTransactions || []);
+
+  const loadLivePortfolio = async () => {
+    try {
+      const data = await getPortfolio();
+      if (data && Object.keys(data).length > 0) {
+        setPortfolio(data);
+      }
+    } catch (error) {
+      console.error('Failed to load live portfolio in overview:', error);
+    }
+  };
+
+  const loadRecentTransactions = () => {
+    const storedTransactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+    if (storedTransactions.length > 0) {
+      const mappedTransactions = storedTransactions.slice(0, 8).map((tx: any) => ({
+        ...tx,
+        date: tx.timestamp || tx.date,
+        status: tx.status || 'filled',
+      }));
+      setTransactionFeed(mappedTransactions);
+    }
+  };
+
+  useEffect(() => {
+    loadLivePortfolio();
+    loadRecentTransactions();
+  }, []);
 
   const handleAssetClick = (asset: any) => {
     setSelectedAsset(asset);
@@ -49,16 +94,16 @@ export default function DashboardHome() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-sm opacity-90 mb-1">Total Portfolio Value</p>
-            <h2 className="text-4xl font-bold">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
+            <h2 className="text-4xl font-bold">{isPortfolioReady ? `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</h2>
           </div>
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-            {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            <span className="text-sm font-semibold">{isPositive ? '+' : ''}{change24h}%</span>
+          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+            {isPositive ? <TrendingUp className="w-4 h-4 text-green-300" /> : <TrendingDown className="w-4 h-4 text-red-300" />}
+            <span className={`text-sm font-semibold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : ''}{change24h}%</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-          <span className="text-sm">{isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)</span>
+          <span className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)</span>
         </div>
       </div>
 
@@ -225,8 +270,9 @@ export default function DashboardHome() {
       <div className="bg-card rounded-lg border border-border p-6">
         <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
         <div className="space-y-3">
-          {recentTransactions.map((tx) => {
+          {transactionFeed.map((tx) => {
             const isBuy = tx.type === 'buy';
+            const status = (tx.status || 'filled').toLowerCase();
             return (
               <div key={tx.id} className="flex items-center justify-between p-3 hover:bg-accent rounded-lg transition-colors">
                 <div className="flex items-center gap-3">
@@ -236,6 +282,9 @@ export default function DashboardHome() {
                   <div>
                     <p className="font-semibold">{isBuy ? 'Bought' : 'Sold'} {tx.assetName}</p>
                     <p className="text-sm text-muted-foreground">{tx.amount} {tx.asset} @ ${tx.price.toLocaleString()}</p>
+                    <p className={`text-xs mt-0.5 ${status === 'queued' ? 'text-yellow-500' : 'text-green-500'}`}>
+                      {status.toUpperCase()}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -251,7 +300,17 @@ export default function DashboardHome() {
       <MobileAppShowcase />
 
       {selectedAsset && <AssetDetailsModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} onTrade={handleTrade} />}
-      {tradeModal && <TradeModal asset={tradeModal.asset} onClose={() => setTradeModal(null)} initialType={tradeModal.type} />}
+      {tradeModal && (
+        <TradeModal
+          asset={tradeModal.asset}
+          onClose={() => {
+            setTradeModal(null);
+            loadLivePortfolio();
+            loadRecentTransactions();
+          }}
+          initialType={tradeModal.type}
+        />
+      )}
     </div>
   );
 }

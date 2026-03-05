@@ -43,10 +43,24 @@ import TradeModal from '@/components/TradeModal';
 import PriceAlertModal from '@/components/PriceAlertModal';
 
 export default function PortfolioPage() {
-  const [portfolio, setPortfolio] = useState(portfolioData);
+  const getInitialPortfolio = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
+      if (storedPortfolio && Object.keys(storedPortfolio).length > 0) {
+        return storedPortfolio;
+      }
+    } catch (error) {
+      console.error('Failed to read initial portfolio from localStorage:', error);
+    }
+    return null;
+  };
+
+  const [portfolio, setPortfolio] = useState(getInitialPortfolio);
   const [localPositions, setLocalPositions] = useState<any[]>([]);
   const [tradeHoldings, setTradeHoldings] = useState<any[]>([]);
-  const { totalValue, change24h, changeAmount, assets } = portfolio;
+  const isPortfolioReady = portfolio && typeof portfolio.totalValue === 'number';
+  const { totalValue = 0, change24h = 0, changeAmount = 0, assets = [] } = portfolio || {};
   const [selectedPeriod, setSelectedPeriod] = useState('1Y');
   const [showBenchmark, setShowBenchmark] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -320,13 +334,13 @@ export default function PortfolioPage() {
       <div className="gradient-primary rounded-xl p-6 text-white">
         <p className="text-sm opacity-90 mb-2">Total Portfolio Value</p>
         <div className="flex items-end gap-4 mb-2">
-          <h2 className="text-4xl font-bold">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-            {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            <span className="text-sm font-semibold">{isPositive ? '+' : ''}{change24h}%</span>
+          <h2 className="text-4xl font-bold">{isPortfolioReady ? `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</h2>
+          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+            {isPositive ? <TrendingUp className="w-4 h-4 text-green-300" /> : <TrendingDown className="w-4 h-4 text-red-300" />}
+            <span className={`text-sm font-semibold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : ''}{change24h}%</span>
           </div>
         </div>
-        <p className="text-sm opacity-90">
+        <p className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
           {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)
         </p>
       </div>
@@ -497,6 +511,7 @@ export default function PortfolioPage() {
                 const isPositivePnL = holding.unrealizedPnL >= 0;
                 const isLocal = holding.type === 'Local Investments' || holding.currency === 'GHS';
                 const quantityLabel = holding.quantityType === 'shares' ? 'shares' : 'units';
+                const holdingStatus = (holding.status || 'filled').toLowerCase();
                 return (
                   <div
                     key={idx}
@@ -510,6 +525,9 @@ export default function PortfolioPage() {
                           <span className="text-xs text-muted-foreground">{holding.symbol} • {holding.amount} {quantityLabel}</span>
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                             {holding.type}
+                          </span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${holdingStatus === 'queued' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' : 'bg-green-500/10 text-green-600 border-green-500/20'}`}>
+                            {holdingStatus.toUpperCase()}
                           </span>
                           {isLocal && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-magenta-500/10 text-magenta-600 border border-magenta-500/20">
@@ -784,6 +802,9 @@ export default function PortfolioPage() {
                   <span className="text-sm text-muted-foreground">{selectedHolding.symbol}</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                     {selectedHolding.type}
+                  </span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${((selectedHolding.status || 'filled').toLowerCase() === 'queued') ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' : 'bg-green-500/10 text-green-600 border-green-500/20'}`}>
+                    {(selectedHolding.status || 'filled').toUpperCase()}
                   </span>
                 </div>
               </div>

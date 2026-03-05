@@ -60,6 +60,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
+  const syncBankBalanceSnapshotCookie = (accountList: Account[]) => {
+    if (typeof document === 'undefined' || !accountList || accountList.length === 0) return;
+
+    const totalBalance = accountList.reduce((sum, account) => {
+      if (account.type === 'credit') return sum;
+      return sum + Number(account.balance || 0);
+    }, 0);
+
+    const snapshot = {
+      totalBalance: Number(totalBalance.toFixed(2)),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `aurabank_balance_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
+  const syncBankSourcesSnapshotCookie = (accountList: Account[], cardList: Card[]) => {
+    if (typeof document === 'undefined') return;
+
+    const compactAccounts = (accountList || []).map((account) => ({
+      id: String(account.id),
+      name: account.name,
+      type: account.type,
+      balance: Number(account.balance || 0),
+      availableBalance: Number(account.availableBalance ?? account.balance ?? 0),
+      accountNumber: String(account.accountNumber || ''),
+      currency: account.currency || 'USD',
+    }));
+
+    const compactCards = (cardList || []).map((card) => ({
+      id: String(card.id),
+      accountId: String(card.accountId || ''),
+      type: card.type,
+      brand: card.brand,
+      status: card.status,
+      cardNumber: String(card.cardNumber || ''),
+      cardHolder: card.cardHolder || '',
+    }));
+
+    const snapshot = {
+      accounts: compactAccounts,
+      cards: compactCards,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `aurabank_sources_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
   useEffect(() => {
     // Load data from localStorage on mount, or initialize with mock data
     const savedUser = localStorage.getItem('aurabank_user');
@@ -153,6 +203,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (savedSound) setSoundEnabled(JSON.parse(savedSound));
     if (savedTheme) setTheme(JSON.parse(savedTheme));
   }, []);
+
+  useEffect(() => {
+    syncBankBalanceSnapshotCookie(accounts);
+  }, [accounts]);
+
+  useEffect(() => {
+    syncBankSourcesSnapshotCookie(accounts, cards);
+  }, [accounts, cards]);
 
   const login = async (email: string, password: string) => {
     // Mock login - in real app, this would call an API

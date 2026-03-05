@@ -2,7 +2,7 @@ import React from 'react';
 
 type Props = { data: number[]; width?: number; height?: number; color?: string };
 
-export default function Sparkline({ data, width = 120, height = 28, color = '#29C7D9' }: Props) {
+export default function Sparkline({ data, width = 120, height = 28, color = '#22c55e' }: Props) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data);
   const min = Math.min(...data);

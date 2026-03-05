@@ -3,6 +3,18 @@ import { dcaPlans } from './mockData';
 // Simulate API delays
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const syncPortfolioSnapshotCookie = (portfolio: any) => {
+  if (typeof document === 'undefined' || !portfolio) return;
+  const snapshot = {
+    totalValue: Number(portfolio.totalValue || 0),
+    change24h: Number(portfolio.change24h || 0),
+    changeAmount: Number(portfolio.changeAmount || 0),
+    updatedAt: new Date().toISOString(),
+  };
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `auravest_portfolio_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
+};
+
 // Get user data
 export const getUser = async () => {
   await delay(300);
@@ -16,7 +28,7 @@ export const getPortfolio = async () => {
 
   // If no portfolio data exists, return default
   if (!data || Object.keys(data).length === 0) {
-    return {
+    const defaultPortfolio = {
       totalValue: 125847.32,
       change24h: 3.45,
       changeAmount: 4201.23,
@@ -27,12 +39,15 @@ export const getPortfolio = async () => {
         { type: 'NFTs', value: 10000.00, allocation: 7.9 },
       ]
     };
+    syncPortfolioSnapshotCookie(defaultPortfolio);
+    return defaultPortfolio;
   }
 
   // Simulate 24h change
   const change = (Math.random() - 0.4) * 3; // -1.2% to +1.8%
   data.change24h = parseFloat((data.change24h + change).toFixed(2));
   data.changeAmount = parseFloat((data.totalValue * change / 100).toFixed(2));
+  syncPortfolioSnapshotCookie(data);
   return data;
 };
 
@@ -69,6 +84,7 @@ export const executeTrade = async (trade: any) => {
 
   portfolio.totalValue += trade.type === 'buy' ? -trade.total : trade.total;
   localStorage.setItem('auravest_portfolio', JSON.stringify(portfolio));
+  syncPortfolioSnapshotCookie(portfolio);
 
   return newTx;
 };
@@ -219,6 +235,7 @@ export const executeBasketTrade = async (basket: { assets: any[], totalAmount: n
     const totalBasketValue = results.reduce((sum, tx) => sum + tx.total, 0);
     portfolio.totalValue -= totalBasketValue;
     localStorage.setItem('auravest_portfolio', JSON.stringify(portfolio));
+    syncPortfolioSnapshotCookie(portfolio);
   }
 
   return results;

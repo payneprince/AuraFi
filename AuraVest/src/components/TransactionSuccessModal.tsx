@@ -12,6 +12,7 @@ interface TransactionSuccessModalProps {
     assetName: string;
     currency?: string;
     quantityType?: 'shares' | 'units';
+    status?: string;
     amount: number;
     price: number;
     total: number;
@@ -124,6 +125,13 @@ export default function TransactionSuccessModal({
                   <p className="text-xs text-muted-foreground mb-1">Price</p>
                   <p className="font-semibold">{transactionCurrencyPrefix}{transaction.price.toFixed(2)}</p>
                 </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Order Status</p>
+                <p className={`font-semibold ${transaction.status === 'queued' ? 'text-yellow-500' : 'text-green-500'}`}>
+                  {(transaction.status || 'filled').toUpperCase()}
+                </p>
               </div>
 
               <div className="pt-4 border-t border-border">

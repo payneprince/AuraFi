@@ -1,6 +1,6 @@
 import React from 'react';
 // very small area chart using SVG, no deps
-export default function LargeChart({ data = [10, 20, 15, 30, 25, 40, 35], color = '#29C7D9' }: { data?: number[]; color?: string }) {
+export default function LargeChart({ data = [10, 20, 15, 30, 25, 40, 35], color = '#22c55e' }: { data?: number[]; color?: string }) {
   const width = 600;
   const height = 160;
   const max = Math.max(...data);

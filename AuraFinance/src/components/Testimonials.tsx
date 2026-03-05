@@ -24,7 +24,7 @@ export function Testimonials() {
                   <span key={i} className="text-yellow-500">★</span>
                 ))}
               </div>
-              <p className="text-muted-foreground mb-4">"{t.text}"</p>
+              <p className="text-muted-foreground mb-4">&ldquo;{t.text}&rdquo;</p>
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal to-magenta flex items-center justify-center text-white font-bold">
                   {t.name[0]}

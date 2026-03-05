@@ -36,7 +36,7 @@ export function getVestInsights(userId) {
   };
 }
 
-export function getWalletInsights(userId) {
+export function getWalletInsights() {
   const balance = walletData.balance;
   const recentTransactions = walletData.transactions.slice(-5);
 
@@ -53,7 +53,7 @@ export function getWalletInsights(userId) {
 export function getOverallInsights(userId) {
   const bank = getBankInsights(userId);
   const vest = getVestInsights(userId);
-  const wallet = getWalletInsights(userId);
+  const wallet = getWalletInsights();
 
   return {
     netWorth: bank.totalBalance + vest.totalValue + wallet.balance,

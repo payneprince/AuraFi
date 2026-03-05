@@ -44,7 +44,7 @@ export default function AuraAIChat() {
           { role: 'ai', content: data.message || 'Hmm, I ran into an issue. Try rephrasing?' },
         ]);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         { role: 'ai', content: 'Network error. Check your connection and try again.' },
@@ -68,7 +68,7 @@ export default function AuraAIChat() {
           { role: 'ai', content: '✅ Weekly report scheduled! You\'ll get it every Monday at 8 AM via email.' },
         ]);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         { role: 'ai', content: 'Failed to schedule report. Try again later.' },

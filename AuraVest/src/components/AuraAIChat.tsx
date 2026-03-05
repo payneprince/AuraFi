@@ -81,7 +81,7 @@ export default function AuraAIChat() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-magenta-500 to-teal-500 text-white rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-all z-50"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-black to-crimson-600 text-white rounded-full shadow-lg hover:opacity-90 flex items-center justify-center transition-all z-50"
         aria-label="Ask AuraAI"
         aria-expanded={isOpen}
       >
@@ -90,21 +90,21 @@ export default function AuraAIChat() {
 
       {/* Live Chat Panel (non-modal) */}
       {isOpen && (
-        <div className="fixed z-50 bottom-24 right-6 left-4 sm:left-auto sm:w-[380px] h-[70vh] max-h-[640px] bg-card border border-border rounded-xl flex flex-col animate-slideIn shadow-2xl">
+        <div className="fixed z-50 bottom-24 right-6 left-4 sm:left-auto sm:w-[380px] h-[70vh] max-h-[640px] bg-white border border-slate-200 rounded-xl flex flex-col shadow-2xl">
             {/* Header */}
-            <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="bg-gradient-to-r from-black to-crimson-600 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-primary" />
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-black to-crimson-500 flex items-center justify-center border border-white/30">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <h3 className="font-bold">AuraAI</h3>
-                <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded">
+                <span className="text-xs px-2 py-0.5 bg-white/20 text-white rounded">
                   AI-Powered
                 </span>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-lg hover:bg-accent flex items-center justify-center"
+                className="w-8 h-8 rounded-lg hover:bg-white/20 flex items-center justify-center"
                 aria-label="Close"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -124,13 +124,13 @@ export default function AuraAIChat() {
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                       msg.role === 'user'
-                        ? 'bg-gradient-to-r from-magenta-500 to-teal-500 text-white'
+                          ? 'bg-gradient-to-r from-black to-crimson-600 text-white'
                         : 'bg-white border border-slate-200 text-slate-800'
                     }`}
                   >
                     {msg.role === 'ai' && (
                       <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-4 h-4 text-teal-500" />
+                        <Sparkles className="w-4 h-4 text-crimson-500" />
                         <span className="text-xs font-semibold text-slate-600">AuraAI</span>
                       </div>
                     )}
@@ -142,7 +142,7 @@ export default function AuraAIChat() {
                 <div className="flex justify-start">
                   <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-teal-500 animate-pulse" />
+                      <Sparkles className="w-4 h-4 text-crimson-500 animate-pulse" />
                       <span className="text-xs font-semibold text-slate-600">AuraAI is thinking...</span>
                     </div>
                   </div>
@@ -183,13 +183,13 @@ export default function AuraAIChat() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about risk, performance, or strategy..."
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-black focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-black focus:outline-none focus:ring-2 focus:ring-crimson-500"
                   disabled={isLoading}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center justify-center"
+                  className="px-4 py-2 bg-gradient-to-r from-black to-crimson-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center justify-center"
                 >
                   {isLoading ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

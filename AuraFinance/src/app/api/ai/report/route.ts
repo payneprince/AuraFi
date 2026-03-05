@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
       scheduledFor: scheduledFor.toISOString(),
     });
 
-  } catch (error: any) {
-    console.error('❌ Report Route Error:', error.message || error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Report Route Error:', errorMessage);
 
     return NextResponse.json(
       {

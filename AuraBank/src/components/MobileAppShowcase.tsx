@@ -1,6 +1,7 @@
 'use client';
 
-import { Smartphone, Apple, Play, TrendingUp, ArrowUpRight, ArrowDownRight, Bell, Search, Plus, Home, CreditCard, Send, Wallet, Menu } from 'lucide-react';
+import Image from 'next/image';
+import { TrendingUp, ArrowUpRight, ArrowDownRight, Bell, Search, Plus, Home, CreditCard, Send, Wallet, Menu } from 'lucide-react';
 
 export default function MobileAppShowcase() {
   return (
@@ -11,10 +12,10 @@ export default function MobileAppShowcase() {
       <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         <div className="space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-              <Smartphone className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 overflow-hidden flex items-center justify-center">
+              <Image src="/dblogo.jpg" alt="AuraBank logo" width={48} height={48} className="w-full h-full object-cover" />
             </div>
-            <h2 className="text-2xl font-bold">Download Our App</h2>
+            <h2 className="text-2xl font-bold">AuraBank Mobile</h2>
           </div>
 
           <p className="text-base opacity-90 leading-relaxed">
@@ -62,20 +63,12 @@ export default function MobileAppShowcase() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button className="flex items-center gap-3 bg-black/30 backdrop-blur-sm hover:bg-black/40 px-4 py-3 rounded-xl transition-colors">
-              <Apple className="w-6 h-6" />
-              <div className="text-left">
-                <p className="text-xs opacity-75">Download on the</p>
-                <p className="font-semibold">App Store</p>
-              </div>
+            <button className="bg-black/30 backdrop-blur-sm hover:bg-black/40 px-2 py-2 rounded-xl transition-colors">
+              <Image src="/store/app-store-badge.svg" alt="Download on the App Store" width={160} height={48} className="h-10 w-auto" />
             </button>
 
-            <button className="flex items-center gap-3 bg-black/30 backdrop-blur-sm hover:bg-black/40 px-4 py-3 rounded-xl transition-colors">
-              <Play className="w-6 h-6" />
-              <div className="text-left">
-                <p className="text-xs opacity-75">Get it on</p>
-                <p className="font-semibold">Google Play</p>
-              </div>
+            <button className="bg-black/30 backdrop-blur-sm hover:bg-black/40 px-2 py-2 rounded-xl transition-colors">
+              <Image src="/store/google-play-badge.svg" alt="Get it on Google Play" width={170} height={48} className="h-10 w-auto" />
             </button>
           </div>
 

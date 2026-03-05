@@ -17,6 +17,17 @@ export default function DashboardPage() {
   const router = useRouter();
   const [darkMode, setDarkMode] = useState(false);
   const [selectedRange, setSelectedRange] = useState<'7D' | '30D' | '90D' | '1Y'>('30D');
+  const [bankBalanceValue, setBankBalanceValue] = useState<number | null>(null);
+  const [vestPortfolioValue, setVestPortfolioValue] = useState<number | null>(null);
+  const [walletBalanceValue, setWalletBalanceValue] = useState<number | null>(null);
+
+  const getCookieValue = (name: string) => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`));
+    return match ? match.split('=')[1] : null;
+  };
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -28,6 +39,52 @@ export default function DashboardPage() {
     const savedDarkMode = localStorage.getItem('aurafinance_dark_mode') === 'true';
     setDarkMode(savedDarkMode);
     document.documentElement.classList.toggle('dark', savedDarkMode);
+  }, []);
+
+  useEffect(() => {
+    const syncCrossAppSnapshots = () => {
+      try {
+        const rawBankSnapshotCookie = getCookieValue('aurabank_balance_snapshot');
+        if (rawBankSnapshotCookie) {
+          const bankSnapshot = JSON.parse(decodeURIComponent(rawBankSnapshotCookie));
+          if (bankSnapshot && typeof bankSnapshot.totalBalance === 'number') {
+            setBankBalanceValue(bankSnapshot.totalBalance);
+          }
+        }
+
+        const rawWalletSnapshotCookie = getCookieValue('aurawallet_balance_snapshot');
+        if (rawWalletSnapshotCookie) {
+          const walletSnapshot = JSON.parse(decodeURIComponent(rawWalletSnapshotCookie));
+          if (walletSnapshot && typeof walletSnapshot.balance === 'number') {
+            setWalletBalanceValue(walletSnapshot.balance);
+          }
+        }
+
+        const rawVestSnapshotCookie = getCookieValue('auravest_portfolio_snapshot');
+        if (rawVestSnapshotCookie) {
+          const vestSnapshot = JSON.parse(decodeURIComponent(rawVestSnapshotCookie));
+          if (vestSnapshot && typeof vestSnapshot.totalValue === 'number') {
+            setVestPortfolioValue(vestSnapshot.totalValue);
+            return;
+          }
+        }
+
+        const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
+        if (storedPortfolio && typeof storedPortfolio.totalValue === 'number') {
+          setVestPortfolioValue(storedPortfolio.totalValue);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to sync cross-app snapshots:', error);
+      }
+
+      setVestPortfolioValue(null);
+    };
+
+    syncCrossAppSnapshots();
+    const syncInterval = setInterval(syncCrossAppSnapshots, 2000);
+
+    return () => clearInterval(syncInterval);
   }, []);
 
   const toggleDarkMode = () => {
@@ -46,6 +103,10 @@ export default function DashboardPage() {
   const bankInsights = getBankInsights(userId);
   const vestInsights = getVestInsights(userId);
   const walletInsights = getWalletInsights(userId);
+  const effectiveBankBalance = bankBalanceValue ?? bankInsights.totalBalance;
+  const effectiveVestValue = vestPortfolioValue ?? vestInsights.totalValue;
+  const effectiveWalletBalance = walletBalanceValue ?? walletInsights.balance;
+  const liveNetWorth = effectiveBankBalance + effectiveVestValue + effectiveWalletBalance;
 
   const recentTransactions = user?.bank?.transactions?.slice(-5).reverse() ?? [];
   const topHoldings = user?.vest?.portfolio?.slice(0, 3) ?? [];
@@ -89,13 +150,13 @@ export default function DashboardPage() {
 
   const netWorthTrend = trendMultipliers[selectedRange].map((multiplier, index) => ({
     label: index + 1,
-    value: insights.netWorth * multiplier,
+    value: liveNetWorth * multiplier,
   }));
 
   const trendMin = Math.min(...netWorthTrend.map((point) => point.value));
   const trendMax = Math.max(...netWorthTrend.map((point) => point.value));
-  const trendStart = netWorthTrend[0]?.value ?? insights.netWorth;
-  const trendEnd = netWorthTrend[netWorthTrend.length - 1]?.value ?? insights.netWorth;
+  const trendStart = netWorthTrend[0]?.value ?? liveNetWorth;
+  const trendEnd = netWorthTrend[netWorthTrend.length - 1]?.value ?? liveNetWorth;
   const trendChangePercent = trendStart === 0 ? 0 : ((trendEnd - trendStart) / trendStart) * 100;
 
   const chartPoints = netWorthTrend.map((point, index) => {
@@ -179,22 +240,22 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Net Worth</h3>
-            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(insights.netWorth)}</p>
+            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(liveNetWorth)}</p>
             <p className="text-xs text-muted-foreground">Across all products</p>
           </div>
           <div className="bg-gradient-to-br from-white to-pink-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraBank Balance</h3>
-            <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(bankInsights.totalBalance)}</p>
+            <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(bankBalanceValue ?? bankInsights.totalBalance)}</p>
             <p className="text-xs text-muted-foreground">Monthly spend: {formatCurrency(bankInsights.monthlySpending)}</p>
           </div>
           <div className="bg-gradient-to-br from-white to-red-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraVest Portfolio</h3>
-            <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(vestInsights.totalValue)}</p>
+            <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(vestPortfolioValue ?? vestInsights.totalValue)}</p>
             <p className="text-xs text-muted-foreground">Top: {topHoldings[0]?.symbol ?? 'N/A'}</p>
           </div>
           <div className="bg-gradient-to-br from-white via-green-50/60 to-emerald-100/70 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraWallet Balance</h3>
-            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(walletInsights.balance)}</p>
+            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(effectiveWalletBalance)}</p>
             <p className="text-xs text-muted-foreground">Last activity: {walletInsights.insights[1]}</p>
           </div>
         </div>
@@ -253,7 +314,7 @@ export default function DashboardPage() {
             <div className="bg-gradient-to-br from-emerald-400 via-green-600 to-black text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
-                  <Image src="/images/wallet.jpg" alt="AuraWallet" width={48} height={48} className="object-cover" />
+                  <Image src="/images/aurawallet-logo.jpeg" alt="AuraWallet" width={48} height={48} className="object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold">AuraWallet</h3>
               </div>
