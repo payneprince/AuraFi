@@ -1,0 +1,400 @@
+'use client';
+
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Lock, Settings, FileText, X, Eye, EyeOff, Plus } from 'lucide-react';
+import { CardSettingsModal } from './CardSettingsModal';
+import { CardReplacementModal } from './CardReplacementModal';
+import { AddCardModal } from './AddCardModal';
+import { VirtualCardModal } from './VirtualCardModal';
+import type { Card } from '@/types';
+
+const formatCardNumber = (number: string): string => {
+  return number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
+};
+
+const maskCardNumber = (number: string): string => {
+  const formatted = formatCardNumber(number);
+  return formatted.replace(/\d(?=\d{4})/g, '*');
+};
+
+export default function CardsPage() {
+  const { cards, accounts, transactions, updateCards, addNotification, addCard, replaceCard } = useAuth();
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [showLostCardModal, setShowLostCardModal] = useState<string | null>(null);
+  const [visibleCVVs, setVisibleCVVs] = useState<Record<string, boolean>>({});
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showReplacementModal, setShowReplacementModal] = useState(false);
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [showVirtualCardModal, setShowVirtualCardModal] = useState(false);
+  const [selectedCardForModal, setSelectedCardForModal] = useState<any>(null);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const getCardGradient = (brand: string, isVirtual?: boolean) => {
+    if (isVirtual) {
+      return 'from-purple-300 to-purple-800';
+    }
+    switch (brand) {
+      case 'visa':
+        return 'from-blue-400 to-blue-800';
+      case 'mastercard':
+        return 'from-orange-300 to-red-600';
+      case 'amex':
+        return 'from-teal-300 to-cyan-800';
+      default:
+        return 'from-slate-600 to-slate-800';
+    }
+  };
+
+  const getAccountBalance = (accountId: string) => {
+    const account = accounts.find(acc => acc.id === accountId);
+    return account ? account.balance : 0;
+  };
+
+  const getCardTransactions = (accountId: string) => {
+    return transactions
+      .filter(tx => tx.accountId === accountId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 3);
+  };
+
+  const handleLockCard = (cardId: string, lock: boolean) => {
+    const updatedCards = cards.map(card =>
+      card.id === cardId ? { ...card, status: (lock ? 'blocked' : 'active') as 'active' | 'blocked' | 'expired' } : card
+    );
+    updateCards(updatedCards);
+
+    addNotification({
+      id: `notif-${Date.now()}`,
+      title: lock ? 'Card Locked' : 'Card Unlocked',
+      message: `Your ${lock ? 'card has been locked' : 'card is now active'}.`,
+      type: lock ? 'warning' : 'success',
+      date: new Date().toISOString(),
+      read: false,
+    });
+  };
+
+  const handleReportLostCard = (cardId: string) => {
+    handleLockCard(cardId, true);
+    setShowLostCardModal(null);
+
+    addNotification({
+      id: `notif-${Date.now()}`,
+      title: 'Card Reported Lost',
+      message: 'A replacement card will be issued shortly.',
+      type: 'info',
+      date: new Date().toISOString(),
+      read: false,
+    });
+  };
+
+  const handleCardSettingsUpdate = (cardId: string, settings: Partial<Card>) => {
+    const updatedCards = cards.map(card =>
+      card.id === cardId ? { ...card, ...settings } : card
+    );
+    updateCards(updatedCards);
+  };
+
+  const handleOpenCardSettings = (card: Card) => {
+    setSelectedCardForModal(card);
+    setShowSettingsModal(true);
+  };
+
+  const handleOpenStatement = (card: Card) => {
+    // TODO: Implement statement generation
+    console.log('Open statement for card', card.id);
+  };
+
+  const handleOpenReplacement = (card: Card) => {
+    setSelectedCardForModal(card);
+    setShowReplacementModal(true);
+  };
+
+  const handleAddCard = (cardData: any) => {
+    addCard(cardData);
+    setShowAddCardModal(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">My Cards</h2>
+          <p className="text-slate-600 mt-1">Manage your debit and credit cards</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <button
+            onClick={() => {
+              console.log('Virtual Card button clicked');
+              setShowVirtualCardModal(true);
+            }}
+            className="px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Virtual Card</span>
+          </button>
+          <button
+            onClick={() => {
+              console.log('Add Card button clicked');
+              setShowAddCardModal(true);
+            }}
+            className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Card</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {cards.map((card) => (
+          <div key={card.id} className="space-y-4">
+            {/* Card Display */}
+            <div
+              className={`relative bg-gradient-to-br ${getCardGradient(card.brand, card.isVirtual)} rounded-2xl p-8 text-white shadow-2xl cursor-pointer transform transition hover:scale-105`}
+              onClick={() => setSelectedCard(selectedCard === card.id ? null : card.id)}
+            >
+              {/* Brand Logo + Badges */}
+              <div className="flex items-center justify-between mb-12">
+                <div className="text-2xl font-bold">
+                  {card.brand === 'visa' ? (
+                    <div className="w-10 h-10 flex items-center justify-center">
+                      <img src="/visa.svg" alt="Visa" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  ) : card.brand === 'mastercard' ? (
+                    <div className="w-10 h-10 flex items-center justify-center">
+                      <img src="/mastercard.svg" alt="Mastercard" className="max-w-full max-h-full object-contain" />
+                    </div>
+                  ) : (
+                    <span>{card.brand.toUpperCase()}</span>
+                  )}
+                </div>
+                {/* DEBIT/CREDIT + Status */}
+                <div className="absolute top-4 right-4 flex space-x-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    card.isVirtual ? 'bg-purple-500/20 text-purple-100' :
+                    card.type === 'debit' ? 'bg-blue-500/20 text-blue-100' : 'bg-red-500/20 text-red-100'
+                  }`}>
+                    {card.isVirtual ? 'VIRTUAL' : card.type.toUpperCase()}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                    card.status === 'active' ? 'bg-green-500/20 text-green-100' :
+                    card.status === 'blocked' ? 'bg-red-500/20 text-red-100' :
+                    'bg-yellow-500/20 text-yellow-100'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full mr-1 ${
+                      card.status === 'active' ? 'bg-green-300' :
+                      card.status === 'blocked' ? 'bg-red-300' :
+                      'bg-yellow-300'
+                    }`}></span>
+                    {card.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card Number */}
+              <div className="mb-6">
+                <p className="text-2xl tracking-wider font-mono">
+                  {visibleCVVs[card.id]
+                    ? formatCardNumber(card.cardNumber)
+                    : maskCardNumber(card.cardNumber)
+                  }
+                </p>
+              </div>
+
+              {/* Card Details */}
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-xs opacity-70 mb-1">Card Holder</p>
+                  <p className="font-semibold">{card.cardHolder}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-70 mb-1">Expires</p>
+                  <p className="font-semibold">{card.expiryDate}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-70 mb-1">CVV</p>
+                  <div className="flex items-center space-x-2">
+                    <p className="font-semibold">
+                      {visibleCVVs[card.id] ? card.cvv : '***'}
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVisibleCVVs(prev => ({
+                          ...prev,
+                          [card.id]: !prev[card.id]
+                        }));
+                      }}
+                      className="text-white/70 hover:text-white"
+                      aria-label={visibleCVVs[card.id] ? "Hide CVV" : "Show CVV"}
+                    >
+                      {visibleCVVs[card.id] ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Controls (only when selected) */}
+            {selectedCard === card.id && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 animate-in slide-in-from-top">
+                <h3 className="font-semibold text-slate-900 mb-4">Card Controls</h3>
+
+                <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                  <p className="text-sm text-slate-600 mb-1">Linked Account Balance</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(getAccountBalance(card.accountId))}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleLockCard(card.id, card.status !== 'blocked')}
+                    className={`px-4 py-3 font-medium rounded-lg transition flex items-center justify-center space-x-2 ${
+                      card.status === 'blocked'
+                        ? 'bg-green-100 hover:bg-green-200 text-green-700'
+                        : 'bg-red-100 hover:bg-red-200 text-red-700'
+                    }`}
+                  >
+                    <Lock className="w-5 h-5" />
+                    <span>{card.status === 'blocked' ? 'Unlock Card' : 'Lock Card'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenCardSettings(card)}
+                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition flex items-center justify-center space-x-2"
+                  >
+                    <Settings className="w-5 h-5" />
+                    <span>Settings</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenStatement(card)}
+                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition flex items-center justify-center space-x-2"
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span>Statement</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenReplacement(card)}
+                    className="px-4 py-3 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg transition flex items-center justify-center space-x-2"
+                  >
+                    <X className="w-5 h-5" />
+                    <span>Lost Card</span>
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  <h4 className="font-medium text-slate-900 mb-3">Recent Transactions</h4>
+                  <div className="space-y-2">
+                    {getCardTransactions(card.accountId).length > 0 ? (
+                      getCardTransactions(card.accountId).map((tx) => (
+                        <div
+                          key={tx.id}
+                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-sm">
+                              <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">{tx.merchant || tx.description}</p>
+                              <p className="text-xs text-slate-500">{new Date(tx.date).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          <p className={`font-semibold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                            {tx.type === 'credit' ? '+' : '-'}{formatCurrency(Math.abs(tx.amount))}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500 text-center py-2">No recent transactions</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Lost Card Modal */}
+      {showLostCardModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowLostCardModal(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto scrollbar-hide" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Report Lost Card?</h3>
+            <p className="text-slate-600 mb-6">
+              This will immediately block your card and prevent further transactions.
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowLostCardModal(null)}
+                className="flex-1 px-4 py-2 bg-slate-200 text-slate-800 rounded-lg font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleReportLostCard(showLostCardModal)}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-medium"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Card Settings Modal */}
+      <CardSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => {
+          setShowSettingsModal(false);
+          setSelectedCardForModal(null);
+        }}
+        card={selectedCardForModal}
+        onUpdateSettings={handleCardSettingsUpdate}
+      />
+
+      {/* Card Replacement Modal */}
+      <CardReplacementModal
+        isOpen={showReplacementModal}
+        onClose={() => {
+          setShowReplacementModal(false);
+          setSelectedCardForModal(null);
+        }}
+        card={selectedCardForModal}
+        onReplaceCard={replaceCard}
+      />
+
+      {/* Add Card Modal */}
+      <AddCardModal
+        isOpen={showAddCardModal}
+        onClose={() => setShowAddCardModal(false)}
+        onAddCard={handleAddCard}
+        accounts={accounts}
+      />
+
+      {/* Virtual Card Modal */}
+      <VirtualCardModal
+        isOpen={showVirtualCardModal}
+        onClose={() => setShowVirtualCardModal(false)}
+        onCreateVirtualCard={addCard}
+        accounts={accounts}
+      />
+    </div>
+  );
+}
