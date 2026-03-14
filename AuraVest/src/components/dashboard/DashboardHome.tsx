@@ -5,6 +5,8 @@ import { portfolioData, recentTransactions, cryptoAssets, stockAssets, riskMetri
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle } from 'lucide-react';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
+import SuiteBalanceWidget from './SuiteBalanceWidget';
+import InterAppTransfer from './InterAppTransfer';
 import PriceComparison from '@/components/PriceComparison';
 import Gamification from '@/components/Gamification';
 import TradeModal from '@/components/TradeModal';
@@ -350,6 +352,18 @@ export default function DashboardHome() {
             );
           })}
         </div>
+      </div>
+
+      {/* Aura Suite Overview */}
+      <SuiteBalanceWidget />
+
+      {/* Cross-App Transfer */}
+      <div className="bg-card border border-border rounded-lg p-5 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="font-semibold">Cross-App Transfer</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Move funds between AuraVest, AuraBank &amp; AuraWallet instantly</p>
+        </div>
+        <InterAppTransfer sourceApp="vest" />
       </div>
 
       <MobileAppShowcase />

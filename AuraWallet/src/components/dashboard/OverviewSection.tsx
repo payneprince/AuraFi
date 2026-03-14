@@ -4,6 +4,8 @@ import TransactionList from '@/components/TransactionList';
 import TransferForm from '@/components/TransferForm';
 import { auraBankCards } from '@/components/CardManager';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
+import SuiteBalanceWidget from './SuiteBalanceWidget';
+import InterAppTransfer from './InterAppTransfer';
 import WalletModal from '@/components/WalletModal';
 // @ts-ignore
 import { walletData, bankData } from '@/lib/shared/mock-data';
@@ -363,6 +365,18 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
           <Wallet className="w-4 h-4 text-green-400" />
         </div>
         <TransactionList onTransactionClick={(transaction) => setSelectedTransaction(transaction)} />
+      </div>
+
+      {/* Aura Suite Overview */}
+      <SuiteBalanceWidget />
+
+      {/* Cross-App Transfer */}
+      <div className="bg-[#0B1E39] border border-white/10 rounded-2xl p-5 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-white">Cross-App Transfer</h3>
+          <p className="text-sm text-white/50 mt-0.5">Move funds between AuraWallet, AuraBank &amp; AuraVest instantly</p>
+        </div>
+        <InterAppTransfer sourceApp="wallet" />
       </div>
 
       <div className="rounded-2xl p-5 bg-[#0B1E39] border border-white/10">

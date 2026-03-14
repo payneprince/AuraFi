@@ -3,6 +3,9 @@
 import { CreditCard, PiggyBank, Gem, ArrowDown, ArrowUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import MobileAppShowcase from '../MobileAppShowcase';
+import SuiteBalanceWidget from './SuiteBalanceWidget';
+import InterAppTransfer from './InterAppTransfer';
+import UnifiedActivityFeed from './UnifiedActivityFeed';
 
 export default function DashboardHome({ userId }: { userId: number }) {
   const { accounts, transactions: allTransactions, bills } = useAuth();
@@ -206,6 +209,21 @@ export default function DashboardHome({ userId }: { userId: number }) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Aura Suite Overview */}
+      <SuiteBalanceWidget />
+
+      {/* Unified Activity Feed */}
+      <UnifiedActivityFeed />
+
+      {/* Cross-App Transfer */}
+      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-5 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-text-dark">Cross-App Transfer</h3>
+          <p className="text-sm text-slate-500 mt-0.5">Move funds between AuraBank, AuraVest &amp; AuraWallet instantly</p>
+        </div>
+        <InterAppTransfer sourceApp="bank" />
       </div>
 
       {/* Mobile App Showcase */}

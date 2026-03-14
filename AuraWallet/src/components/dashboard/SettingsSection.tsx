@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
+import UnifiedActivityFeed from './UnifiedActivityFeed';
 
 export default function SettingsSection() {
   const [notifications, setNotifications] = useState(true);
@@ -85,6 +86,9 @@ export default function SettingsSection() {
           </div>
         </div>
       </div>
+
+      {/* Unified Activity Feed */}
+      <UnifiedActivityFeed />
 
       {sections.map((section, index) => (
         <div key={index} className="rounded-lg border border-white/10 bg-[#0B1E39] overflow-hidden">
