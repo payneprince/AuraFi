@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays } from 'lucide-react';
 // @ts-ignore
 import { walletData, users } from '@/lib/shared/mock-data';
@@ -16,52 +15,264 @@ import PortfolioSection from '@/components/dashboard/PortfolioSection';
 import SettingsSection from '@/components/dashboard/SettingsSection';
 import { WalletSection } from '@/components/dashboard/types';
 import { walletSectionTitles } from '@/components/dashboard/navigation';
+import {
+  readUnifiedAuthSession,
+  subscribeUnifiedAuthSession,
+} from '../../../shared/unified-auth';
+import { claimCrossAppTransfersForApp } from '../../../shared/cross-app-transfer-sync';
+import { hydrateWalletRuntimeForUser, persistWalletStateForUser } from '@/lib/wallet-state';
+import { getAuraWalletStorageKeys } from '@/lib/walletStateKeys';
 
 export default function Dashboard() {
-  const searchParams = useSearchParams();
   const [userId, setUserId] = useState<number>(1);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentSection, setCurrentSection] = useState<WalletSection>('overview');
-  const [walletBalance, setWalletBalance] = useState<number>(Number(walletData.balance || 0));
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isReady, setIsReady] = useState(false);
+
+  const captureWalletStateSnapshot = useCallback((activeUserId: string) => {
+    const snapshot: Record<string, string | null> = {};
+    const keys = getAuraWalletStorageKeys(activeUserId);
+    for (const key of keys) {
+      snapshot[key] = localStorage.getItem(key);
+    }
+    return snapshot;
+  }, []);
+
+  const persistWalletStateToServer = useCallback(async (activeUserId: string) => {
+    const normalizedUserId = String(activeUserId || '').trim();
+    if (!normalizedUserId) return;
+    const state = captureWalletStateSnapshot(normalizedUserId);
+    try {
+      await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: normalizedUserId, state }),
+        keepalive: true,
+      });
+    } catch {
+      // Retry naturally on next sync tick.
+    }
+  }, [captureWalletStateSnapshot]);
 
   useEffect(() => {
-    const urlUserId = searchParams.get('userId');
-    const sessionUserId = sessionStorage.getItem('aurasuite_userId');
-    const id = parseInt(urlUserId || sessionUserId || '1');
-    setUserId(id);
-    sessionStorage.setItem('aurasuite_userId', id.toString());
-  }, [searchParams]);
+    const bootstrap = async () => {
+      const urlUserId = new URLSearchParams(window.location.search).get('userId');
+      const unifiedSession = readUnifiedAuthSession();
+      const sessionUserId = sessionStorage.getItem('aurasuite_userId');
+      const id = parseInt(urlUserId || unifiedSession?.userId || sessionUserId || '1', 10);
+      const normalizedUserId = String(id);
+
+      try {
+        const response = await fetch(`/api/state?userId=${encodeURIComponent(normalizedUserId)}`);
+        if (response.ok) {
+          const payload = await response.json() as { state?: Record<string, string | null> | null };
+          if (payload?.state) {
+            for (const key of getAuraWalletStorageKeys(normalizedUserId)) {
+              const value = payload.state[key];
+              if (value === null || value === undefined) {
+                localStorage.removeItem(key);
+              } else {
+                localStorage.setItem(key, value);
+              }
+            }
+          }
+        }
+      } catch {
+        // Fall back to local snapshot/default runtime values.
+      }
+
+      const hydratedState = hydrateWalletRuntimeForUser({
+        userId: normalizedUserId,
+        name: unifiedSession?.name || undefined,
+        email: unifiedSession?.email || undefined,
+      });
+      setUserId(id);
+      setWalletBalance(Number(hydratedState.balance || 0));
+      sessionStorage.setItem('aurasuite_userId', id.toString());
+      await persistWalletStateToServer(normalizedUserId);
+      setIsReady(true);
+    };
+
+    void bootstrap();
+  }, [persistWalletStateToServer]);
+
+  useEffect(() => {
+    return subscribeUnifiedAuthSession((session) => {
+      if (!session?.userId) {
+        sessionStorage.removeItem('aurasuite_userId');
+        setUserId(1);
+        return;
+      }
+
+      const nextUserId = Number.parseInt(session.userId, 10);
+      const normalizedUserId = Number.isNaN(nextUserId) ? 1 : nextUserId;
+      const hydratedState = hydrateWalletRuntimeForUser({
+        userId: String(normalizedUserId),
+        name: session.name || undefined,
+        email: session.email || undefined,
+      });
+      sessionStorage.setItem('aurasuite_userId', String(normalizedUserId));
+      setUserId(normalizedUserId);
+      setWalletBalance(Number(hydratedState.balance || 0));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+
+    const channel = new BroadcastChannel('aura-ledger-sync');
+    channel.onmessage = (event) => {
+      if (event?.data?.type !== 'ledger.updated') return;
+
+      const activeUserId = readUnifiedAuthSession()?.userId || sessionStorage.getItem('aurasuite_userId') || String(userId);
+      const hydrated = hydrateWalletRuntimeForUser({
+        userId: String(activeUserId),
+      });
+      setWalletBalance(Number(hydrated.balance || 0));
+    };
+
+    return () => {
+      channel.close();
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    persistWalletStateForUser(String(userId));
+    void persistWalletStateToServer(String(userId));
+  }, [userId, walletBalance, isReady, persistWalletStateToServer]);
 
   const user = users.find(u => u.id === userId) || users[0];
   const insights = getWalletInsights(userId);
 
-  const writeWalletSnapshotCookie = (balance: number) => {
+  const writeWalletSnapshotCookie = useCallback((balance: number) => {
     const snapshot = {
+      userId: String(userId),
       balance: Number(balance || 0),
       updatedAt: new Date().toISOString(),
     };
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
     document.cookie = `aurawallet_balance_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
-  };
+  }, [userId]);
 
   useEffect(() => {
     writeWalletSnapshotCookie(walletBalance);
-  }, [walletBalance]);
+  }, [walletBalance, writeWalletSnapshotCookie]);
 
   useEffect(() => {
+    if (!isReady) return;
     const interval = setInterval(() => {
       const nextBalance = Number(walletData.balance || 0);
       setWalletBalance(nextBalance);
     }, 1500);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    const applyQueuedTransfers = () => {
+      const activeUserId = String(readUnifiedAuthSession()?.userId || sessionStorage.getItem('aurasuite_userId') || userId);
+      const transferEvents = claimCrossAppTransfersForApp('wallet', activeUserId);
+      if (transferEvents.length === 0) return;
+
+      const stateKey = `aurawallet_state_${activeUserId}`;
+      const storedState = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(stateKey) || '{}') as { balance?: number; transactions?: Array<Record<string, unknown>> };
+        } catch {
+          return { balance: Number(walletData.balance || 0), transactions: walletData.transactions as Array<Record<string, unknown>> };
+        }
+      })();
+
+      const nextTransactions = Array.isArray(storedState.transactions) ? [...storedState.transactions] : [];
+      let nextBalance = Number(storedState.balance || 0);
+
+      for (const event of transferEvents) {
+        const amount = Number(event.amount || 0);
+        const delta = event.fromApp === 'wallet' ? -amount : amount;
+        nextBalance = Number((nextBalance + delta).toFixed(2));
+        nextTransactions.unshift({
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          amount: Number(delta.toFixed(2)),
+          description: delta < 0 ? `Transfer to ${event.toApp}` : `Transfer from ${event.fromApp}`,
+          date: new Date(event.timestamp).toISOString().split('T')[0],
+          createdAt: event.timestamp,
+          method: 'bank_transfer',
+          status: 'completed',
+        });
+      }
+
+      localStorage.setItem(stateKey, JSON.stringify({
+        balance: nextBalance,
+        transactions: nextTransactions.slice(0, 500),
+      }));
+
+      const hydrated = hydrateWalletRuntimeForUser({ userId: activeUserId });
+      setWalletBalance(Number(hydrated.balance || 0));
+      persistWalletStateForUser(activeUserId);
+      void persistWalletStateToServer(activeUserId);
+    };
+
+    applyQueuedTransfers();
+    const intervalId = window.setInterval(applyQueuedTransfers, 1200);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isReady, userId, persistWalletStateToServer]);
+
+  useEffect(() => {
+    if (!isReady) return;
+
+    const pullServerState = async () => {
+      const activeUserId = String(readUnifiedAuthSession()?.userId || sessionStorage.getItem('aurasuite_userId') || userId);
+      try {
+        const response = await fetch(`/api/state?userId=${encodeURIComponent(activeUserId)}`);
+        if (!response.ok) return;
+
+        const payload = await response.json() as { state?: Record<string, string | null> | null };
+        if (!payload?.state) return;
+
+        for (const key of getAuraWalletStorageKeys(activeUserId)) {
+          const value = payload.state[key];
+          if (value === null || value === undefined) {
+            localStorage.removeItem(key);
+          } else {
+            localStorage.setItem(key, value);
+          }
+        }
+
+        const hydrated = hydrateWalletRuntimeForUser({ userId: activeUserId });
+        setWalletBalance(Number(hydrated.balance || 0));
+      } catch {
+        // Ignore transient failures and retry on next poll.
+      }
+    };
+
+    void pullServerState();
+    const intervalId = window.setInterval(() => {
+      void pullServerState();
+    }, 1800);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isReady, userId]);
 
   const handleTransferComplete = () => {
     const nextBalance = Number(walletData.balance || 0);
     setWalletBalance(nextBalance);
+    persistWalletStateForUser(String(userId));
+    void persistWalletStateToServer(String(userId));
     writeWalletSnapshotCookie(nextBalance);
   };
+
+  if (!isReady) {
+    return null;
+  }
 
   const renderSection = () => {
     switch (currentSection) {

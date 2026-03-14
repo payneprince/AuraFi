@@ -16,8 +16,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { userQuery, userId = 'demo' } = body;
+    const body = (await req.json()) as { userQuery?: string; userId?: string };
+    const userQuery = String(body.userQuery || '');
+    const userId = String(body.userId || 'demo');
 
     if (!userQuery?.trim()) {
       return NextResponse.json(
@@ -96,16 +97,20 @@ Rules:
     }
 
     // ✅ Parse successful response
-    const data = await openaiRes.json();
-    const aiMessage = data.choices[0].message.content.trim();
+    const data = (await openaiRes.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const aiMessage = String(data.choices?.[0]?.message?.content || '').trim();
 
     // 💾 Save to memory (max 10 messages)
-    history = [
-      ...history,
-      { role: 'user', content: userQuery },
-      { role: 'assistant', content: aiMessage },
-    ].slice(-10);
-    userConversations[userId] = history;
+    const updatedHistory = history
+      .concat(
+        { role: 'user' as const, content: userQuery },
+        { role: 'assistant' as const, content: aiMessage },
+      )
+      .slice(-10);
+    history = updatedHistory;
+    userConversations[userId] = updatedHistory;
 
     return NextResponse.json({
       success: true,
@@ -113,15 +118,16 @@ Rules:
       timestamp: new Date().toISOString(),
     });
 
-  } catch (error: any) {
-    console.error('❌ AI Route Fatal Error:', error.message || error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ AI Route Fatal Error:', errorMessage);
 
     return NextResponse.json(
       {
         success: false,
         message:
           'AuraAI is busy analyzing market data. Try again in a few seconds.',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
       },
       { status: 500 }
     );

@@ -11,6 +11,9 @@ interface TradeModalProps {
 }
 
 export default function TradeModal({ asset, onClose, initialType = 'buy' }: TradeModalProps) {
+  const CASH_BALANCE_KEY = 'auravest_cash_balance';
+  const CASH_STARTING_BALANCE_KEY = 'auravest_cash_starting_balance';
+  const DEFAULT_STARTING_CASH = 125847.32;
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>(initialType);
   const [amount, setAmount] = useState('');
   const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
@@ -46,6 +49,46 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
   const normalizedAmount = isLocalGhanaStock ? Math.floor(Number(amount || 0)) : Number(amount || 0);
   const estimatedTotal = amount && !isNaN(normalizedAmount) ? normalizedAmount * currentPrice : 0;
   const fee = estimatedTotal * 0.001;
+  const settlementTotal = tradeType === 'buy' ? estimatedTotal + fee : Math.max(estimatedTotal - fee, 0);
+
+  const calculateNetCashDeltaFromTransactions = (transactions: any[]) => {
+    return (transactions || []).reduce((sum: number, tx: any) => {
+      const status = String(tx?.status || '').toLowerCase();
+      if (status && status !== 'filled' && status !== 'completed') return sum;
+
+      const type = String(tx?.type || '').toLowerCase();
+      const txAmount = Number(tx?.amount || 0);
+      const txPrice = Number(tx?.price || 0);
+      const inferredGross = txAmount * txPrice;
+      const gross = Number.isFinite(Number(tx?.gross)) ? Number(tx.gross) : inferredGross;
+      const txFee = Number.isFinite(Number(tx?.fee)) ? Number(tx.fee) : gross * 0.001;
+
+      if (type === 'deposit') return sum + txAmount;
+      if (type === 'withdrawal') return sum - txAmount;
+
+      if (type === 'sell') return sum + Math.max(gross - txFee, 0);
+      if (type === 'buy') return sum - (gross + txFee);
+      return sum;
+    }, 0);
+  };
+
+  const ensureStartingCashBalance = () => {
+    const existingStartingCash = Number(localStorage.getItem(CASH_STARTING_BALANCE_KEY) || '');
+    if (Number.isFinite(existingStartingCash) && existingStartingCash > 0) return Number(existingStartingCash.toFixed(2));
+
+    const normalizedStartingCash = Number(DEFAULT_STARTING_CASH.toFixed(2));
+    localStorage.setItem(CASH_STARTING_BALANCE_KEY, String(normalizedStartingCash));
+    return normalizedStartingCash;
+  };
+
+  const getAvailableCashBalance = () => {
+    const startingCash = ensureStartingCashBalance();
+    const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+    const netDelta = calculateNetCashDeltaFromTransactions(transactions);
+    const availableCash = Number((startingCash + netDelta).toFixed(2));
+    localStorage.setItem(CASH_BALANCE_KEY, String(availableCash));
+    return availableCash;
+  };
   const isWithinGseMarketHours = () => {
     const now = new Date();
     const day = now.getUTCDay();
@@ -57,19 +100,78 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
 
   const syncPortfolioSnapshotCookie = (portfolio: any) => {
     if (typeof document === 'undefined' || !portfolio) return;
+    const holdings = JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
+    const normalizedTradeHoldings = holdings
+      .filter((holding: any) => holding && Number.isFinite(Number(holding.currentValue || 0)))
+      .map((holding: any) => ({
+        id: String(holding.id || `holding-${holding.symbol || Date.now()}`),
+        symbol: String(holding.symbol || 'N/A'),
+        shares: Number(holding.amount || 0),
+        value: Number(holding.currentValue || 0),
+      }))
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 5);
+
+    const allocationHoldings = Array.isArray(portfolio.assets)
+      ? portfolio.assets
+          .filter((asset: any) => asset && Number.isFinite(Number(asset.value || 0)))
+          .map((asset: any, index: number) => ({
+            id: `asset-${index}-${String(asset.type || 'asset').toLowerCase()}`,
+            symbol: String(asset.type || 'Asset'),
+            shares: Number(asset.allocation || 0),
+            value: Number(asset.value || 0),
+          }))
+          .sort((a: any, b: any) => b.value - a.value)
+          .slice(0, 5)
+      : [];
+
+    const topHoldings = normalizedTradeHoldings.length > 0 ? normalizedTradeHoldings : allocationHoldings;
+
     const snapshot = {
       totalValue: Number(portfolio.totalValue || 0),
       change24h: Number(portfolio.change24h || 0),
       changeAmount: Number(portfolio.changeAmount || 0),
+      topHoldings,
       updatedAt: new Date().toISOString(),
     };
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
     document.cookie = `auravest_portfolio_snapshot=${encodeURIComponent(JSON.stringify(snapshot))}; expires=${expires}; path=/; SameSite=Lax`;
   };
 
+  const syncVestActivitySnapshotCookie = (transactionList: any[]) => {
+    if (typeof document === 'undefined') return;
+
+    const normalizedEvents = (transactionList || [])
+      .map((transaction) => {
+        const rawTimestamp = String(transaction?.timestamp || transaction?.date || new Date().toISOString());
+        const timestamp = Number.isNaN(Date.parse(rawTimestamp)) ? new Date().toISOString() : new Date(rawTimestamp).toISOString();
+        const amount = Number(transaction?.total || 0);
+        return {
+          id: `auravest-${String(transaction?.id || Date.now())}`,
+          app: 'AuraVest',
+          type: String(transaction?.type || 'trade'),
+          title: `${String(transaction?.type || 'Trade').toUpperCase()} ${String(transaction?.asset || transaction?.assetName || 'Asset')}`,
+          amount: Number.isFinite(amount) ? amount : 0,
+          currency: String(transaction?.currency || 'USD'),
+          timestamp,
+          status: String(transaction?.status || 'completed'),
+          meta: {
+            asset: String(transaction?.asset || ''),
+            orderType: String(transaction?.orderType || ''),
+          },
+        };
+      })
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+      .slice(0, 40);
+
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `auravest_activity_snapshot=${encodeURIComponent(JSON.stringify(normalizedEvents))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
   const recalculatePortfolioFromHoldings = (updatedHoldings?: any[]) => {
     const holdings = updatedHoldings || JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
     const localPositions = JSON.parse(localStorage.getItem('auravest_local_positions') || '[]');
+    const cashBalance = Number(localStorage.getItem(CASH_BALANCE_KEY) || '0');
     const groupedValues = new Map<string, number>();
 
     holdings.forEach((holding: any) => {
@@ -82,6 +184,10 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       const amount = Number(position?.amount || 0);
       groupedValues.set('Local Investments', (groupedValues.get('Local Investments') || 0) + amount);
     });
+
+    if (Number.isFinite(cashBalance) && Math.abs(cashBalance) > 0) {
+      groupedValues.set('Cash', (groupedValues.get('Cash') || 0) + cashBalance);
+    }
 
     const assets = Array.from(groupedValues.entries()).map(([type, value]) => ({ type, value, allocation: 0 }));
     const totalValue = assets.reduce((sum, assetItem) => sum + assetItem.value, 0);
@@ -105,6 +211,12 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
     };
     localStorage.setItem('auravest_portfolio', JSON.stringify(portfolioSnapshot));
     syncPortfolioSnapshotCookie(portfolioSnapshot);
+  };
+
+  const getAvailableHoldingAmount = () => {
+    const holdings = JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
+    const currentHolding = holdings.find((holding: any) => String(holding?.symbol || '') === String(asset?.symbol || ''));
+    return Number(currentHolding?.amount || 0);
   };
 
   const updateTradeHoldings = (trade: {
@@ -214,6 +326,24 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       return;
     }
 
+    if (tradeType === 'sell') {
+      const availableAmount = getAvailableHoldingAmount();
+      if (availableAmount <= 0) {
+        alert(`No ${asset.symbol} position available to sell`);
+        return;
+      }
+      if (normalizedAmount > availableAmount) {
+        alert(`Insufficient ${asset.symbol} holdings. Available: ${availableAmount}`);
+        return;
+      }
+    } else {
+      const availableCash = getAvailableCashBalance();
+      if (settlementTotal > availableCash) {
+        alert(`Insufficient cash. Available cash: ${currencyPrefix}${availableCash.toFixed(2)}`);
+        return;
+      }
+    }
+
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -227,7 +357,10 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       currency: isLocalGhanaStock ? 'GHS' : 'USD',
       amount: normalizedAmount,
       price: orderType === 'limit' && limitPrice ? Number(limitPrice) : currentPrice,
-      total: estimatedTotal + fee,
+      gross: estimatedTotal,
+      fee,
+      netSettlement: tradeType === 'sell' ? Math.max(estimatedTotal - fee, 0) : -(estimatedTotal + fee),
+      total: settlementTotal,
       quantityType: isLocalGhanaStock ? 'shares' : 'units',
       orderType,
       status: tradeStatus,
@@ -240,8 +373,10 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       timestamp: new Date().toISOString(),
     });
     localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
+    syncVestActivitySnapshotCookie(transactions);
 
     if (tradeStatus === 'filled') {
+      getAvailableCashBalance();
       const updatedHoldings = updateTradeHoldings({
         type: tradeType,
         amount: normalizedAmount,
@@ -262,7 +397,7 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       currency: isLocalGhanaStock ? 'GHS' : 'USD',
       amount: normalizedAmount,
       price: orderType === 'limit' && limitPrice ? Number(limitPrice) : currentPrice,
-      total: estimatedTotal + fee,
+      total: settlementTotal,
       quantityType: isLocalGhanaStock ? 'shares' : 'units',
       status: tradeStatus,
     });
@@ -327,8 +462,8 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
 
           <div className="bg-muted rounded-lg p-4 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total</span>
-              <span className="font-bold text-lg">{currencyPrefix}{(estimatedTotal + fee).toFixed(2)}</span>
+              <span className="text-muted-foreground">{tradeType === 'buy' ? 'Estimated Cost' : 'Estimated Proceeds'}</span>
+              <span className="font-bold text-lg">{currencyPrefix}{settlementTotal.toFixed(2)}</span>
             </div>
           </div>
 

@@ -37,9 +37,10 @@ export function getVestInsights(userId) {
   };
 }
 
-export function getWalletInsights() {
-  const balance = walletData.balance;
-  const recentTransactions = walletData.transactions.slice(-5);
+export function getWalletInsights(userId) {
+  const isDemoUser = Number.parseInt(String(userId || '1'), 10) === 1;
+  const balance = isDemoUser ? walletData.balance : 0;
+  const recentTransactions = isDemoUser ? walletData.transactions.slice(-5) : [];
 
   return {
     balance,
@@ -54,7 +55,7 @@ export function getWalletInsights() {
 export function getOverallInsights(userId) {
   const bank = getBankInsights(userId);
   const vest = getVestInsights(userId);
-  const wallet = getWalletInsights();
+  const wallet = getWalletInsights(userId);
 
   return {
     netWorth: bank.totalBalance + vest.totalValue + wallet.balance,

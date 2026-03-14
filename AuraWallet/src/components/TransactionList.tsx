@@ -9,7 +9,6 @@ export default function TransactionList({
 }) {
   const [filter, setFilter] = useState<'all'|'credit'|'debit'>('all');
   const [query, setQuery] = useState('');
-
   const filtered = walletData.transactions
     .filter((t: any) => filter === 'all' ? true : (filter === 'credit' ? t.amount > 0 : t.amount < 0))
     .filter((t: any) => t.description.toLowerCase().includes(query.toLowerCase()));

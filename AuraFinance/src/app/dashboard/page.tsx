@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { getBankInsights, getOverallInsights, getVestInsights, getWalletInsights } from 'lib/shared/auraai-core';
@@ -11,6 +11,36 @@ import Image from 'next/image';
 import AuraAIChat from '@/components/AuraAIChat';
 import UserProfileMenu from '@/components/UserProfileMenu';
 import { AlertTriangle, BellRing, Info, Moon, Sun } from 'lucide-react';
+import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { AURAFINANCE_STORAGE_KEYS } from '@/lib/financeStateKeys';
+import {
+  getUnifiedLedgerEvents,
+  replayUnifiedLedger,
+  appendUnifiedLedgerEvent,
+  UnifiedLedgerEvent,
+} from '../../../../shared/unified-ledger';
+import { enqueueCrossAppTransfer } from '../../../../shared/cross-app-transfer-sync';
+
+type VestHolding = {
+  id: string;
+  symbol: string;
+  shares: number;
+  value: number;
+};
+
+type UnifiedReplaySnapshot = {
+  bank: number;
+  vest: number;
+  wallet: number;
+  netWorth: number;
+  eventCount: number;
+  lastEventAt: string | null;
+  touched: {
+    bank: boolean;
+    vest: boolean;
+    wallet: boolean;
+  };
+};
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -20,14 +50,93 @@ export default function DashboardPage() {
   const [bankBalanceValue, setBankBalanceValue] = useState<number | null>(null);
   const [vestPortfolioValue, setVestPortfolioValue] = useState<number | null>(null);
   const [walletBalanceValue, setWalletBalanceValue] = useState<number | null>(null);
+  const [unifiedReplaySnapshot, setUnifiedReplaySnapshot] = useState<UnifiedReplaySnapshot | null>(null);
+  const [unifiedLedgerEvents, setUnifiedLedgerEvents] = useState<UnifiedLedgerEvent[]>([]);
+  const [vestHoldings, setVestHoldings] = useState<VestHolding[]>([]);
+  // Transfer panel state
+  const [showTransferPanel, setShowTransferPanel] = useState(false);
+  const [transferFrom, setTransferFrom] = useState<'bank' | 'wallet' | 'vest'>('bank');
+  const [transferTo, setTransferTo] = useState<'bank' | 'wallet' | 'vest'>('wallet');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferMsg, setTransferMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [transferSuccessModal, setTransferSuccessModal] = useState<{
+    amount: number;
+    from: 'bank' | 'wallet' | 'vest';
+    to: 'bank' | 'wallet' | 'vest';
+    timestamp: string;
+    reference: string;
+  } | null>(null);
+  const sessionUserId = String((session?.user as { id?: string } | undefined)?.id || '1');
 
-  const getCookieValue = (name: string) => {
-    if (typeof document === 'undefined') return null;
-    const match = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${name}=`));
-    return match ? match.split('=')[1] : null;
+  const captureFinanceStateSnapshot = useCallback(() => {
+    const snapshot: Record<string, string | null> = {};
+    for (const key of AURAFINANCE_STORAGE_KEYS) {
+      snapshot[key] = localStorage.getItem(key);
+    }
+    return snapshot;
+  }, []);
+
+  const persistFinanceStateToServer = useCallback(async (targetUserId: string) => {
+    const normalizedUserId = String(targetUserId || '').trim();
+    if (!normalizedUserId) return;
+
+    const state = captureFinanceStateSnapshot();
+    try {
+      await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: normalizedUserId, state }),
+        keepalive: true,
+      });
+    } catch {
+      // Retry naturally on the next write.
+    }
+  }, [captureFinanceStateSnapshot]);
+
+  const normalizeVestHoldings = (rawHoldings: unknown): VestHolding[] => {
+    if (!Array.isArray(rawHoldings)) return [];
+
+    return rawHoldings
+      .map((holding, index) => {
+        const row = (holding && typeof holding === 'object') ? (holding as Record<string, unknown>) : {};
+        return {
+          id: String(row.id || `vest-holding-${row.symbol || index}-${index}`),
+          symbol: String(row.symbol || 'N/A'),
+          shares: Number(row.shares || row.amount || 0),
+          value: Number(row.value || row.currentValue || 0),
+        };
+      })
+      .filter((holding) => Number.isFinite(holding.value) && holding.value > 0)
+      .sort((a, b) => b.value - a.value);
   };
+
+  const refreshUnifiedReplay = useCallback(async (uid: string) => {
+    if (!uid) return;
+    try {
+      const [state, evts] = await Promise.all([
+        replayUnifiedLedger(uid),
+        getUnifiedLedgerEvents(uid),
+      ]);
+      const touched = {
+        bank: evts.some((e) => e.app === 'bank'),
+        vest: evts.some((e) => e.app === 'vest'),
+        wallet: evts.some((e) => e.app === 'wallet'),
+      };
+      setUnifiedReplaySnapshot({
+        bank: Number((state.cashByApp.bank ?? 0).toFixed(2)),
+        vest: Number((state.cashByApp.vest ?? 0).toFixed(2)),
+        wallet: Number((state.cashByApp.wallet ?? 0).toFixed(2)),
+        netWorth: state.totalNetWorthEstimate,
+        eventCount: evts.length,
+        lastEventAt: evts.length > 0 ? evts[evts.length - 1].timestamp : null,
+        touched,
+      });
+      setUnifiedLedgerEvents(evts.slice().reverse()); // newest first
+    } catch {
+      // non-fatal
+    }
+  }, []);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -36,80 +145,139 @@ export default function DashboardPage() {
   }, [status, router]);
 
   useEffect(() => {
-    const savedDarkMode = localStorage.getItem('aurafinance_dark_mode') === 'true';
-    setDarkMode(savedDarkMode);
-    document.documentElement.classList.toggle('dark', savedDarkMode);
-  }, []);
-
-  useEffect(() => {
-    const syncCrossAppSnapshots = () => {
+    const bootstrap = async () => {
       try {
-        const rawBankSnapshotCookie = getCookieValue('aurabank_balance_snapshot');
-        if (rawBankSnapshotCookie) {
-          const bankSnapshot = JSON.parse(decodeURIComponent(rawBankSnapshotCookie));
-          if (bankSnapshot && typeof bankSnapshot.totalBalance === 'number') {
-            setBankBalanceValue(bankSnapshot.totalBalance);
+        const response = await fetch(`/api/state?userId=${encodeURIComponent(sessionUserId)}`);
+        if (response.ok) {
+          const payload = await response.json() as { state?: Record<string, string | null> | null };
+          if (payload?.state) {
+            for (const key of AURAFINANCE_STORAGE_KEYS) {
+              const value = payload.state[key];
+              if (value === null || value === undefined) {
+                localStorage.removeItem(key);
+              } else {
+                localStorage.setItem(key, value);
+              }
+            }
           }
         }
-
-        const rawWalletSnapshotCookie = getCookieValue('aurawallet_balance_snapshot');
-        if (rawWalletSnapshotCookie) {
-          const walletSnapshot = JSON.parse(decodeURIComponent(rawWalletSnapshotCookie));
-          if (walletSnapshot && typeof walletSnapshot.balance === 'number') {
-            setWalletBalanceValue(walletSnapshot.balance);
-          }
-        }
-
-        const rawVestSnapshotCookie = getCookieValue('auravest_portfolio_snapshot');
-        if (rawVestSnapshotCookie) {
-          const vestSnapshot = JSON.parse(decodeURIComponent(rawVestSnapshotCookie));
-          if (vestSnapshot && typeof vestSnapshot.totalValue === 'number') {
-            setVestPortfolioValue(vestSnapshot.totalValue);
-            return;
-          }
-        }
-
-        const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
-        if (storedPortfolio && typeof storedPortfolio.totalValue === 'number') {
-          setVestPortfolioValue(storedPortfolio.totalValue);
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to sync cross-app snapshots:', error);
+      } catch {
+        // Fall back to local state.
       }
 
-      setVestPortfolioValue(null);
+      const savedDarkMode = localStorage.getItem('aurafinance_dark_mode') === 'true';
+      setDarkMode(savedDarkMode);
+      document.documentElement.classList.toggle('dark', savedDarkMode);
+      await persistFinanceStateToServer(sessionUserId);
     };
 
-    syncCrossAppSnapshots();
-    const syncInterval = setInterval(syncCrossAppSnapshots, 2000);
+    void bootstrap();
+  }, [sessionUserId, persistFinanceStateToServer]);
 
-    return () => clearInterval(syncInterval);
-  }, []);
+  useEffect(() => {
+    if (!session?.user) return;
+
+    writeUnifiedAuthSession({
+      userId: sessionUserId,
+      email: session.user.email ?? undefined,
+      name: session.user.name ?? undefined,
+      sourceApp: 'AuraFinance',
+    });
+  }, [session, sessionUserId]);
+
+  useEffect(() => {
+    const syncAuthoritativeSuiteBalances = async () => {
+      try {
+        const response = await fetch(`/api/suite-balances?userId=${encodeURIComponent(sessionUserId)}`);
+        if (!response.ok) return false;
+
+        const payload = await response.json() as {
+          bankBalance?: number;
+          walletBalance?: number;
+          vestPortfolioValue?: number;
+          vestTopHoldings?: VestHolding[];
+        };
+
+        if (typeof payload.bankBalance === 'number') {
+          setBankBalanceValue(payload.bankBalance);
+        }
+        if (typeof payload.walletBalance === 'number') {
+          setWalletBalanceValue(payload.walletBalance);
+        }
+        if (typeof payload.vestPortfolioValue === 'number') {
+          setVestPortfolioValue(payload.vestPortfolioValue);
+        }
+        if (Array.isArray(payload.vestTopHoldings) && payload.vestTopHoldings.length > 0) {
+          setVestHoldings(normalizeVestHoldings(payload.vestTopHoldings));
+        }
+        return true;
+      } catch {
+        // Fallback logic below keeps dashboard functional when endpoint is temporarily unavailable.
+        return false;
+      }
+    };
+
+    void syncAuthoritativeSuiteBalances();
+    const authoritativeInterval = setInterval(() => {
+      void syncAuthoritativeSuiteBalances();
+    }, 1800);
+
+    refreshUnifiedReplay(sessionUserId);
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('aura-ledger-sync');
+      channel.onmessage = (event) => {
+        if (event?.data?.type === 'ledger.updated') {
+          refreshUnifiedReplay(sessionUserId);
+        }
+      };
+    }
+
+    return () => {
+      clearInterval(authoritativeInterval);
+      channel?.close();
+    };
+  }, [sessionUserId, session, refreshUnifiedReplay]);
 
   const toggleDarkMode = () => {
     const newDarkMode = !darkMode;
     setDarkMode(newDarkMode);
     localStorage.setItem('aurafinance_dark_mode', String(newDarkMode));
     document.documentElement.classList.toggle('dark', newDarkMode);
+    void persistFinanceStateToServer(sessionUserId);
   };
 
   if (status === 'loading') return <div>Loading...</div>;
   if (!session) return null;
 
-  const userId = session?.user?.id ? parseInt(session.user.id as string, 10) : 1;
+  const userId = sessionUserId ? parseInt(sessionUserId, 10) : 1;
   const user = getUser(userId);
   const insights = getOverallInsights(userId);
   const bankInsights = getBankInsights(userId);
   const vestInsights = getVestInsights(userId);
   const walletInsights = getWalletInsights(userId);
-  const effectiveBankBalance = bankBalanceValue ?? bankInsights.totalBalance;
-  const effectiveVestValue = vestPortfolioValue ?? vestInsights.totalValue;
-  const effectiveWalletBalance = walletBalanceValue ?? walletInsights.balance;
+
+  const baseBankBalance = bankBalanceValue ?? bankInsights.totalBalance;
+  const baseVestValue = vestPortfolioValue ?? vestInsights.totalValue;
+  const baseWalletBalance = walletBalanceValue ?? walletInsights.balance;
+
+  const effectiveBankBalance = Number(baseBankBalance.toFixed(2));
+  const effectiveVestValue = Number(baseVestValue.toFixed(2));
+  const effectiveWalletBalance = Number(baseWalletBalance.toFixed(2));
   const liveNetWorth = effectiveBankBalance + effectiveVestValue + effectiveWalletBalance;
 
   const recentTransactions = user?.bank?.transactions?.slice(-5).reverse() ?? [];
-  const topHoldings = user?.vest?.portfolio?.slice(0, 3) ?? [];
+  const mockHoldings = (user?.vest?.portfolio ?? []).map((holding, index: number) => {
+    const row = (holding && typeof holding === 'object') ? (holding as Record<string, unknown>) : {};
+    return {
+      id: String(row.id || `mock-holding-${index}`),
+      symbol: String(row.symbol || 'N/A'),
+      shares: Number(row.shares || 0),
+      value: Number(row.value || 0),
+    };
+  });
+  const topHoldings = (vestHoldings.length > 0 ? vestHoldings : mockHoldings).slice(0, 3);
 
   // Spending by category (mock data)
   const spendingCategories = [
@@ -133,6 +301,253 @@ export default function DashboardPage() {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
     }).format(amount);
+
+  const openAuraWalletTransfer = () => {
+    window.open('http://localhost:3003', '_blank', 'noopener,noreferrer');
+  };
+
+  const openAuraVestInvest = () => {
+    window.open('http://localhost:3002/dashboard', '_blank', 'noopener,noreferrer');
+  };
+
+  const appLabel = (app: 'bank' | 'wallet' | 'vest') => {
+    if (app === 'bank') return 'AuraBank';
+    if (app === 'wallet') return 'AuraWallet';
+    return 'AuraVest';
+  };
+
+  const handleQuickTransfer = async () => {
+    const parsed = parseFloat(transferAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setTransferMsg({ type: 'err', text: 'Enter a valid positive amount.' });
+      return;
+    }
+    if (transferFrom === transferTo) {
+      setTransferMsg({ type: 'err', text: 'Source and destination must differ.' });
+      return;
+    }
+    setTransferring(true);
+    setTransferMsg(null);
+    try {
+      const actionId = `qt-${Date.now()}`;
+      const transferResponse = await fetch('/api/quick-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: sessionUserId,
+          from: transferFrom,
+          to: transferTo,
+          amount: parsed,
+          actionId,
+        }),
+      });
+
+      const transferApplication = await transferResponse.json() as {
+        ok?: boolean;
+        error?: string;
+        deltas?: { bank: number; wallet: number; vest: number };
+      };
+
+      if (!transferResponse.ok || !transferApplication?.ok || !transferApplication.deltas) {
+        setTransferMsg({ type: 'err', text: transferApplication?.error || 'Transfer failed.' });
+        return;
+      }
+
+      const eventType = `transfer.${transferFrom}_to_${transferTo}` as const;
+      await appendUnifiedLedgerEvent({
+        userId: sessionUserId,
+        app: transferFrom,
+        type: eventType,
+        amount: parsed,
+        currency: 'USD',
+        metadata: {
+          source: 'finance.quickTransfer',
+          toApp: transferTo,
+          description: `Quick transfer: ${transferFrom} → ${transferTo}`,
+          sourceActionId: actionId,
+        },
+      });
+
+      enqueueCrossAppTransfer({
+        id: actionId,
+        userId: sessionUserId,
+        fromApp: transferFrom,
+        toApp: transferTo,
+        amount: parsed,
+        description: `Quick transfer: ${transferFrom} -> ${transferTo}`,
+      });
+
+      const deltas = transferApplication.deltas;
+      setBankBalanceValue((value) => Number(((value ?? baseBankBalance) + deltas.bank).toFixed(2)));
+      setVestPortfolioValue((value) => Number(((value ?? baseVestValue) + deltas.vest).toFixed(2)));
+      setWalletBalanceValue((value) => Number(((value ?? baseWalletBalance) + deltas.wallet).toFixed(2)));
+
+      setTransferMsg({ type: 'ok', text: `✓ $${parsed.toFixed(2)} queued: ${transferFrom} → ${transferTo}` });
+      setTransferSuccessModal({
+        amount: parsed,
+        from: transferFrom,
+        to: transferTo,
+        timestamp: new Date().toISOString(),
+        reference: actionId,
+      });
+      setTransferAmount('');
+      refreshUnifiedReplay(sessionUserId);
+    } catch {
+      setTransferMsg({ type: 'err', text: 'Transfer failed. Please try again.' });
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const downloadUnifiedStatement = async () => {
+    const today = new Date();
+    const dateStamp = today.toISOString().slice(0, 10);
+    const monthlyExpenseValue = Number.isFinite(monthlyExpenses) ? monthlyExpenses : 0;
+
+    const statementLines = [
+      `Aura Finance Unified Statement - ${dateStamp}`,
+      '',
+      'Summary',
+      `- Net Worth: ${formatCurrency(liveNetWorth)}`,
+      `- AuraBank Balance: ${formatCurrency(effectiveBankBalance)}`,
+      `- AuraVest Portfolio: ${formatCurrency(effectiveVestValue)}`,
+      `- AuraWallet Balance: ${formatCurrency(effectiveWalletBalance)}`,
+      `- Monthly Income: ${formatCurrency(monthlyIncome)}`,
+      `- Monthly Expenses: ${formatCurrency(monthlyExpenseValue)}`,
+      `- Monthly Net Cash Flow: ${formatCurrency(cashFlow)}`,
+      '',
+      'Recent AuraBank Transactions',
+      ...recentTransactions.map((tx) => {
+        const type = tx.amount >= 0 ? 'Credit' : 'Debit';
+        return `- ${tx.date} | ${tx.description} | ${formatCurrency(tx.amount)} | ${type}`;
+      }),
+      '',
+      'Top AuraVest Holdings',
+      ...topHoldings.map((holding) => {
+        const allocation = effectiveVestValue > 0 ? (holding.value / effectiveVestValue) * 100 : 0;
+        return `- ${holding.symbol} | Qty ${holding.shares.toFixed(2)} | Value ${formatCurrency(holding.value)} | Allocation ${allocation.toFixed(2)}%`;
+      }),
+    ];
+
+    // Build a lightweight single-page PDF statement with embedded logo.
+    const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    const maxLines = 44;
+    const clippedLines = statementLines.slice(0, maxLines);
+    const encoder = new TextEncoder();
+
+    let logoBytes: Uint8Array | null = null;
+    let logoWidth = 56;
+    let logoHeight = 56;
+
+    try {
+      const logoResponse = await fetch('/images/suite.jpeg', { cache: 'no-store' });
+      if (logoResponse.ok) {
+        const logoBuffer = await logoResponse.arrayBuffer();
+        logoBytes = new Uint8Array(logoBuffer);
+        const logoBlob = new Blob([logoBuffer], { type: 'image/jpeg' });
+        const logoBlobUrl = URL.createObjectURL(logoBlob);
+
+        await new Promise<void>((resolve) => {
+          const img = new window.Image();
+          img.onload = () => {
+            logoWidth = img.naturalWidth || logoWidth;
+            logoHeight = img.naturalHeight || logoHeight;
+            URL.revokeObjectURL(logoBlobUrl);
+            resolve();
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(logoBlobUrl);
+            resolve();
+          };
+          img.src = logoBlobUrl;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load statement logo:', error);
+      logoBytes = null;
+    }
+
+    const drawLogoCommand = logoBytes
+      ? `q\n48 0 0 48 40 738 cm\n/Im1 Do\nQ\n`
+      : '';
+
+    const contentStream = `${drawLogoCommand}BT\n/F1 11 Tf\n14 TL\n${logoBytes ? '100 772 Td' : '40 790 Td'}\n${clippedLines
+      .map((line, index) => `${index > 0 ? 'T*\n' : ''}(${escapePdfText(line)}) Tj`)
+      .join('\n')}\nET`;
+
+    const pdfChunks: Uint8Array[] = [];
+    let pdfLength = 0;
+    const pushChunk = (chunk: Uint8Array) => {
+      pdfChunks.push(chunk);
+      pdfLength += chunk.length;
+    };
+
+    pushChunk(encoder.encode('%PDF-1.4\n'));
+
+    const objectOffsets: number[] = [0];
+    const writeObject = (objectNumber: number, body: Uint8Array) => {
+      objectOffsets[objectNumber] = pdfLength;
+      pushChunk(encoder.encode(`${objectNumber} 0 obj\n`));
+      pushChunk(body);
+      pushChunk(encoder.encode('\nendobj\n'));
+    };
+
+    const xObjectResource = logoBytes ? '/XObject << /Im1 6 0 R >> ' : '';
+    writeObject(1, encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
+    writeObject(2, encoder.encode('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
+    writeObject(
+      3,
+      encoder.encode(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> ${xObjectResource}>> /Contents 5 0 R >>`),
+    );
+    writeObject(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
+
+    const contentBytes = encoder.encode(contentStream);
+    const contentStreamPrefix = encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`);
+    const contentStreamSuffix = encoder.encode('\nendstream');
+    const contentBody = new Uint8Array(contentStreamPrefix.length + contentBytes.length + contentStreamSuffix.length);
+    contentBody.set(contentStreamPrefix, 0);
+    contentBody.set(contentBytes, contentStreamPrefix.length);
+    contentBody.set(contentStreamSuffix, contentStreamPrefix.length + contentBytes.length);
+    writeObject(5, contentBody);
+
+    if (logoBytes) {
+      const imagePrefix = encoder.encode(
+        `<< /Type /XObject /Subtype /Image /Width ${logoWidth} /Height ${logoHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoBytes.length} >>\nstream\n`,
+      );
+      const imageSuffix = encoder.encode('\nendstream');
+      const imageBody = new Uint8Array(imagePrefix.length + logoBytes.length + imageSuffix.length);
+      imageBody.set(imagePrefix, 0);
+      imageBody.set(logoBytes, imagePrefix.length);
+      imageBody.set(imageSuffix, imagePrefix.length + logoBytes.length);
+      writeObject(6, imageBody);
+    }
+
+    const objectCount = logoBytes ? 6 : 5;
+    const xrefStart = pdfLength;
+    pushChunk(encoder.encode(`xref\n0 ${objectCount + 1}\n`));
+    pushChunk(encoder.encode('0000000000 65535 f \n'));
+    for (let objectNumber = 1; objectNumber <= objectCount; objectNumber += 1) {
+      pushChunk(encoder.encode(`${String(objectOffsets[objectNumber] || 0).padStart(10, '0')} 00000 n \n`));
+    }
+    pushChunk(encoder.encode(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`));
+
+    const finalPdfBytes = new Uint8Array(pdfLength);
+    let finalOffset = 0;
+    for (const chunk of pdfChunks) {
+      finalPdfBytes.set(chunk, finalOffset);
+      finalOffset += chunk.length;
+    }
+
+    const blob = new Blob([finalPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = `aura-finance-statement-${dateStamp}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  };
 
   // Upcoming bills
   const upcomingBills = [
@@ -188,29 +603,25 @@ export default function DashboardPage() {
       : []),
   ];
 
-  const unifiedActivity = [
-    ...recentTransactions.map((tx) => ({
-      id: `bank-${tx.id}`,
-      source: 'AuraBank' as const,
-      title: tx.description,
-      date: tx.date,
-      amount: tx.amount,
-    })),
-    ...topHoldings.slice(0, 2).map((holding) => ({
-      id: `vest-${holding.id}`,
-      source: 'AuraVest' as const,
-      title: `Holding update: ${holding.symbol}`,
-      date: 'Today',
-      amount: holding.value * 0.01,
-    })),
-    ...walletInsights.insights.slice(0, 2).map((insight, index) => ({
-      id: `wallet-${index}`,
-      source: 'AuraWallet' as const,
-      title: insight,
-      date: 'Today',
-      amount: null,
-    })),
-  ].slice(0, 8);
+  const activityFeed = unifiedLedgerEvents.slice(0, 20).map((event) => {
+    const source = event.app === 'bank' ? 'AuraBank' : event.app === 'vest' ? 'AuraVest' : 'AuraWallet';
+    const isTransfer = event.type.startsWith('transfer.');
+    const signedAmount = event.type === 'funding.withdrawal' || isTransfer
+      ? -Math.abs(Number(event.amount || 0))
+      : Math.abs(Number(event.amount || 0));
+
+    const fallbackTitle = isTransfer
+      ? `Transfer: ${source} to ${String(event.metadata?.toApp || '').toUpperCase() || 'another app'}`
+      : event.type.replace('.', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+
+    return {
+      id: event.id,
+      source,
+      title: String(event.metadata?.description || fallbackTitle),
+      date: new Date(event.timestamp).toLocaleString(),
+      amount: Number.isFinite(signedAmount) ? signedAmount : 0,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -233,7 +644,7 @@ export default function DashboardPage() {
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <UserProfileMenu userName={session.user.name ?? undefined} userEmail={session.user.email ?? undefined} />
+            <UserProfileMenu userName={session.user?.name ?? undefined} userEmail={session.user?.email ?? undefined} />
           </div>
         </div>
 
@@ -245,18 +656,33 @@ export default function DashboardPage() {
           </div>
           <div className="bg-gradient-to-br from-white to-pink-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraBank Balance</h3>
-            <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(bankBalanceValue ?? bankInsights.totalBalance)}</p>
+            <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(effectiveBankBalance)}</p>
             <p className="text-xs text-muted-foreground">Monthly spend: {formatCurrency(bankInsights.monthlySpending)}</p>
           </div>
           <div className="bg-gradient-to-br from-white to-red-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraVest Portfolio</h3>
-            <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(vestPortfolioValue ?? vestInsights.totalValue)}</p>
+            <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(effectiveVestValue)}</p>
             <p className="text-xs text-muted-foreground">Top: {topHoldings[0]?.symbol ?? 'N/A'}</p>
           </div>
           <div className="bg-gradient-to-br from-white via-green-50/60 to-emerald-100/70 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraWallet Balance</h3>
             <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(effectiveWalletBalance)}</p>
             <p className="text-xs text-muted-foreground">Last activity: {walletInsights.insights[1]}</p>
+          </div>
+        </div>
+
+        <div className="mb-8 p-4 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Unified Ledger Status</p>
+              <p className="text-xs text-muted-foreground">
+                Events: {unifiedReplaySnapshot?.eventCount ?? 0}
+                {unifiedReplaySnapshot?.lastEventAt ? ` • Last update: ${new Date(unifiedReplaySnapshot.lastEventAt).toLocaleString()}` : ' • Waiting for events'}
+              </p>
+            </div>
+            <div className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              {unifiedReplaySnapshot ? 'Replay Active' : 'Fallback Mode'}
+            </div>
           </div>
         </div>
 
@@ -280,9 +706,9 @@ export default function DashboardPage() {
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <Button className="w-full bg-gradient-to-r from-accent to-teal hover:opacity-90" onClick={() => alert('Transfer feature coming soon')}>Transfer to AuraWallet</Button>
-              <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => alert('Investing feature coming soon')}>Invest in AuraVest</Button>
-              <Button className="w-full" variant="outline" onClick={() => alert('Statements feature coming soon')}>Download Statements</Button>
+              <Button className="w-full bg-gradient-to-r from-accent to-teal hover:opacity-90" onClick={openAuraWalletTransfer}>Send Money with AuraWallet</Button>
+              <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={openAuraVestInvest}>Invest in AuraVest</Button>
+              <Button className="w-full" variant="outline" onClick={downloadUnifiedStatement}>Download Statements</Button>
             </div>
           </div>
         </div>
@@ -463,10 +889,10 @@ export default function DashboardPage() {
             <span className="text-xs text-muted-foreground">AuraBank • AuraVest • AuraWallet</span>
           </div>
           <div className="space-y-3">
-            {unifiedActivity.length === 0 ? (
+            {activityFeed.length === 0 ? (
               <p className="text-sm text-muted-foreground">No activity available yet.</p>
             ) : (
-              unifiedActivity.map((activity) => (
+              activityFeed.map((activity) => (
                 <div key={activity.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/70 dark:from-slate-800 dark:to-slate-700 border border-slate-100 dark:border-slate-700">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -628,10 +1054,138 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Quick Transfer ──────────────────────────────────────────── */}
+        <div className="mb-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">Quick Transfer</h3>
+            <button
+              onClick={() => setShowTransferPanel((v) => !v)}
+              className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-primary to-magenta text-white font-semibold"
+            >
+              {showTransferPanel ? 'Hide' : 'Open'}
+            </button>
+          </div>
+          {showTransferPanel && (
+            <div className="grid sm:grid-cols-4 gap-4 items-end">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">From</label>
+                <select
+                  value={transferFrom}
+                  onChange={(e) => setTransferFrom(e.target.value as 'bank' | 'wallet' | 'vest')}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="bank">AuraBank</option>
+                  <option value="wallet">AuraWallet</option>
+                  <option value="vest">AuraVest</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">To</label>
+                <select
+                  value={transferTo}
+                  onChange={(e) => setTransferTo(e.target.value as 'bank' | 'wallet' | 'vest')}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="bank">AuraBank</option>
+                  <option value="wallet">AuraWallet</option>
+                  <option value="vest">AuraVest</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Amount (USD)</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={transferAmount}
+                  onChange={(e) => setTransferAmount(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <Button
+                onClick={handleQuickTransfer}
+                disabled={transferring}
+                className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white"
+              >
+                {transferring ? 'Sending…' : 'Transfer'}
+              </Button>
+              {transferMsg && (
+                <p className={`sm:col-span-4 text-sm font-medium ${transferMsg.type === 'ok' ? 'text-accent' : 'text-destructive'}`}>
+                  {transferMsg.text}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <AuraAIChat />
+
+      {transferSuccessModal && (
+        <div
+          className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm"
+          onClick={() => setTransferSuccessModal(null)}
+        >
+          <div
+            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl dark:border-slate-700/80 dark:bg-slate-900/95"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-primary/15 blur-2xl" />
+            <div className="pointer-events-none absolute -left-14 -bottom-20 h-40 w-40 rounded-full bg-magenta/20 blur-2xl" />
+
+            <div className="relative">
+              <div className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
+                Transfer Completed
+              </div>
+
+              <div className="mt-4 flex items-start gap-4">
+                <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-primary text-2xl font-bold text-white shadow-lg shadow-accent/30">
+                  ✓
+                </div>
+                <div>
+                  <h4 className="text-2xl font-extrabold text-foreground">Success</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your transfer has been processed and synced across the suite.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-purple-50/40 p-4 dark:border-slate-700 dark:from-slate-800 dark:to-slate-800/80">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount Sent</p>
+                <p className="mt-1 text-3xl font-black text-foreground">{formatCurrency(transferSuccessModal.amount)}</p>
+              </div>
+
+              <div className="mt-4 space-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/70">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Route</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-foreground dark:bg-slate-900">
+                    {appLabel(transferSuccessModal.from)} {' -> '} {appLabel(transferSuccessModal.to)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Time</span>
+                  <span className="font-semibold text-foreground">{new Date(transferSuccessModal.timestamp).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Reference</span>
+                  <span className="font-mono text-xs text-foreground">{transferSuccessModal.reference}</span>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <Button
+                  onClick={() => setTransferSuccessModal(null)}
+                  className="w-full bg-gradient-to-r from-primary to-magenta py-2.5 text-white shadow-lg shadow-primary/30 hover:opacity-95"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

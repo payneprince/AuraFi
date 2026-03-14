@@ -192,7 +192,11 @@ export default function TransactionsPage({ userId }: { userId: number }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredTransactions.map((transaction: any) => (
+              {filteredTransactions.map((transaction: any) => {
+                const amountValue = Number(transaction.amount);
+                const normalizedAmount = Number.isFinite(amountValue) ? amountValue : 0;
+
+                return (
                 <tr key={transaction.id} className="hover:bg-slate-50 transition">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
@@ -231,11 +235,11 @@ export default function TransactionsPage({ userId }: { userId: number }) {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <span className={`font-semibold ${transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-  {transaction.type === 'credit' ? '+' : '-'}{formatMoney(Math.abs(transaction.amount), accounts.find((acc: any) => acc.id === transaction.accountId)?.currency || 'USD')}
+  {transaction.type === 'credit' ? '+' : '-'}{formatMoney(Math.abs(normalizedAmount), accounts.find((acc: any) => acc.id === transaction.accountId)?.currency || 'USD')}
                     </span>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

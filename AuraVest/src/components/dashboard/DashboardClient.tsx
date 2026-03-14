@@ -20,10 +20,15 @@ import TradePage from './TradePage';
 import MorePage from './MorePage';
 import LearnPage from './LearnPage';
 import AuraAIChat from '@/components/AuraAIChat';
+import { getPortfolio } from '@/lib/mockAPI';
+import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
+import { claimCrossAppTransfersForApp } from '../../../../shared/cross-app-transfer-sync';
+import { readUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'markets' | 'portfolio' | 'trade' | 'more' | 'learn'>('home');
   const [darkMode, setDarkMode] = useState(false);
+  const [syncVersion, setSyncVersion] = useState(0);
 
   // Dark mode setup
   useEffect(() => {
@@ -32,6 +37,128 @@ export default function DashboardClient() {
       setDarkMode(savedDarkMode);
       if (savedDarkMode) document.documentElement.classList.add('dark');
     }
+  }, []);
+
+  useEffect(() => {
+    const resolveActiveUserId = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('auravest_user') || '{}') as { id?: string };
+        const scopedSessionUserId = sessionStorage.getItem('paynesuite_userId');
+        const unifiedUserId = readUnifiedAuthSession()?.userId;
+        return String(user?.id || scopedSessionUserId || unifiedUserId || '1');
+      } catch {
+        return String(sessionStorage.getItem('paynesuite_userId') || readUnifiedAuthSession()?.userId || '1');
+      }
+    };
+
+    const applyQueuedTransfers = async () => {
+      const activeUserId = resolveActiveUserId();
+      const transferEvents = claimCrossAppTransfersForApp('vest', activeUserId);
+      if (transferEvents.length === 0) return;
+
+      const transactions = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('auravest_transactions') || '[]') as Array<Record<string, unknown>>;
+        } catch {
+          return [];
+        }
+      })();
+
+      for (const event of transferEvents) {
+        const amount = Number(event.amount || 0);
+        const delta = event.fromApp === 'vest' ? -amount : amount;
+        const absAmount = Math.abs(Number(delta.toFixed(2)));
+
+        transactions.unshift({
+          id: `vest-transfer-${event.id}`,
+          type: delta < 0 ? 'withdrawal' : 'deposit',
+          asset: 'USD',
+          assetName: delta < 0 ? `Transfer to ${event.toApp}` : `Transfer from ${event.fromApp}`,
+          amount: absAmount,
+          price: 1,
+          gross: absAmount,
+          fee: 0,
+          total: absAmount,
+          currency: 'USD',
+          quantityType: 'units',
+          orderType: 'market',
+          sourceActionId: event.id,
+          status: 'completed',
+          timestamp: event.timestamp,
+          note: event.description || '',
+        });
+      }
+
+      localStorage.setItem('auravest_transactions', JSON.stringify(transactions.slice(0, 500)));
+
+      // Rebuild portfolio/cash snapshots from the updated transaction ledger.
+      await getPortfolio();
+    };
+
+    void applyQueuedTransfers();
+    const intervalId = window.setInterval(() => {
+      void applyQueuedTransfers();
+    }, 1200);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const resolveActiveUserId = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('auravest_user') || '{}') as { id?: string };
+        const scopedSessionUserId = sessionStorage.getItem('paynesuite_userId');
+        const unifiedUserId = readUnifiedAuthSession()?.userId;
+        return String(user?.id || scopedSessionUserId || unifiedUserId || '1');
+      } catch {
+        return String(sessionStorage.getItem('paynesuite_userId') || readUnifiedAuthSession()?.userId || '1');
+      }
+    };
+
+    const applyServerState = async () => {
+      const activeUserId = resolveActiveUserId();
+      try {
+        const response = await fetch(`/api/state?userId=${encodeURIComponent(activeUserId)}`);
+        if (!response.ok) return;
+
+        const payload = await response.json() as { state?: Record<string, string | null> | null };
+        if (!payload?.state) return;
+
+        let didChange = false;
+        for (const key of AURAVEST_STORAGE_KEYS) {
+          const nextValue = payload.state[key];
+          const currentValue = localStorage.getItem(key);
+
+          if (nextValue === null || nextValue === undefined) {
+            if (currentValue !== null) {
+              localStorage.removeItem(key);
+              didChange = true;
+            }
+          } else if (currentValue !== nextValue) {
+            localStorage.setItem(key, nextValue);
+            didChange = true;
+          }
+        }
+
+        if (didChange) {
+          await getPortfolio();
+          setSyncVersion((value) => value + 1);
+        }
+      } catch {
+        // Ignore transient failures and retry on next poll.
+      }
+    };
+
+    void applyServerState();
+    const intervalId = window.setInterval(() => {
+      void applyServerState();
+    }, 1800);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   const toggleDarkMode = () => {
@@ -145,13 +272,13 @@ export default function DashboardClient() {
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
-        {activeTab === 'home' && <DashboardHome />}
-        {activeTab === 'markets' && <MarketsPage />}
-        {activeTab === 'portfolio' && <PortfolioPage />}
-        {activeTab === 'trade' && <TradePage />}
+        {activeTab === 'home' && <DashboardHome key={`home-${syncVersion}`} />}
+        {activeTab === 'markets' && <MarketsPage key={`markets-${syncVersion}`} />}
+        {activeTab === 'portfolio' && <PortfolioPage key={`portfolio-${syncVersion}`} />}
+        {activeTab === 'trade' && <TradePage key={`trade-${syncVersion}`} />}
         
-        {activeTab === 'more' && <MorePage />}
-        {activeTab === 'learn' && <LearnPage />}
+        {activeTab === 'more' && <MorePage key={`more-${syncVersion}`} />}
+        {activeTab === 'learn' && <LearnPage key={`learn-${syncVersion}`} />}
       </main>
 
       <AuraAIChat />

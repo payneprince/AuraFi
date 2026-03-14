@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import {
   Chart as ChartJS,
+  type ChartOptions,
+  type TooltipItem,
   CategoryScale,
   LinearScale,
   PointElement,
@@ -60,7 +62,7 @@ export default function PortfolioChart({ data }: { data: ChartDataPoint[] }) {
     ],
   };
 
-  const options = {
+  const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -71,8 +73,8 @@ export default function PortfolioChart({ data }: { data: ChartDataPoint[] }) {
         mode: 'index',
         intersect: false,
         callbacks: {
-          label: (context: any) =>
-            ` $${context.parsed.y.toLocaleString('en-US', {
+          label: (context: TooltipItem<'line'>) =>
+            ` $${Number(context.parsed.y ?? 0).toLocaleString('en-US', {
               minimumFractionDigits: 0,
               maximumFractionDigits: 0,
             })}`,
@@ -98,14 +100,13 @@ export default function PortfolioChart({ data }: { data: ChartDataPoint[] }) {
       y: {
         grid: {
           color: darkMode ? 'rgb(55, 55, 55)' : 'rgb(220, 220, 220)',
-          drawBorder: false,
         },
         ticks: {
           color: darkMode ? '#ffffff' : '#000000',
           font: {
             size: 11,
           },
-          callback: (value: number) => `$${(value / 1000).toFixed(0)}K`,
+          callback: (tickValue: string | number) => `$${(Number(tickValue) / 1000).toFixed(0)}K`,
         },
       },
     },

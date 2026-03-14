@@ -5,6 +5,7 @@ import TransferForm from '@/components/TransferForm';
 import TransactionList from '@/components/TransactionList';
 // @ts-ignore
 import { walletData } from '@/lib/shared/mock-data';
+import { getWalletScopedStorageKey } from '@/lib/wallet-state';
 
 interface SendSectionProps {
   onTransferComplete: () => void;
@@ -26,7 +27,7 @@ export default function SendSection({ onTransferComplete }: SendSectionProps) {
 
   const loadQueuedTransfers = () => {
     try {
-      const queued = JSON.parse(localStorage.getItem('aurawallet_scheduled_transfers') || '[]');
+      const queued = JSON.parse(localStorage.getItem(getWalletScopedStorageKey('aurawallet_scheduled_transfers')) || '[]');
       if (Array.isArray(queued)) {
         setQueuedTransfers(queued.filter((item) => item?.status === 'queued'));
       } else {

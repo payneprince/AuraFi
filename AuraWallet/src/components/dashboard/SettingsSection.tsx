@@ -14,6 +14,7 @@ import {
   Sun,
   ChevronRight,
 } from 'lucide-react';
+import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function SettingsSection() {
   const [notifications, setNotifications] = useState(true);
@@ -128,8 +129,10 @@ export default function SettingsSection() {
       <button
         className="w-full flex items-center justify-center gap-2 p-4 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10 transition-colors"
         onClick={() => {
+          clearUnifiedAuthSession();
           localStorage.removeItem('aurasuite_userId');
-          window.location.href = '/login';
+          sessionStorage.removeItem('aurasuite_userId');
+          window.location.href = '/';
         }}
       >
         <LogOut className="w-4 h-4" />

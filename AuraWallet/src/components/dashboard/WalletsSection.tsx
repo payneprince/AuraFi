@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CreditCard } from 'lucide-react';
 import { auraBankCards } from '@/components/CardManager';
 import TransactionList from '@/components/TransactionList';
@@ -10,6 +10,8 @@ interface WalletsSectionProps {
 }
 
 export default function WalletsSection({ walletBalance }: WalletsSectionProps) {
+  const [auraBankSnapshot, setAuraBankSnapshot] = useState<any | null>(null);
+
   const parseCookies = () => {
     if (typeof document === 'undefined') return {} as Record<string, string>;
     return document.cookie
@@ -26,14 +28,17 @@ export default function WalletsSection({ walletBalance }: WalletsSectionProps) {
       }, {} as Record<string, string>);
   };
 
-  const auraBankSnapshot = useMemo(() => {
+  useEffect(() => {
     try {
       const cookies = parseCookies();
       const encoded = cookies.aurabank_sources_snapshot;
-      if (!encoded) return null;
-      return JSON.parse(decodeURIComponent(encoded));
+      if (!encoded) {
+        setAuraBankSnapshot(null);
+        return;
+      }
+      setAuraBankSnapshot(JSON.parse(decodeURIComponent(encoded)));
     } catch {
-      return null;
+      setAuraBankSnapshot(null);
     }
   }, []);
 
@@ -42,22 +47,30 @@ export default function WalletsSection({ walletBalance }: WalletsSectionProps) {
     if (Array.isArray(snapshotCards) && snapshotCards.length > 0) {
       return snapshotCards
         .filter((card: any) => String(card.status || 'active').toLowerCase() === 'active')
-        .map((card: any) => ({
-          id: String(card.id),
-          brand: String(card.brand || 'AuraBank').toUpperCase(),
-          type: String(card.type || 'Debit'),
-          last4: String(card.cardNumber || '').slice(-4),
+        .map((card: any, index: number) => ({
+          id: String(card?.id ?? card?.cardNumber ?? `snapshot-card-${index}`),
+          brand: String(card?.brand || 'AuraBank').toUpperCase(),
+          type: String(card?.type || 'Debit'),
+          last4: String(card?.last4 ?? String(card?.cardNumber || '').slice(-4)),
         }));
     }
-    return auraBankCards.map((card) => ({
-      id: String(card.id),
+    return auraBankCards.map((card, index) => ({
+      id: String(card.id ?? `fallback-card-${index}`),
       brand: card.brand,
       type: card.type,
       last4: card.last4,
     }));
   }, [auraBankSnapshot]);
 
-  const [selectedWalletCardId, setSelectedWalletCardId] = useState<string>(String(bankCards[0]?.id || ''));
+  const [selectedWalletCardId, setSelectedWalletCardId] = useState<string>('');
+
+  useEffect(() => {
+    if (bankCards.length === 0) return;
+    const hasSelection = bankCards.some((card) => String(card.id) === selectedWalletCardId);
+    if (!hasSelection) {
+      setSelectedWalletCardId(String(bankCards[0].id));
+    }
+  }, [bankCards, selectedWalletCardId]);
   const selectedWalletCard = bankCards.find((card) => String(card.id) === selectedWalletCardId) || bankCards[0];
 
   return (

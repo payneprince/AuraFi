@@ -5,8 +5,11 @@ import WalletModal from '@/components/WalletModal';
 import { auraBankCards } from '@/components/CardManager';
 // @ts-ignore
 import { walletData } from '@/lib/shared/mock-data';
+import { appendWalletLedgerEvent, getActiveWalletUserId, getWalletScopedStorageKey, persistWalletStateForUser } from '@/lib/wallet-state';
 
 export default function TransferForm({ onComplete }: { onComplete?: () => void }) {
+  const [auraBankSnapshot, setAuraBankSnapshot] = useState<any | null>(null);
+
   const parseCookies = () => {
     if (typeof document === 'undefined') return {} as Record<string, string>;
     return document.cookie
@@ -23,14 +26,49 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       }, {} as Record<string, string>);
   };
 
-  const auraBankSnapshot = useMemo(() => {
+  const syncWalletActivitySnapshotCookie = (transactionList: any[]) => {
+    if (typeof document === 'undefined') return;
+    const activeUserId = getActiveWalletUserId();
+
+    const normalizedEvents = (transactionList || [])
+      .map((transaction) => {
+        const rawTimestamp = String(transaction?.createdAt || transaction?.date || new Date().toISOString());
+        const timestamp = Number.isNaN(Date.parse(rawTimestamp)) ? new Date().toISOString() : new Date(rawTimestamp).toISOString();
+        const amount = Number(transaction?.amount || 0);
+        return {
+          id: `aurawallet-${String(transaction?.id || Date.now())}`,
+          app: 'AuraWallet',
+          type: String(transaction?.method === 'card' ? 'card_transfer' : 'mobile_transfer'),
+          title: String(transaction?.description || 'Wallet transfer'),
+          amount: Number.isFinite(amount) ? amount : 0,
+          currency: 'USD',
+          userId: activeUserId,
+          timestamp,
+          status: String(transaction?.status || 'completed'),
+          meta: {
+            method: String(transaction?.method || ''),
+            recipient: String(transaction?.recipient || ''),
+          },
+        };
+      })
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+      .slice(0, 40);
+
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `aurawallet_activity_snapshot=${encodeURIComponent(JSON.stringify(normalizedEvents))}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
+  useEffect(() => {
     try {
       const cookies = parseCookies();
       const encoded = cookies.aurabank_sources_snapshot;
-      if (!encoded) return null;
-      return JSON.parse(decodeURIComponent(encoded));
+      if (!encoded) {
+        setAuraBankSnapshot(null);
+        return;
+      }
+      setAuraBankSnapshot(JSON.parse(decodeURIComponent(encoded)));
     } catch {
-      return null;
+      setAuraBankSnapshot(null);
     }
   }, []);
 
@@ -39,15 +77,15 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
     if (Array.isArray(snapshotCards) && snapshotCards.length > 0) {
       return snapshotCards
         .filter((card: any) => String(card.status || 'active').toLowerCase() === 'active')
-        .map((card: any) => ({
-          id: String(card.id),
-          brand: String(card.brand || 'AuraBank').toUpperCase(),
-          type: String(card.type || 'Debit'),
-          last4: String(card.cardNumber || '').slice(-4),
+        .map((card: any, index: number) => ({
+          id: String(card?.id ?? card?.cardNumber ?? `snapshot-card-${index}`),
+          brand: String(card?.brand || 'AuraBank').toUpperCase(),
+          type: String(card?.type || 'Debit'),
+          last4: String(card?.last4 ?? String(card?.cardNumber || '').slice(-4)),
         }));
     }
-    return auraBankCards.map((card) => ({
-      id: String(card.id),
+    return auraBankCards.map((card, index) => ({
+      id: String(card.id ?? `fallback-card-${index}`),
       brand: card.brand,
       type: card.type,
       last4: card.last4,
@@ -64,7 +102,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
   const [method, setMethod] = useState<'mobile'|'card'>('mobile');
   const [mobileRecipient, setMobileRecipient] = useState('');
   const [selectedNetworkId, setSelectedNetworkId] = useState<string>(mobileNetworks[0].id);
-  const [selectedCardId, setSelectedCardId] = useState<string>(String(bankCards[0]?.id || ''));
+  const [selectedCardId, setSelectedCardId] = useState<string>('');
   const [status, setStatus] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [scheduledFor, setScheduledFor] = useState('');
@@ -92,14 +130,24 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
 
   useEffect(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem('aurawallet_saved_recipients') || '[]');
+      const stored = JSON.parse(localStorage.getItem(getWalletScopedStorageKey('aurawallet_saved_recipients')) || '[]');
       if (Array.isArray(stored)) {
         setSavedRecipients(stored);
       }
     } catch {
       setSavedRecipients([]);
     }
+
+    syncWalletActivitySnapshotCookie(walletData.transactions || []);
   }, []);
+
+  useEffect(() => {
+    if (bankCards.length === 0) return;
+    const hasSelection = bankCards.some((card) => String(card.id) === selectedCardId);
+    if (!hasSelection) {
+      setSelectedCardId(String(bankCards[0].id));
+    }
+  }, [bankCards, selectedCardId]);
 
   const numericAmount = Number(amount || 0);
 
@@ -213,10 +261,10 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       .slice(0, 12);
 
     setSavedRecipients(updatedRecipients);
-    localStorage.setItem('aurawallet_saved_recipients', JSON.stringify(updatedRecipients));
+    localStorage.setItem(getWalletScopedStorageKey('aurawallet_saved_recipients'), JSON.stringify(updatedRecipients));
   };
 
-  function submit(e: any) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!validate()) {
@@ -233,6 +281,8 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
     const transactionStatus = scheduleMode === 'later' ? 'queued' : 'completed';
     const scheduledTimestamp = scheduleMode === 'later' ? new Date(scheduledFor).toISOString() : null;
 
+    const actionId = `wallet-send-${Date.now()}`;
+
     walletData.balance = Math.max(0, walletData.balance - (val + transferFee));
     walletData.transactions.unshift({
       id: Date.now(),
@@ -248,10 +298,30 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       status: transactionStatus,
       scheduledFor: scheduledTimestamp,
       createdAt: new Date().toISOString(),
-    });
+    } as unknown as (typeof walletData.transactions)[number]);
+    syncWalletActivitySnapshotCookie(walletData.transactions);
+    persistWalletStateForUser(getActiveWalletUserId());
+
+    if (transactionStatus === 'completed') {
+      await appendWalletLedgerEvent({
+        type: 'funding.withdrawal',
+        amount: Number((val + transferFee).toFixed(2)),
+        description: method === 'mobile'
+          ? `Wallet transfer to ${selectedNetwork?.name || 'Mobile Money'} ${recipientValue}`
+          : `Wallet transfer to linked card ••••${recipientValue}`,
+        metadata: {
+          method,
+          recipient: recipientValue,
+          transferAmount: Number(val.toFixed(2)),
+          fee: Number(transferFee.toFixed(2)),
+          netAmount: Number(netAmount.toFixed(2)),
+          sourceActionId: actionId,
+        },
+      });
+    }
 
     if (scheduleMode === 'later' && scheduledTimestamp) {
-      const queuedTransfers = JSON.parse(localStorage.getItem('aurawallet_scheduled_transfers') || '[]');
+      const queuedTransfers = JSON.parse(localStorage.getItem(getWalletScopedStorageKey('aurawallet_scheduled_transfers')) || '[]');
       queuedTransfers.unshift({
         id: `scheduled-${Date.now()}`,
         amount: val,
@@ -262,12 +332,13 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
         status: 'queued',
         scheduledFor: scheduledTimestamp,
       });
-      localStorage.setItem('aurawallet_scheduled_transfers', JSON.stringify(queuedTransfers));
+      localStorage.setItem(getWalletScopedStorageKey('aurawallet_scheduled_transfers'), JSON.stringify(queuedTransfers));
     }
 
     persistRecipient(recipientValue);
 
     const snapshot = {
+      userId: getActiveWalletUserId(),
       balance: Number(walletData.balance || 0),
       updatedAt: new Date().toISOString(),
     };
@@ -290,7 +361,9 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       status: transactionStatus,
       scheduledFor: scheduledTimestamp || undefined,
     });
-    onComplete && onComplete();
+    if (onComplete) {
+      onComplete();
+    }
     setTimeout(() => setStatus(''), 2500);
   }
 

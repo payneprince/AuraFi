@@ -41,10 +41,38 @@ export default function MarketsPage() {
 
   const syncPortfolioSnapshotCookie = (portfolio: any) => {
     if (typeof document === 'undefined' || !portfolio) return;
+    const holdings = JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
+    const normalizedTradeHoldings = holdings
+      .filter((holding: any) => holding && Number.isFinite(Number(holding.currentValue || 0)))
+      .map((holding: any) => ({
+        id: String(holding.id || `holding-${holding.symbol || Date.now()}`),
+        symbol: String(holding.symbol || 'N/A'),
+        shares: Number(holding.amount || 0),
+        value: Number(holding.currentValue || 0),
+      }))
+      .sort((a: any, b: any) => b.value - a.value)
+      .slice(0, 5);
+
+    const allocationHoldings = Array.isArray(portfolio.assets)
+      ? portfolio.assets
+          .filter((asset: any) => asset && Number.isFinite(Number(asset.value || 0)))
+          .map((asset: any, index: number) => ({
+            id: `asset-${index}-${String(asset.type || 'asset').toLowerCase()}`,
+            symbol: String(asset.type || 'Asset'),
+            shares: Number(asset.allocation || 0),
+            value: Number(asset.value || 0),
+          }))
+          .sort((a: any, b: any) => b.value - a.value)
+          .slice(0, 5)
+      : [];
+
+    const topHoldings = normalizedTradeHoldings.length > 0 ? normalizedTradeHoldings : allocationHoldings;
+
     const snapshot = {
       totalValue: Number(portfolio.totalValue || 0),
       change24h: Number(portfolio.change24h || 0),
       changeAmount: Number(portfolio.changeAmount || 0),
+      topHoldings,
       updatedAt: new Date().toISOString(),
     };
     const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
@@ -390,7 +418,7 @@ export default function MarketsPage() {
 
   useEffect(() => {
     loadAssets();
-  }, []);
+  }, [loadAssets]);
 
   // Load more crypto
   const loadMoreCrypto = useCallback(() => {

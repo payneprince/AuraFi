@@ -1,8 +1,8 @@
 // src/lib/marketData.tsx
 import { cryptoAssets, stockAssets, goldData } from './mockData';
 
-// Mock WebSocket for crypto prices
-let cryptoWebSocket: WebSocket | null = null;
+// Track whether the mock stream has already been started.
+let isCryptoFeedStarted = false;
 let subscribers: ((prices: Record<string, { price: number; change24h: number }>) => void)[] = [];
 
 // Mock NFT data - Expanded to 20+ collections
@@ -33,7 +33,8 @@ const mockNFTs = [
 ];
 
 export function startCryptoWebSocket() {
-  if (cryptoWebSocket) return;
+  if (isCryptoFeedStarted) return;
+  isCryptoFeedStarted = true;
 
   // Mock WebSocket - simulate price updates
   setInterval(() => {

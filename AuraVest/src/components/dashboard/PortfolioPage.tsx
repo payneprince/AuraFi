@@ -42,6 +42,16 @@ import GoalsPlanningModal from '@/components/GoalsPlanningModal';
 import TradeModal from '@/components/TradeModal';
 import PriceAlertModal from '@/components/PriceAlertModal';
 
+type FundingEntry = {
+  id: string;
+  type: 'deposit' | 'withdrawal';
+  amount: number;
+  note?: string;
+  method?: string;
+  status?: string;
+  timestamp?: string;
+};
+
 export default function PortfolioPage() {
   const getInitialPortfolio = () => {
     if (typeof window === 'undefined') return null;
@@ -72,6 +82,76 @@ export default function PortfolioPage() {
   const [watchlist, setWatchlist] = useState<any[]>([]);
   const [tradeModal, setTradeModal] = useState<any>(null);
   const [alertModal, setAlertModal] = useState<any>(null);
+  const [cashBalance, setCashBalance] = useState(0);
+  const [netTradeCashflow, setNetTradeCashflow] = useState(0);
+  const [fundingAction, setFundingAction] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [fundingAmount, setFundingAmount] = useState('');
+  const [fundingNote, setFundingNote] = useState('');
+  const [fundingRail, setFundingRail] = useState('AuraBank');
+  const [isFunding, setIsFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  const [fundingSuccess, setFundingSuccess] = useState<string | null>(null);
+  const [recentFundingEntries, setRecentFundingEntries] = useState<FundingEntry[]>([]);
+  const [fundingNet30d, setFundingNet30d] = useState(0);
+  const [lastFundingEntry, setLastFundingEntry] = useState<FundingEntry | null>(null);
+  const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
+
+  const refreshCapitalMetrics = () => {
+    const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+    const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
+
+    const netCashflow = (transactions || []).reduce((sum: number, tx: any) => {
+      const status = String(tx?.status || '').toLowerCase();
+      if (status && status !== 'filled' && status !== 'completed') return sum;
+
+      const type = String(tx?.type || '').toLowerCase();
+      const amount = Number(tx?.amount || 0);
+      const price = Number(tx?.price || 0);
+      const inferredGross = amount * price;
+      const gross = Number.isFinite(Number(tx?.gross)) ? Number(tx.gross) : inferredGross;
+      const fee = Number.isFinite(Number(tx?.fee)) ? Number(tx.fee) : gross * 0.001;
+      const buyCost = gross + fee;
+      const sellProceeds = Math.max(gross - fee, 0);
+
+      if (type === 'deposit') return sum + amount;
+      if (type === 'withdrawal') return sum - amount;
+      if (type === 'buy') return sum - buyCost;
+      if (type === 'sell') return sum + sellProceeds;
+      return sum;
+    }, 0);
+
+    setCashBalance(Number.isFinite(cash) ? cash : 0);
+    setNetTradeCashflow(Number(netCashflow.toFixed(2)));
+
+    const fundingEntries = (transactions || [])
+      .filter((tx: any) => {
+        const type = String(tx?.type || '').toLowerCase();
+        const status = String(tx?.status || '').toLowerCase();
+        const isFundingType = type === 'deposit' || type === 'withdrawal';
+        return isFundingType && (!status || status === 'filled' || status === 'completed');
+      })
+      .map((tx: any) => ({
+        id: String(tx?.id || Date.now()),
+        type: String(tx?.type || 'deposit') as 'deposit' | 'withdrawal',
+        amount: Number(tx?.amount || tx?.total || 0),
+        note: String(tx?.note || ''),
+        method: String(tx?.method || 'AuraBank'),
+        status: String(tx?.status || 'completed'),
+        timestamp: String(tx?.timestamp || tx?.date || new Date().toISOString()),
+      }))
+      .sort((a: FundingEntry, b: FundingEntry) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''));
+
+    setRecentFundingEntries(fundingEntries.slice(0, 5));
+    setLastFundingEntry(fundingEntries.length > 0 ? fundingEntries[0] : null);
+
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const net30 = fundingEntries.reduce((sum: number, entry: FundingEntry) => {
+      const timestamp = Date.parse(String(entry.timestamp || ''));
+      if (Number.isNaN(timestamp) || timestamp < thirtyDaysAgo) return sum;
+      return sum + (entry.type === 'deposit' ? entry.amount : -entry.amount);
+    }, 0);
+    setFundingNet30d(Number(net30.toFixed(2)));
+  };
 
   const normalizeAssetClass = (assetClass?: string, fallbackHolding?: any) => {
     const normalized = (assetClass || '').toLowerCase();
@@ -103,6 +183,80 @@ export default function PortfolioPage() {
     if (fallbackHolding?.image?.startsWith('/nft/') || fallbackHolding?.collection) return 'NFT';
     if (fallbackHolding?.quantityType === 'shares') return 'Stocks';
     return fallbackHolding?.type || 'Stocks';
+  };
+
+  const buildRepresentativeHoldingsFromAssets = (portfolioAssets: any[]) => {
+    const actualTemplates = enhancedHoldings;
+    const templateIdsByAssetType: Record<string, string[]> = {
+      Crypto: ['btc-1', 'eth-1'],
+      Stocks: ['aapl-1', 'msft-1'],
+      Gold: ['gold-1'],
+      NFTs: ['bayc-1'],
+      'Local Investments': ['local-tbill-seed-1'],
+    };
+
+    return portfolioAssets.flatMap((asset: any) => {
+      const assetType = String(asset?.type || 'Asset');
+      const assetValue = Number(asset?.value || 0);
+      if (!Number.isFinite(assetValue) || assetValue <= 0 || assetType.toLowerCase() === 'cash') {
+        return [];
+      }
+
+      const matchingTemplateIds = templateIdsByAssetType[assetType] || [];
+      const matchingTemplates = matchingTemplateIds.length > 0
+        ? actualTemplates.filter((holding: any) => matchingTemplateIds.includes(String(holding?.id || '')))
+        : actualTemplates.filter((holding: any) => String(holding?.type || '') === assetType);
+      if (matchingTemplates.length === 0) {
+        return [{
+          id: `portfolio-asset-${assetType.toLowerCase()}`,
+          name: assetType,
+          symbol: assetType.toUpperCase(),
+          amount: 1,
+          currentPrice: assetValue,
+          currentValue: assetValue,
+          change24h: 0,
+          type: assetType,
+          costBasis: assetValue,
+          unrealizedPnL: 0,
+          unrealizedPnLPercent: 0,
+          quantityType: 'units',
+          status: 'completed',
+          taxLots: [],
+        }];
+      }
+
+      const templateTotal = matchingTemplates.reduce((sum: number, holding: any) => sum + Number(holding?.currentValue || 0), 0) || 1;
+
+      return matchingTemplates.map((holding: any, index: number) => {
+        const isLast = index === matchingTemplates.length - 1;
+        const allocatedBefore = matchingTemplates
+          .slice(0, index)
+          .reduce((sum: number, entry: any) => sum + Number(((Number(entry?.currentValue || 0) / templateTotal) * assetValue).toFixed(2)), 0);
+        const currentValue = isLast
+          ? Number((assetValue - allocatedBefore).toFixed(2))
+          : Number((((Number(holding?.currentValue || 0) / templateTotal) * assetValue)).toFixed(2));
+        const templateCurrentValue = Number(holding?.currentValue || 1) || 1;
+        const scale = currentValue / templateCurrentValue;
+        const currentPrice = Number(holding?.currentPrice || currentValue || 1);
+        const amount = Number(((Number(holding?.amount || 1) * scale) || 1).toFixed(4));
+        const costBasis = Number(((Number(holding?.costBasis || templateCurrentValue) * scale)).toFixed(2));
+        const unrealizedPnL = Number((currentValue - costBasis).toFixed(2));
+        const unrealizedPnLPercent = costBasis > 0 ? Number(((unrealizedPnL / costBasis) * 100).toFixed(2)) : 0;
+
+        return {
+          ...holding,
+          id: `portfolio-template-${holding.id}-${assetType.toLowerCase()}`,
+          amount,
+          currentPrice,
+          currentValue,
+          costBasis,
+          unrealizedPnL,
+          unrealizedPnLPercent,
+          quantityType: holding?.quantityType || (assetType === 'Stocks' ? 'shares' : 'units'),
+          status: 'completed',
+        };
+      });
+    });
   };
 
   const refreshTradeHoldings = () => {
@@ -244,8 +398,17 @@ export default function PortfolioPage() {
         localStorage.setItem('auravest_trade_holdings', JSON.stringify(reconstructedHoldings));
       }
     }
+
+    refreshCapitalMetrics();
+
+    const metricsInterval = setInterval(() => {
+      refreshCapitalMetrics();
+    }, 2000);
+
+    return () => clearInterval(metricsInterval);
   }, []);
   const isPositive = change24h >= 0;
+  const allocationAssets: any[] = Array.isArray(assets) ? assets : [];
   // Merge local investment positions into holdings display
   const localHoldings = localPositions.map((position: any) => ({
     id: position.id,
@@ -272,7 +435,18 @@ export default function PortfolioPage() {
 
   const tradedSymbols = new Set((tradeHoldings || []).map((holding: any) => holding.symbol));
   const baseHoldings = enhancedHoldings.filter((holding: any) => !tradedSymbols.has(holding.symbol));
-  const holdings = [...localHoldings, ...tradeHoldings, ...baseHoldings];
+  const hasUserPortfolioActivity = (() => {
+    try {
+      const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      return Array.isArray(transactions) && transactions.length > 0;
+    } catch {
+      return false;
+    }
+  })();
+  const synthesizedPortfolioHoldings = buildRepresentativeHoldingsFromAssets(Array.isArray(assets) ? assets : []);
+  const holdings = hasUserPortfolioActivity
+    ? [...localHoldings, ...tradeHoldings, ...(tradeHoldings.length === 0 && localHoldings.length === 0 ? synthesizedPortfolioHoldings : [])]
+    : [...localHoldings, ...tradeHoldings, ...baseHoldings];
   const filteredHoldings = holdings.filter((holding: any) => {
     if (holdingsFilter === 'all') return true;
     if (holdingsFilter === 'local') return holding.type === 'Local Investments' || holding.currency === 'GHS';
@@ -324,6 +498,59 @@ export default function PortfolioPage() {
     }
   };
 
+  const handleFundingSubmit = async () => {
+    setFundingError(null);
+    setFundingSuccess(null);
+    const normalizedAmount = Number(fundingAmount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      setFundingError('Enter a valid amount greater than 0.');
+      return;
+    }
+
+    if (fundingAction === 'withdrawal' && normalizedAmount > cashBalance) {
+      setFundingError(`Insufficient cash for withdrawal. Available: $${cashBalance.toFixed(2)}.`);
+      return;
+    }
+
+    setIsFunding(true);
+    try {
+      const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      transactions.unshift({
+        id: `fund-${Date.now()}`,
+        type: fundingAction,
+        asset: 'CASH',
+        assetName: fundingAction === 'deposit' ? 'Cash Deposit' : 'Cash Withdrawal',
+        amount: Number(normalizedAmount.toFixed(2)),
+        price: 1,
+        gross: Number(normalizedAmount.toFixed(2)),
+        fee: 0,
+        total: Number(normalizedAmount.toFixed(2)),
+        currency: 'USD',
+        quantityType: 'units',
+        method: fundingRail,
+        note: fundingNote.trim(),
+        status: 'completed',
+        timestamp: new Date().toISOString(),
+      });
+      localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
+
+      const latestPortfolio = await getPortfolio();
+      if (latestPortfolio && Object.keys(latestPortfolio).length > 0) {
+        setPortfolio(latestPortfolio);
+      }
+      refreshTradeHoldings();
+      refreshCapitalMetrics();
+      setFundingSuccess(`${fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'} of $${normalizedAmount.toFixed(2)} completed.`);
+      setFundingAmount('');
+      setFundingNote('');
+    } catch (error) {
+      console.error('Failed to apply funding action:', error);
+      setFundingError('Funding action failed. Please try again.');
+    } finally {
+      setIsFunding(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div>
@@ -343,6 +570,140 @@ export default function PortfolioPage() {
         <p className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
           {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)
         </p>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Holdings Value</p>
+            <p className="font-semibold">${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Cash Balance</p>
+            <p className="font-semibold">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Net Trade Cashflow</p>
+            <p className={`font-semibold ${netTradeCashflow >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+              {netTradeCashflow >= 0 ? '+' : '-'}${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-white/80">Total Portfolio = Holdings Value + Cash Balance</p>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-base font-semibold">Funding Ledger</p>
+            <p className="text-xs text-muted-foreground">Move cash in or out of your Vest account with clear impact previews.</p>
+          </div>
+          <div className="flex rounded-md bg-muted p-1">
+            <button
+              onClick={() => setFundingAction('deposit')}
+              className={`px-3 py-1 text-xs rounded ${fundingAction === 'deposit' ? 'bg-green-500 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Deposit
+            </button>
+            <button
+              onClick={() => setFundingAction('withdrawal')}
+              className={`px-3 py-1 text-xs rounded ${fundingAction === 'withdrawal' ? 'bg-red-500 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Withdraw
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <p className="text-muted-foreground">Available Cash</p>
+            <p className="font-semibold">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <p className="text-muted-foreground">Net Funding (30D)</p>
+            <p className={`font-semibold ${fundingNet30d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {fundingNet30d >= 0 ? '+' : '-'}${Math.abs(fundingNet30d).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <p className="text-muted-foreground">Last Funding Action</p>
+            <p className="font-semibold">
+              {lastFundingEntry ? `${lastFundingEntry.type === 'deposit' ? '+' : '-'}$${Number(lastFundingEntry.amount || 0).toFixed(2)}` : 'No funding yet'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {lastFundingEntry?.timestamp ? new Date(lastFundingEntry.timestamp).toLocaleString() : 'Waiting for first action'}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={fundingAmount}
+            onChange={(e) => setFundingAmount(e.target.value)}
+            placeholder="Amount (USD)"
+            className="sm:col-span-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <select
+            value={fundingRail}
+            onChange={(e) => setFundingRail(e.target.value)}
+            className="sm:col-span-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {(fundingAction === 'deposit'
+              ? ['AuraBank', 'Mobile Money', 'External Bank']
+              : ['AuraBank', 'Mobile Money'])
+              .map((rail) => (
+                <option key={rail} value={rail}>{rail}</option>
+              ))}
+          </select>
+          <input
+            type="text"
+            value={fundingNote}
+            onChange={(e) => setFundingNote(e.target.value)}
+            placeholder="Optional note"
+            className="sm:col-span-1 rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
+        {(fundingError || fundingSuccess) && (
+          <div className={`rounded-md border px-3 py-2 text-sm ${fundingError ? 'border-red-300 bg-red-50 text-red-700' : 'border-green-300 bg-green-50 text-green-700'}`}>
+            {fundingError || fundingSuccess}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1">
+          <button
+            onClick={handleFundingSubmit}
+            disabled={isFunding}
+            className={`rounded-md px-3 py-2 text-sm font-semibold text-white transition-colors ${fundingAction === 'deposit' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-60`}
+          >
+            {isFunding ? 'Applying...' : fundingAction === 'deposit' ? 'Add Funds' : 'Withdraw Funds'}
+          </button>
+        </div>
+
+        <div className="pt-1">
+          <p className="text-sm font-medium mb-2">Recent Funding Activity</p>
+          <div className="space-y-2">
+            {recentFundingEntries.length === 0 && (
+              <div className="rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                No funding activity yet.
+              </div>
+            )}
+            {recentFundingEntries.map((entry) => (
+              <div key={entry.id} className="rounded-md border border-border bg-background px-3 py-2 text-sm flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-medium">{entry.type === 'deposit' ? 'Deposit' : 'Withdrawal'} via {entry.method || 'AuraBank'}</p>
+                  <p className="text-xs text-muted-foreground">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown time'}{entry.note ? ` • ${entry.note}` : ''}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-semibold ${entry.type === 'deposit' ? 'text-green-600' : 'text-red-600'}`}>
+                    {entry.type === 'deposit' ? '+' : '-'}${Number(entry.amount || 0).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{entry.status || 'completed'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -417,17 +778,18 @@ export default function PortfolioPage() {
               <h3 className="font-semibold">Asset Allocation</h3>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {assets.map((asset, idx) => {
+              {allocationAssets.map((asset: any, idx: number) => {
                 const colors = [
                   { bg: 'bg-purple-500', text: 'text-purple-500' },
                   { bg: 'bg-blue-500', text: 'text-blue-500' },
                   { bg: 'bg-yellow-500', text: 'text-yellow-500' },
                   { bg: 'bg-cyan-500', text: 'text-cyan-500' },
                 ];
+                const color = colors[idx % colors.length];
                 return (
                   <div key={asset.type} className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${colors[idx].bg}`} />
+                      <div className={`w-3 h-3 rounded-full ${color.bg}`} />
                       <span className="text-sm text-muted-foreground">{asset.type}</span>
                     </div>
                     <p className="text-xl font-bold">{asset.allocation}%</p>

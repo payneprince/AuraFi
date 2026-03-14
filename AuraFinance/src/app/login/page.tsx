@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { saveBrowserRegisteredUser } from '../../../../shared/browser-user-directory';
+import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -271,11 +273,26 @@ export default function LoginPage() {
       const data = (await response.json()) as {
         success: boolean;
         message?: string;
+        user?: {
+          id: string;
+          email: string;
+          name: string;
+          accountType?: 'personal' | 'business';
+        };
       };
 
       if (!response.ok || !data.success) {
         setSignupError(data.message || 'Could not submit signup details. Please try again.');
         return;
+      }
+
+      if (data.user) {
+        saveBrowserRegisteredUser({
+          ...data.user,
+          password: personalForm.newPassword,
+        });
+        setEmail(data.user.email);
+        setPassword(personalForm.newPassword);
       }
 
       setSignupSuccess('Signup submitted successfully. Your verification is now in review.');
@@ -308,11 +325,26 @@ export default function LoginPage() {
       const data = (await response.json()) as {
         success: boolean;
         message?: string;
+        user?: {
+          id: string;
+          email: string;
+          name: string;
+          accountType?: 'personal' | 'business';
+        };
       };
 
       if (!response.ok || !data.success) {
         setSignupError(data.message || 'Could not submit business signup details. Please try again.');
         return;
+      }
+
+      if (data.user) {
+        saveBrowserRegisteredUser({
+          ...data.user,
+          password: businessForm.newPassword,
+        });
+        setEmail(data.user.email);
+        setPassword(businessForm.newPassword);
       }
 
       setSignupSuccess('Business signup submitted successfully. Compliance review has started.');
@@ -336,6 +368,17 @@ export default function LoginPage() {
     if (result?.error) {
       setError('Invalid credentials');
     } else {
+      const sessionResponse = await fetch('/api/auth/session');
+      const currentSession = (await sessionResponse.json()) as {
+        user?: { id?: string; email?: string | null; name?: string | null };
+      };
+
+      writeUnifiedAuthSession({
+        userId: String(currentSession.user?.id || '1'),
+        email: currentSession.user?.email || email,
+        name: currentSession.user?.name || 'User',
+        sourceApp: 'AuraFinance',
+      });
       router.push('/dashboard');
     }
   };

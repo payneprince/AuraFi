@@ -5,6 +5,7 @@ import { Menu, X, Moon, Sun } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
+import { clearUnifiedAuthSession } from '../../../shared/unified-auth';
 
 export function Navigation() {
   const [open, setOpen] = useState(false);
@@ -69,8 +70,16 @@ export function Navigation() {
             </button>
             {session ? (
               <>
-                <span className="px-4 py-2">Welcome, {session.user.name}</span>
-                <button onClick={() => signOut({ callbackUrl: '/' })} className="px-4 py-2 hover:text-teal transition">Logout</button>
+                <span className="px-4 py-2">Welcome, {session.user?.name ?? 'User'}</span>
+                <button
+                  onClick={() => {
+                    clearUnifiedAuthSession();
+                    signOut({ callbackUrl: '/' });
+                  }}
+                  className="px-4 py-2 hover:text-teal transition"
+                >
+                  Logout
+                </button>
                 <Link href="/dashboard" className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white hover:opacity-90">
                   Dashboard
                 </Link>

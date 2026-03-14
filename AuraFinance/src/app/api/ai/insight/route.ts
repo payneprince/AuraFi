@@ -15,8 +15,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { userQuery, userId = 'demo' } = body;
+    const body = (await req.json()) as { userQuery?: string; userId?: string };
+    const userQuery = String(body.userQuery || '');
+    const userId = String(body.userId || 'demo');
 
     if (!userQuery?.trim()) {
       return NextResponse.json(
@@ -95,16 +96,20 @@ Rules:
     }
 
     // ✅ Parse successful response
-    const data = await openaiRes.json();
-    const aiMessage = data.choices[0].message.content.trim();
+    const data = (await openaiRes.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const aiMessage = String(data.choices?.[0]?.message?.content || '').trim();
 
     // 💾 Save to memory (max 10 messages)
-    history = [
-      ...history,
-      { role: 'user', content: userQuery },
-      { role: 'assistant', content: aiMessage },
-    ].slice(-10);
-    userConversations[userId] = history;
+    const updatedHistory = history
+      .concat(
+        { role: 'user' as const, content: userQuery },
+        { role: 'assistant' as const, content: aiMessage },
+      )
+      .slice(-10);
+    history = updatedHistory;
+    userConversations[userId] = updatedHistory;
 
     return NextResponse.json({
       success: true,

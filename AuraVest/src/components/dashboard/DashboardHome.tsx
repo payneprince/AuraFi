@@ -13,20 +13,7 @@ import AuraAIInsight from '@/components/AuraAIInsight';
 import { getPortfolio } from '@/lib/mockAPI';
 
 export default function DashboardHome() {
-  const getInitialPortfolio = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
-      if (storedPortfolio && Object.keys(storedPortfolio).length > 0) {
-        return storedPortfolio;
-      }
-    } catch (error) {
-      console.error('Failed to read initial portfolio from localStorage:', error);
-    }
-    return null;
-  };
-
-  const [portfolio, setPortfolio] = useState(getInitialPortfolio);
+  const [portfolio, setPortfolio] = useState<any | null>(null);
   const isPortfolioReady = portfolio && typeof portfolio.totalValue === 'number';
   const { totalValue = 0, change24h = 0, changeAmount = 0 } = portfolio || {};
   const isPositive = change24h >= 0;
@@ -34,6 +21,36 @@ export default function DashboardHome() {
   const [tradeModal, setTradeModal] = useState<any>(null);
   const [showGamification, setShowGamification] = useState(false);
   const [transactionFeed, setTransactionFeed] = useState<any[]>(recentTransactions || []);
+  const [cashBalance, setCashBalance] = useState(0);
+  const [netTradeCashflow, setNetTradeCashflow] = useState(0);
+  const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
+
+  const refreshCapitalMetrics = () => {
+    const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+    const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
+
+    const netCashflow = (transactions || []).reduce((sum: number, tx: any) => {
+      const status = String(tx?.status || '').toLowerCase();
+      if (status && status !== 'filled' && status !== 'completed') return sum;
+
+      const type = String(tx?.type || '').toLowerCase();
+      const amount = Number(tx?.amount || 0);
+      const price = Number(tx?.price || 0);
+      const gross = Number.isFinite(Number(tx?.gross)) ? Number(tx.gross) : amount * price;
+      const fee = Number.isFinite(Number(tx?.fee)) ? Number(tx.fee) : gross * 0.001;
+      const buyCost = gross + fee;
+      const sellProceeds = Math.max(gross - fee, 0);
+
+      if (type === 'deposit') return sum + amount;
+      if (type === 'withdrawal') return sum - amount;
+      if (type === 'buy') return sum - buyCost;
+      if (type === 'sell') return sum + sellProceeds;
+      return sum;
+    }, 0);
+
+    setCashBalance(Number.isFinite(cash) ? cash : 0);
+    setNetTradeCashflow(Number(netCashflow.toFixed(2)));
+  };
 
   const loadLivePortfolio = async () => {
     try {
@@ -59,8 +76,26 @@ export default function DashboardHome() {
   };
 
   useEffect(() => {
+    try {
+      const storedPortfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
+      if (storedPortfolio && Object.keys(storedPortfolio).length > 0) {
+        setPortfolio(storedPortfolio);
+      }
+    } catch (error) {
+      console.error('Failed to read initial portfolio from localStorage:', error);
+    }
+
     loadLivePortfolio();
     loadRecentTransactions();
+    refreshCapitalMetrics();
+
+    const capitalInterval = setInterval(() => {
+      refreshCapitalMetrics();
+      loadRecentTransactions();
+      void loadLivePortfolio();
+    }, 2000);
+
+    return () => clearInterval(capitalInterval);
   }, []);
 
   const handleAssetClick = (asset: any) => {
@@ -105,6 +140,23 @@ export default function DashboardHome() {
           {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
           <span className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)</span>
         </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Holdings Value</p>
+            <p className="font-semibold">${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Cash Balance</p>
+            <p className="font-semibold">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+            <p className="opacity-80">Net Trade Cashflow</p>
+            <p className={`font-semibold ${netTradeCashflow >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+              {netTradeCashflow >= 0 ? '+' : '-'}${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-white/80">Total Portfolio = Holdings Value + Cash Balance</p>
       </div>
 
       {/* Portfolio Health Widget */}
@@ -273,6 +325,9 @@ export default function DashboardHome() {
           {transactionFeed.map((tx) => {
             const isBuy = tx.type === 'buy';
             const status = (tx.status || 'filled').toLowerCase();
+            const safeAmount = Number(tx.amount || 0);
+            const safePrice = Number(tx.price || 0);
+            const safeTotal = Number(tx.total || (safeAmount * safePrice) || 0);
             return (
               <div key={tx.id} className="flex items-center justify-between p-3 hover:bg-accent rounded-lg transition-colors">
                 <div className="flex items-center gap-3">
@@ -281,14 +336,14 @@ export default function DashboardHome() {
                   </div>
                   <div>
                     <p className="font-semibold">{isBuy ? 'Bought' : 'Sold'} {tx.assetName}</p>
-                    <p className="text-sm text-muted-foreground">{tx.amount} {tx.asset} @ ${tx.price.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">{safeAmount} {tx.asset} @ ${safePrice.toLocaleString()}</p>
                     <p className={`text-xs mt-0.5 ${status === 'queued' ? 'text-yellow-500' : 'text-green-500'}`}>
                       {status.toUpperCase()}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold">${tx.total.toLocaleString()}</p>
+                  <p className="font-semibold">${safeTotal.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleDateString()}</p>
                 </div>
               </div>

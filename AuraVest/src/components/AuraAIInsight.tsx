@@ -168,7 +168,7 @@ export default function AuraAIInsight() {
                 <h4 className="text-sm font-semibold">Risk Assessment</h4>
               </div>
               <p className="text-xs text-muted-foreground mb-2">
-                Your portfolio has a {riskMetrics.score > 70 ? 'high' : riskMetrics.score < 40 ? 'low' : 'moderate'} risk profile with exposure across {riskMetrics.assets} asset classes.
+                Your portfolio has a {riskMetrics.score > 70 ? 'high' : riskMetrics.score < 40 ? 'low' : 'moderate'} risk profile with exposure across {portfolioData.assets.length} asset classes.
               </p>
               <div className="w-full bg-muted rounded-full h-2">
                 <div 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CreditCard, Sparkles, Wallet, PlusCircle, HandCoins, FileText, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import TransactionList from '@/components/TransactionList';
 import TransferForm from '@/components/TransferForm';
@@ -7,6 +7,7 @@ import MobileAppShowcase from '@/components/MobileAppShowcase';
 import WalletModal from '@/components/WalletModal';
 // @ts-ignore
 import { walletData, bankData } from '@/lib/shared/mock-data';
+import { appendWalletLedgerEvent, getActiveWalletUserId, persistWalletStateForUser } from '@/lib/wallet-state';
 
 interface OverviewSectionProps {
   walletBalance: number;
@@ -15,6 +16,15 @@ interface OverviewSectionProps {
 }
 
 export default function OverviewSection({ walletBalance, insight, onTransferComplete }: OverviewSectionProps) {
+  const [auraBankSnapshot, setAuraBankSnapshot] = useState<any | null>(null);
+
+  const makeUniqueId = (prefix: string, primary: unknown, secondary: unknown, index: number) => {
+    const rawPrimary = String(primary ?? '').trim();
+    const rawSecondary = String(secondary ?? '').trim();
+    const base = rawPrimary || rawSecondary || `${prefix}`;
+    return `${prefix}-${base}-${index}`;
+  };
+
   const parseCookies = () => {
     if (typeof document === 'undefined') return {} as Record<string, string>;
     return document.cookie
@@ -31,49 +41,63 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
       }, {} as Record<string, string>);
   };
 
-  const fallbackAccounts = (bankData?.accounts || []).map((account: any) => ({
-    id: String(account.id),
-    name: String(account.type || 'Account').toUpperCase(),
-    type: account.type,
-    balance: Number(account.balance || 0),
-    availableBalance: Number(account.balance || 0),
-    accountNumber: String(account.accountNumber || ''),
-    currency: 'USD',
-  }));
+  const fallbackAccounts = useMemo(
+    () => (bankData?.accounts || []).map((account: any, index: number) => ({
+      id: makeUniqueId('fallback-account', account?.id, account?.accountNumber, index),
+      name: String(account.type || 'Account').toUpperCase(),
+      type: account.type,
+      balance: Number(account.balance || 0),
+      availableBalance: Number(account.balance || 0),
+      accountNumber: String(account.accountNumber || ''),
+      currency: 'USD',
+    })),
+    [],
+  );
 
-  const auraBankSnapshot = useMemo(() => {
+  useEffect(() => {
     try {
       const cookies = parseCookies();
       const encoded = cookies.aurabank_sources_snapshot;
-      if (!encoded) return null;
-      return JSON.parse(decodeURIComponent(encoded));
+      if (!encoded) {
+        setAuraBankSnapshot(null);
+        return;
+      }
+      setAuraBankSnapshot(JSON.parse(decodeURIComponent(encoded)));
     } catch {
-      return null;
+      setAuraBankSnapshot(null);
     }
   }, []);
 
   const bankAccounts = useMemo(() => {
     const snapshotAccounts = auraBankSnapshot?.accounts;
     if (Array.isArray(snapshotAccounts) && snapshotAccounts.length > 0) {
-      return snapshotAccounts;
+      return snapshotAccounts.map((account: any, index: number) => ({
+        id: makeUniqueId('snapshot-account', account?.id, account?.accountNumber, index),
+        name: String(account?.name ?? account?.type ?? 'Account').toUpperCase(),
+        type: String(account?.type ?? 'Account'),
+        balance: Number(account?.balance ?? 0),
+        availableBalance: Number(account?.availableBalance ?? account?.balance ?? 0),
+        accountNumber: String(account?.accountNumber ?? ''),
+        currency: String(account?.currency ?? 'USD'),
+      }));
     }
     return fallbackAccounts;
-  }, [auraBankSnapshot]);
+  }, [auraBankSnapshot, fallbackAccounts]);
 
   const bankCards = useMemo(() => {
     const snapshotCards = auraBankSnapshot?.cards;
     if (Array.isArray(snapshotCards) && snapshotCards.length > 0) {
       return snapshotCards
         .filter((card: any) => String(card.status || 'active').toLowerCase() === 'active')
-        .map((card: any) => ({
-          id: String(card.id),
-          brand: String(card.brand || 'AuraBank').toUpperCase(),
-          type: String(card.type || 'Debit'),
-          last4: String(card.cardNumber || '').slice(-4),
+        .map((card: any, index: number) => ({
+          id: makeUniqueId('snapshot-card', card?.id, card?.cardNumber, index),
+          brand: String(card?.brand || 'AuraBank').toUpperCase(),
+          type: String(card?.type || 'Debit'),
+          last4: String(card?.last4 ?? String(card?.cardNumber || '').slice(-4)),
         }));
     }
-    return auraBankCards.map((card) => ({
-      id: String(card.id),
+    return auraBankCards.map((card, index) => ({
+      id: makeUniqueId('fallback-card', card?.id, card?.last4, index),
       brand: card.brand,
       type: card.type,
       last4: card.last4,
@@ -90,9 +114,9 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
   const [addAmount, setAddAmount] = useState('');
   const [addSource, setAddSource] = useState<'bank' | 'card' | 'mobile'>('bank');
-  const [selectedOverviewCardId, setSelectedOverviewCardId] = useState<string>(String(bankCards[0]?.id || ''));
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>(String(bankAccounts[0]?.id || ''));
-  const [selectedCardId, setSelectedCardId] = useState<string>(String(bankCards[0]?.id || ''));
+  const [selectedOverviewCardId, setSelectedOverviewCardId] = useState<string>('');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
+  const [selectedCardId, setSelectedCardId] = useState<string>('');
   const [selectedNetworkId, setSelectedNetworkId] = useState<string>(mobileNetworks[0].id);
   const [mobileWalletNumber, setMobileWalletNumber] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
@@ -100,7 +124,31 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
   const [requestLink, setRequestLink] = useState('');
   const [formError, setFormError] = useState('');
 
-  const handleAddFunds = () => {
+  useEffect(() => {
+    if (bankCards.length === 0) return;
+    const hasSelection = bankCards.some((card) => String(card.id) === selectedOverviewCardId);
+    if (!hasSelection) {
+      setSelectedOverviewCardId(String(bankCards[0].id));
+    }
+  }, [bankCards, selectedOverviewCardId]);
+
+  useEffect(() => {
+    if (bankAccounts.length === 0) return;
+    const hasSelection = bankAccounts.some((account: any) => String(account.id) === selectedBankAccountId);
+    if (!hasSelection) {
+      setSelectedBankAccountId(String(bankAccounts[0].id));
+    }
+  }, [bankAccounts, selectedBankAccountId]);
+
+  useEffect(() => {
+    if (bankCards.length === 0) return;
+    const hasSelection = bankCards.some((card) => String(card.id) === selectedCardId);
+    if (!hasSelection) {
+      setSelectedCardId(String(bankCards[0].id));
+    }
+  }, [bankCards, selectedCardId]);
+
+  const handleAddFunds = async () => {
     const parsedAmount = Number.parseFloat(addAmount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setFormError('Enter a valid amount greater than 0.');
@@ -147,11 +195,24 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
     }
 
     walletData.balance = Number(walletData.balance || 0) + parsedAmount;
+    const actionId = `wallet-topup-${Date.now()}`;
+
     walletData.transactions.unshift({
       id: Date.now(),
       amount: parsedAmount,
       description: `Top up via ${sourceLabel}`,
       date: new Date().toISOString().split('T')[0],
+    });
+    persistWalletStateForUser(getActiveWalletUserId());
+    await appendWalletLedgerEvent({
+      type: 'funding.deposit',
+      amount: parsedAmount,
+      description: `Wallet top up via ${sourceLabel}`,
+      metadata: {
+        source: addSource,
+        sourceLabel,
+        sourceActionId: actionId,
+      },
     });
 
     setFormError('');

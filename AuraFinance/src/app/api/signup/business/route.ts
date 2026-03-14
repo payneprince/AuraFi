@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRegisteredUser, findRegisteredUserByEmail } from '../../../../../../shared/user-registry';
 
 type BusinessSignupPayload = {
   businessName: string;
@@ -39,8 +40,6 @@ type StoredBusinessSignup = Omit<
     securityQuestion: string;
   };
 };
-
-const businessSignups: StoredBusinessSignup[] = [];
 
 function validatePayload(payload: BusinessSignupPayload): string | null {
   const ghanaCardPattern = /^GHA-\d{9}-\d$/i;
@@ -96,9 +95,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: validationError }, { status: 400 });
     }
 
-    const existingSignup = businessSignups.find(
-      (record) => record.businessEmail.toLowerCase() === payload.businessEmail.toLowerCase(),
-    );
+    const existingSignup = await findRegisteredUserByEmail(payload.businessEmail);
 
     if (existingSignup) {
       return NextResponse.json(
@@ -110,8 +107,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const createdUser = await createRegisteredUser({
+      email: payload.businessEmail,
+      password: payload.newPassword,
+      name: payload.businessName,
+      accountType: 'business',
+    });
+
     const storedRecord: StoredBusinessSignup = {
-      id: crypto.randomUUID(),
+      id: createdUser.id,
       businessName: payload.businessName,
       businessEmail: payload.businessEmail,
       businessPhone: payload.businessPhone,
@@ -140,12 +144,16 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    businessSignups.push(storedRecord);
-
     return NextResponse.json({
       success: true,
-      message: 'Business signup submitted successfully.',
+      message: 'Business account created successfully.',
       signupId: storedRecord.id,
+      user: {
+        id: createdUser.id,
+        email: createdUser.email,
+        name: createdUser.name,
+        accountType: createdUser.accountType,
+      },
       submittedAt: storedRecord.submittedAt,
     });
   } catch (error: unknown) {

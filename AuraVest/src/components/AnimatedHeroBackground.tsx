@@ -12,10 +12,13 @@ export default function AnimatedHeroBackground() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const canvasEl = canvas;
+    const context = ctx;
+
     // Set canvas size
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvasEl.width = window.innerWidth;
+      canvasEl.height = window.innerHeight;
     };
 
     resizeCanvas();
@@ -34,8 +37,8 @@ export default function AnimatedHeroBackground() {
       maxLife: number;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvasEl.width;
+        this.y = Math.random() * canvasEl.height;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
         this.size = Math.random() * 3 + 1;
@@ -63,10 +66,10 @@ export default function AnimatedHeroBackground() {
         this.life++;
 
         // Wrap around edges
-        if (this.x < 0) this.x = canvas.width;
-        if (this.x > canvas.width) this.x = 0;
-        if (this.y < 0) this.y = canvas.height;
-        if (this.y > canvas.height) this.y = 0;
+        if (this.x < 0) this.x = canvasEl.width;
+        if (this.x > canvasEl.width) this.x = 0;
+        if (this.y < 0) this.y = canvasEl.height;
+        if (this.y > canvasEl.height) this.y = 0;
 
         // Fade out near end of life
         if (this.life > this.maxLife * 0.8) {
@@ -75,18 +78,18 @@ export default function AnimatedHeroBackground() {
       }
 
       draw() {
-        ctx.save();
-        ctx.globalAlpha = this.alpha;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
+        context.save();
+        context.globalAlpha = this.alpha;
+        context.fillStyle = this.color;
+        context.beginPath();
+        context.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        context.fill();
 
         // Add glow effect
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fill();
-        ctx.restore();
+        context.shadowColor = this.color;
+        context.shadowBlur = 10;
+        context.fill();
+        context.restore();
       }
 
       isDead() {
@@ -117,20 +120,20 @@ export default function AnimatedHeroBackground() {
       }
 
       draw() {
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+        context.strokeStyle = this.color;
+        context.lineWidth = 2;
+        context.beginPath();
 
-        for (let x = 0; x < canvas.width; x += 5) {
+        for (let x = 0; x < canvasEl.width; x += 5) {
           const y = this.y + Math.sin(x * this.frequency + this.phase) * this.amplitude;
           if (x === 0) {
-            ctx.moveTo(x, y);
+            context.moveTo(x, y);
           } else {
-            ctx.lineTo(x, y);
+            context.lineTo(x, y);
           }
         }
 
-        ctx.stroke();
+        context.stroke();
       }
     }
 
@@ -144,19 +147,19 @@ export default function AnimatedHeroBackground() {
 
     // Initialize waves
     for (let i = 0; i < 3; i++) {
-      waves.push(new Wave(canvas.height * (0.3 + i * 0.2)));
+      waves.push(new Wave(canvasEl.height * (0.3 + i * 0.2)));
     }
 
     let animationId: number;
 
     const animate = () => {
       // Clear with gradient background
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      const gradient = context.createLinearGradient(0, 0, 0, canvasEl.height);
       gradient.addColorStop(0, 'rgba(15, 23, 42, 0.95)'); // slate-900
       gradient.addColorStop(0.5, 'rgba(30, 41, 59, 0.9)'); // slate-700
       gradient.addColorStop(1, 'rgba(51, 65, 85, 0.95)'); // slate-600
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, canvasEl.width, canvasEl.height);
 
       // Update and draw waves
       waves.forEach(wave => {
@@ -182,12 +185,12 @@ export default function AnimatedHeroBackground() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < 100) {
-            ctx.strokeStyle = `rgba(59, 130, 246, ${(100 - distance) / 100 * 0.3})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
+            context.strokeStyle = `rgba(59, 130, 246, ${(100 - distance) / 100 * 0.3})`;
+            context.lineWidth = 1;
+            context.beginPath();
+            context.moveTo(p1.x, p1.y);
+            context.lineTo(p2.x, p2.y);
+            context.stroke();
           }
         });
       });

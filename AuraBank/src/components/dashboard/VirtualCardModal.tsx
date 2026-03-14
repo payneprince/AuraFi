@@ -32,6 +32,7 @@ export function VirtualCardModal({ isOpen, onClose, onCreateVirtualCard, account
 
     // Generate virtual card data
     const virtualCardData = {
+      id: `vcard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       accountId: selectedAccount,
       cardNumber: generateVirtualCardNumber(),
       cardHolder: 'DEMO USER',

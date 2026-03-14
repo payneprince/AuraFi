@@ -1131,19 +1131,21 @@ export const enhancedHoldings = [
   },
   {
     id: 'aapl-1',
-    name: 'Apple Inc.',
-    symbol: 'AAPL',
-    amount: 150,
-    currentPrice: 178.25,
+    name: 'MTN Ghana',
+    symbol: 'MTNGH',
+    amount: 1500,
+    currentPrice: 17.825,
     currentValue: 26737.50,
     change24h: 1.45,
     type: 'Stocks',
+    currency: 'GHS',
+    quantityType: 'shares',
     costBasis: 26000.00,
     unrealizedPnL: 737.50,
     unrealizedPnLPercent: 2.84,
     taxLots: [
-      { date: '2023-04-10', amount: 100, price: 165.00, cost: 16500.00 },
-      { date: '2023-08-15', amount: 50, price: 190.00, cost: 9500.00 }
+      { date: '2023-04-10', amount: 1000, price: 16.50, cost: 16500.00 },
+      { date: '2023-08-15', amount: 500, price: 19.00, cost: 9500.00 }
     ]
   },
   {
@@ -1165,30 +1167,34 @@ export const enhancedHoldings = [
   },
   {
     id: 'msft-1',
-    name: 'Microsoft',
-    symbol: 'MSFT',
-    amount: 50,
-    currentPrice: 374.80,
+    name: 'GCB Bank PLC',
+    symbol: 'GCB',
+    amount: 850,
+    currentPrice: 22.0471,
     currentValue: 18740.00,
     change24h: -0.82,
     type: 'Stocks',
+    currency: 'GHS',
+    quantityType: 'shares',
     costBasis: 18500.00,
     unrealizedPnL: 240.00,
     unrealizedPnLPercent: 1.30,
     taxLots: [
-      { date: '2023-05-20', amount: 30, price: 310.00, cost: 9300.00 },
-      { date: '2023-11-10', amount: 20, price: 380.00, cost: 7600.00 }
+      { date: '2023-05-20', amount: 430, price: 21.6279, cost: 9300.00 },
+      { date: '2023-11-10', amount: 420, price: 18.0952, cost: 7600.00 }
     ]
   },
   {
     id: 'gold-1',
-    name: 'Gold',
-    symbol: 'GOLD',
+    name: 'Treasury Bill (91-Day)',
+    symbol: 'TBILL91',
     amount: 295,
     currentPrice: 62.45,
     currentValue: 18423.75,
     change24h: 0.45,
-    type: 'Gold',
+    type: 'Local Investments',
+    currency: 'GHS',
+    quantityType: 'units',
     costBasis: 18000.00,
     unrealizedPnL: 423.75,
     unrealizedPnLPercent: 2.35,

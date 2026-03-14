@@ -26,18 +26,14 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setError('');
 
     try {
-      const success = await login(email, password);
-      if (success) {
-        setSuccess(true);
-        setTimeout(() => {
-          onClose();
-          setSuccess(false);
-          setEmail('');
-          setPassword('');
-        }, 2000);
-      } else {
-        setError('Invalid email or password');
-      }
+      await login(email, password);
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+        setSuccess(false);
+        setEmail('');
+        setPassword('');
+      }, 2000);
     } catch (err) {
       setError('An error occurred. Please try again.');
     } finally {

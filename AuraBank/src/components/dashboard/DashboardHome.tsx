@@ -156,7 +156,7 @@ export default function DashboardHome({ userId }: { userId: number }) {
                 <p className={`font-semibold ${
                   transaction.type === 'credit' ? 'text-mint-600' : 'text-red-600'
                 }`}>
-                  {transaction.type === 'credit' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
+                  {transaction.type === 'credit' ? '+' : '-'}{formatCurrency(Math.abs(Number.isFinite(Number(transaction.amount)) ? Number(transaction.amount) : 0))}
                 </p>
               </div>
             ))}

@@ -97,8 +97,27 @@ export function simulateTransfer(from, to, amount) {
 }
 
 export function getUser(userId) {
-  const user = users.find(u => u.id === parseInt(userId));
-  if (!user) return null;
+  const normalizedUserId = parseInt(userId);
+  const user = users.find(u => u.id === normalizedUserId);
+  if (!user) {
+    return {
+      id: normalizedUserId,
+      name: 'New User',
+      email: `user${normalizedUserId}@aurafinance.com`,
+      bank: {
+        accounts: [],
+        transactions: []
+      },
+      vest: {
+        portfolio: [],
+        investments: []
+      },
+      wallet: {
+        balance: 0,
+        transactions: []
+      }
+    };
+  }
   return {
     ...user,
     bank: {

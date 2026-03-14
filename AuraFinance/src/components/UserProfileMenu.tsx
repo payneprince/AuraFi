@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { signOut } from 'next-auth/react';
 import { User, Settings, LogOut, CreditCard, HelpCircle, Bell, ChevronRight } from 'lucide-react';
+import { clearUnifiedAuthSession } from '../../../shared/unified-auth';
 
 interface UserProfileMenuProps {
   userName?: string;
@@ -138,6 +139,7 @@ export default function UserProfileMenu({ userName = 'User', userEmail = 'user@a
                 <button
                   onClick={async () => {
                     setIsOpen(false);
+                    clearUnifiedAuthSession();
                     try {
                       const result = await signOut({ redirect: false, callbackUrl: '/' });
                       window.location.href = result?.url || '/';

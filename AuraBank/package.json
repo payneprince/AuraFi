@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 --turbopack",
+    "dev": "rm -rf .next-dev && next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "bunx tsc --noEmit && next lint",
-    "format": "bunx biome format --write"
+    "lint": "npx tsc --noEmit && next lint",
+    "format": "npx biome format --write"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

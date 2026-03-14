@@ -15,10 +15,12 @@ import {
   Smartphone, 
   Moon, 
   Sun,
-  ChevronRight
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { exportTransactionsCSV } from '@/lib/mockAPI';
+import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function MorePage() {
   const [darkMode, setDarkMode] = useState(false);
@@ -37,6 +39,27 @@ export default function MorePage() {
     setDarkMode(newDarkMode);
     localStorage.setItem('auravest_dark_mode', String(newDarkMode));
     document.documentElement.classList.toggle('dark', newDarkMode);
+  };
+
+  const resetAuraVestDemoData = () => {
+    if (typeof window === 'undefined') return;
+    const confirmed = window.confirm('Reset AuraVest demo portfolio data for this browser?');
+    if (!confirmed) return;
+
+    const keysToReset = [
+      'auravest_transactions',
+      'auravest_trade_holdings',
+      'auravest_portfolio',
+      'auravest_cash_balance',
+      'auravest_cash_starting_balance',
+      'auravest_local_positions',
+      'auravest_watchlist',
+      'auravest_dca',
+      'auravest_alerts',
+    ];
+
+    keysToReset.forEach((key) => localStorage.removeItem(key));
+    window.location.href = '/dashboard';
   };
 
   const menuSections = [
@@ -81,6 +104,12 @@ export default function MorePage() {
               link.click();
             }
           }
+        },
+        {
+          icon: RotateCcw,
+          label: 'Reset Demo Data',
+          description: 'Clear AuraVest data in this browser only',
+          action: resetAuraVestDemoData,
         },
       ]
     },
@@ -161,8 +190,9 @@ export default function MorePage() {
       <button 
         className="w-full flex items-center justify-center gap-2 p-4 bg-card border border-border rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
         onClick={() => {
-          localStorage.clear();
-          window.location.href = '/login';
+          clearUnifiedAuthSession();
+          sessionStorage.removeItem('paynesuite_userId');
+          window.location.href = '/';
         }}
       >
         <LogOut className="w-4 h-4" />

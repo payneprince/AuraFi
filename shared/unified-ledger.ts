@@ -398,3 +398,285 @@ export class LedgerService {
 // ===== SINGLETON INSTANCE =====
 
 export const ledgerService = typeof window !== 'undefined' ? LedgerService.getInstance() : null;
+
+// ===== UNIFIED EVENT LEDGER MVP =====
+
+export type UnifiedLedgerEventType =
+  | 'trade.buy'
+  | 'trade.sell'
+  | 'funding.deposit'
+  | 'funding.withdrawal'
+  | 'transfer.bank_to_vest'
+  | 'transfer.bank_to_wallet'
+  | 'transfer.vest_to_wallet'
+  | 'transfer.wallet_to_bank'
+  | 'transfer.wallet_to_vest'
+  | string;
+
+export interface UnifiedLedgerEvent {
+  id: string;
+  timestamp: string;
+  userId: string;
+  app: AppSource | 'finance';
+  type: UnifiedLedgerEventType;
+  amount: number;
+  asset?: string;
+  currency: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UnifiedReplayState {
+  cashByApp: Record<string, number>;
+  holdingsBySymbol: Record<string, { quantity: number; costBasis: number; lastPrice: number }>;
+  totalNetWorthEstimate: number;
+}
+
+const EVENT_LEDGER_KEY = 'aura_unified_ledger_events';
+const EVENT_LEDGER_CHANNEL = 'aura-ledger-sync';
+const EVENT_DB_NAME = 'auraUnifiedLedgerDB';
+const EVENT_STORE_NAME = 'events';
+const EVENT_API_ENDPOINT = '/api/unified-ledger';
+
+const isBrowser = () => typeof window !== 'undefined';
+
+const openEventDb = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(EVENT_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(EVENT_STORE_NAME)) {
+        const store = db.createObjectStore(EVENT_STORE_NAME, { keyPath: 'id' });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+        store.createIndex('userId', 'userId', { unique: false });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const readEventFallback = (): UnifiedLedgerEvent[] => {
+  if (!isBrowser()) return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EVENT_LEDGER_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeEventFallback = (events: UnifiedLedgerEvent[]) => {
+  if (!isBrowser()) return;
+  localStorage.setItem(EVENT_LEDGER_KEY, JSON.stringify(events));
+};
+
+const broadcastEventLedgerUpdate = () => {
+  if (!isBrowser() || typeof BroadcastChannel === 'undefined') return;
+  try {
+    const channel = new BroadcastChannel(EVENT_LEDGER_CHANNEL);
+    channel.postMessage({ type: 'ledger.updated', timestamp: new Date().toISOString() });
+    channel.close();
+  } catch {
+    // no-op
+  }
+};
+
+const fetchEventsFromServer = async (userId?: string): Promise<UnifiedLedgerEvent[] | null> => {
+  if (!isBrowser()) return null;
+
+  try {
+    const query = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    const response = await fetch(`${EVENT_API_ENDPOINT}${query}`, { cache: 'no-store' });
+    if (!response.ok) return null;
+
+    const payload = await response.json() as { events?: UnifiedLedgerEvent[] };
+    if (!Array.isArray(payload?.events)) return [];
+
+    return payload.events
+      .filter((event) => event && typeof event === 'object')
+      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  } catch {
+    return null;
+  }
+};
+
+const appendEventToServer = async (event: UnifiedLedgerEvent): Promise<UnifiedLedgerEvent | null> => {
+  if (!isBrowser()) return null;
+
+  try {
+    const response = await fetch(EVENT_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: event.userId, event }),
+      keepalive: true,
+    });
+
+    if (!response.ok) return null;
+
+    const payload = await response.json() as { event?: UnifiedLedgerEvent };
+    if (!payload?.event) return event;
+    return payload.event;
+  } catch {
+    return null;
+  }
+};
+
+export async function getUnifiedLedgerEvents(userId?: string): Promise<UnifiedLedgerEvent[]> {
+  if (!isBrowser()) return [];
+
+  const serverEvents = await fetchEventsFromServer(userId);
+  if (serverEvents) {
+    return serverEvents;
+  }
+
+  try {
+    const db = await openEventDb();
+    const tx = db.transaction(EVENT_STORE_NAME, 'readonly');
+    const store = tx.objectStore(EVENT_STORE_NAME);
+    const request = store.getAll();
+
+    const events: UnifiedLedgerEvent[] = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve((request.result || []) as UnifiedLedgerEvent[]);
+      request.onerror = () => reject(request.error);
+    });
+
+    const filtered = userId ? events.filter((event) => event.userId === userId) : events;
+    return filtered.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  } catch {
+    const fallback = readEventFallback();
+    const filtered = userId ? fallback.filter((event) => event.userId === userId) : fallback;
+    return filtered.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  }
+}
+
+export async function appendUnifiedLedgerEvent(
+  event: Omit<UnifiedLedgerEvent, 'id' | 'timestamp'>,
+): Promise<UnifiedLedgerEvent> {
+  const newEvent: UnifiedLedgerEvent = {
+    ...event,
+    id: `ledger-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (!isBrowser()) return newEvent;
+
+  const persistedEvent = await appendEventToServer(newEvent);
+  if (persistedEvent) {
+    broadcastEventLedgerUpdate();
+    return persistedEvent;
+  }
+
+  try {
+    const db = await openEventDb();
+    const tx = db.transaction(EVENT_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(EVENT_STORE_NAME);
+    store.put(newEvent);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch {
+    const events = readEventFallback();
+    events.push(newEvent);
+    writeEventFallback(events);
+  }
+
+  broadcastEventLedgerUpdate();
+  return newEvent;
+}
+
+export async function replayUnifiedLedger(userId: string): Promise<UnifiedReplayState> {
+  const events = await getUnifiedLedgerEvents(userId);
+
+  const state: UnifiedReplayState = {
+    cashByApp: { bank: 0, vest: 0, wallet: 0, finance: 0 },
+    holdingsBySymbol: {},
+    totalNetWorthEstimate: 0,
+  };
+
+  for (const event of events) {
+    const amount = Number(event.amount || 0);
+
+    if (event.type === 'funding.deposit') {
+      state.cashByApp[event.app] = (state.cashByApp[event.app] || 0) + amount;
+      continue;
+    }
+
+    if (event.type === 'funding.withdrawal') {
+      state.cashByApp[event.app] = (state.cashByApp[event.app] || 0) - amount;
+      continue;
+    }
+
+    if (event.type.startsWith('transfer.')) {
+      const fromApp = String(event.app || '');
+      const toApp = String(event.metadata?.toApp || '');
+      if (fromApp && Object.prototype.hasOwnProperty.call(state.cashByApp, fromApp)) {
+        state.cashByApp[fromApp] = (state.cashByApp[fromApp] || 0) - amount;
+      }
+      if (toApp && Object.prototype.hasOwnProperty.call(state.cashByApp, toApp)) {
+        state.cashByApp[toApp] = (state.cashByApp[toApp] || 0) + amount;
+      }
+      continue;
+    }
+
+    if (event.type === 'trade.buy' || event.type === 'trade.sell') {
+      const symbol = String(event.asset || event.metadata?.asset || '').toUpperCase();
+      const qty = Number(event.metadata?.amount || 0);
+      const price = Number(event.metadata?.price || 0);
+      const fee = Number(event.metadata?.fee || 0);
+
+      if (!symbol || !Number.isFinite(qty) || qty <= 0) continue;
+
+      const current = state.holdingsBySymbol[symbol] || {
+        quantity: 0,
+        costBasis: 0,
+        lastPrice: price,
+      };
+
+      if (event.type === 'trade.buy') {
+        current.quantity += qty;
+        current.costBasis += qty * price + fee;
+        state.cashByApp[event.app] = (state.cashByApp[event.app] || 0) - amount;
+      } else {
+        const average = current.quantity > 0 ? current.costBasis / current.quantity : 0;
+        const sellQty = Math.min(current.quantity, qty);
+        current.quantity -= sellQty;
+        current.costBasis = Math.max(0, current.costBasis - sellQty * average);
+        state.cashByApp[event.app] = (state.cashByApp[event.app] || 0) + amount;
+      }
+
+      current.lastPrice = price || current.lastPrice;
+      if (current.quantity > 0) {
+        state.holdingsBySymbol[symbol] = current;
+      } else {
+        delete state.holdingsBySymbol[symbol];
+      }
+      continue;
+    }
+  }
+
+  const cashTotal = Object.values(state.cashByApp).reduce((sum, value) => sum + Number(value || 0), 0);
+  const holdingsValue = Object.values(state.holdingsBySymbol).reduce(
+    (sum, holding) => sum + (holding.quantity * holding.lastPrice),
+    0,
+  );
+  state.totalNetWorthEstimate = Number((cashTotal + holdingsValue).toFixed(2));
+
+  return state;
+}
+
+export function subscribeToUnifiedLedgerUpdates(onUpdate: () => void): () => void {
+  if (!isBrowser() || typeof BroadcastChannel === 'undefined') return () => undefined;
+
+  const channel = new BroadcastChannel(EVENT_LEDGER_CHANNEL);
+  channel.onmessage = (event) => {
+    if (event?.data?.type === 'ledger.updated') {
+      onUpdate();
+    }
+  };
+
+  return () => {
+    channel.close();
+  };
+}

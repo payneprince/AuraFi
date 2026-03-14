@@ -1,8 +1,8 @@
-import NextAuth from 'next-auth';
+import NextAuth from 'next-auth/next';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { validateUser } from 'lib/shared/auth-utils';
+import { validateRegisteredUser } from '../../../../../../shared/user-registry';
 
-const handler = NextAuth({
+const authOptions = {
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -12,7 +12,7 @@ const handler = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-        const user = validateUser(credentials.email, credentials.password);
+        const user = await validateRegisteredUser(credentials.email, credentials.password);
         return user ? { id: user.id.toString(), email: user.email, name: user.name } : null;
       }
     })
@@ -21,22 +21,33 @@ const handler = NextAuth({
     signIn: '/login',
   },
   session: {
-    strategy: 'jwt',
+    strategy: 'jwt' as const,
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt(params: unknown) {
+      const { token, user } = params as {
+        token: { id?: string } & Record<string, unknown>;
+        user?: { id?: string };
+      };
       if (user) {
-        token.id = user.id;
+        token.id = String(user.id || token.id || '');
       }
       return token;
     },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-      }
+    async session(params: unknown) {
+      const { session, token } = params as {
+        session: { expires: string; user?: Record<string, unknown> } & Record<string, unknown>;
+        token: { id?: string } & Record<string, unknown>;
+      };
+      session.user = {
+        ...(session.user || {}),
+        id: String(token.id || ''),
+      };
       return session;
     },
   },
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

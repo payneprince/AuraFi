@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRegisteredUser, findRegisteredUserByEmail } from '../../../../../../shared/user-registry';
 
 type PersonalSignupPayload = {
   fullName: string;
@@ -32,8 +33,6 @@ type StoredSignup = Omit<PersonalSignupPayload, 'newPassword' | 'confirmPassword
     securityQuestion: string;
   };
 };
-
-const personalSignups: StoredSignup[] = [];
 
 function validatePayload(payload: PersonalSignupPayload): string | null {
   const ghanaCardPattern = /^GHA-\d{9}-\d$/i;
@@ -88,9 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingSignup = personalSignups.find(
-      (record) => record.signupEmail.toLowerCase() === payload.signupEmail.toLowerCase(),
-    );
+    const existingSignup = await findRegisteredUserByEmail(payload.signupEmail);
 
     if (existingSignup) {
       return NextResponse.json(
@@ -102,8 +99,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const createdUser = await createRegisteredUser({
+      email: payload.signupEmail,
+      password: payload.newPassword,
+      name: payload.fullName,
+      accountType: 'personal',
+    });
+
     const storedRecord: StoredSignup = {
-      id: crypto.randomUUID(),
+      id: createdUser.id,
       fullName: payload.fullName,
       signupEmail: payload.signupEmail,
       phone: payload.phone,
@@ -128,12 +132,16 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    personalSignups.push(storedRecord);
-
     return NextResponse.json({
       success: true,
-      message: 'Personal signup submitted successfully.',
+      message: 'Personal account created successfully.',
       signupId: storedRecord.id,
+      user: {
+        id: createdUser.id,
+        email: createdUser.email,
+        name: createdUser.name,
+        accountType: createdUser.accountType,
+      },
       submittedAt: storedRecord.submittedAt,
     });
   } catch (error: unknown) {
