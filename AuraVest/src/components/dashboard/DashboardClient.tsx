@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import {
   Home,
@@ -10,8 +10,8 @@ import {
   Menu,
   Sun,
   Moon,
-  LogOut,
   BookOpen,
+  LayoutGrid,
 } from 'lucide-react';
 import DashboardHome from './DashboardHome';
 import MarketsPage from './MarketsPage';
@@ -23,12 +23,14 @@ import AuraAIChat from '@/components/AuraAIChat';
 import { getPortfolio } from '@/lib/mockAPI';
 import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
 import { claimCrossAppTransfersForApp } from '../../../../shared/cross-app-transfer-sync';
-import { readUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { readUnifiedAuthSession, subscribeUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'markets' | 'portfolio' | 'trade' | 'more' | 'learn'>('home');
   const [darkMode, setDarkMode] = useState(false);
   const [syncVersion, setSyncVersion] = useState(0);
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
+  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   // Dark mode setup
   useEffect(() => {
@@ -168,12 +170,32 @@ export default function DashboardClient() {
     document.documentElement.classList.toggle('dark', newDarkMode);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('auravest_user');
-    localStorage.removeItem('auravest_portfolio');
-    // Since there's no login page, just reload the page
-    window.location.reload();
+  const buildAppUrl = (port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
   };
+
+  useEffect(() => {
+    return subscribeUnifiedAuthSession((session) => {
+      if (session) return;
+      localStorage.removeItem('auravest_user');
+      sessionStorage.removeItem('paynesuite_userId');
+      window.location.href = buildAppUrl(3000, '/login');
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!appSwitcherRef.current) return;
+      if (appSwitcherRef.current.contains(event.target as Node)) return;
+      setAppSwitcherOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="min-h-screen flex">
@@ -185,7 +207,7 @@ export default function DashboardClient() {
             { id: 'markets', label: 'Markets', icon: TrendingUp },
             { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
             { id: 'portfolio', label: 'Portfolio', icon: Wallet },
-            { id: 'more', label: 'More', icon: Menu },
+            { id: 'more', label: 'Settings', icon: Menu },
           ].map((item) => (
             <button
               key={item.id}
@@ -230,7 +252,7 @@ export default function DashboardClient() {
             { id: 'portfolio', label: 'Portfolio', icon: Wallet },
             { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
             
-            { id: 'more', label: 'More', icon: Menu },
+            { id: 'more', label: 'Settings', icon: Menu },
             { id: 'learn', label: 'Learn', icon: BookOpen },
           ].map((item) => (
             <button
@@ -248,30 +270,70 @@ export default function DashboardClient() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border space-y-2">
-          <button
-            onClick={toggleDarkMode}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="text-sm font-medium">Theme</span>
-            <span className="ml-auto text-xs bg-muted px-2 py-0.5 rounded">
-              {darkMode ? 'Dark' : 'Light'}
-            </span>
-          </button>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="text-sm font-medium">Logout</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
+        <div className="hidden md:flex items-center justify-end gap-2 mb-4">
+          <div ref={appSwitcherRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setAppSwitcherOpen((prev) => !prev)}
+              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border bg-card text-foreground hover:bg-accent transition-colors"
+              aria-label="Open app switcher"
+              aria-expanded={appSwitcherOpen}
+              title="App switcher"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+
+            {appSwitcherOpen && (
+              <div className="absolute right-0 mt-2 w-44 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-20">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppSwitcherOpen(false);
+                    window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                >
+                  AuraFinance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppSwitcherOpen(false);
+                    window.open(buildAppUrl(3001), '_blank', 'noopener,noreferrer');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                >
+                  AuraBank
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppSwitcherOpen(false);
+                    window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                >
+                  AuraWallet
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border bg-card text-foreground hover:bg-accent transition-colors"
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+        </div>
+
         {activeTab === 'home' && <DashboardHome key={`home-${syncVersion}`} />}
         {activeTab === 'markets' && <MarketsPage key={`markets-${syncVersion}`} />}
         {activeTab === 'portfolio' && <PortfolioPage key={`portfolio-${syncVersion}`} />}

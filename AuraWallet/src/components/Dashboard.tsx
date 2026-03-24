@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { LayoutGrid } from 'lucide-react';
 // @ts-ignore
 import { walletData, users } from '@/lib/shared/mock-data';
 // @ts-ignore
@@ -29,6 +29,15 @@ export default function Dashboard() {
   const [currentSection, setCurrentSection] = useState<WalletSection>('overview');
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isReady, setIsReady] = useState(false);
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
+  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
+
+  const buildAppUrl = useCallback((port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
+  }, []);
 
   const captureWalletStateSnapshot = useCallback((activeUserId: string) => {
     const snapshot: Record<string, string | null> = {};
@@ -102,6 +111,7 @@ export default function Dashboard() {
       if (!session?.userId) {
         sessionStorage.removeItem('aurasuite_userId');
         setUserId(1);
+        window.location.href = buildAppUrl(3000, '/login');
         return;
       }
 
@@ -116,6 +126,17 @@ export default function Dashboard() {
       setUserId(normalizedUserId);
       setWalletBalance(Number(hydratedState.balance || 0));
     });
+  }, [buildAppUrl]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!appSwitcherRef.current) return;
+      if (appSwitcherRef.current.contains(event.target as Node)) return;
+      setAppSwitcherOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -305,20 +326,64 @@ export default function Dashboard() {
         />
 
         <div className="flex-1 flex flex-col">
-          <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200 bg-white dark:border-white/10 dark:bg-[#071126]">
+          <div className="px-8 py-5 bg-white/70 backdrop-blur-sm dark:bg-[#071126]/70 dark:backdrop-blur-sm">
+            <div className="flex items-center justify-end gap-2 mb-4">
+              <div ref={appSwitcherRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAppSwitcherOpen((prev) => !prev)}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition-colors dark:border-white/20 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
+                  aria-label="Open app switcher"
+                  aria-expanded={appSwitcherOpen}
+                  title="App switcher"
+                >
+                  <LayoutGrid className="w-5 h-5" />
+                </button>
+
+                {appSwitcherOpen && (
+                  <div className="absolute right-0 mt-2 w-44 rounded-lg border border-slate-200 bg-white shadow-xl overflow-hidden z-20 dark:border-white/20 dark:bg-[#0b1533]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
+                    >
+                      AuraFinance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3001), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
+                    >
+                      AuraBank
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3002), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
+                    >
+                      AuraVest
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <ThemeToggle />
+            </div>
+
             <div>
               <h1 className="text-slate-900 dark:text-white font-extrabold text-3xl">{walletSectionTitles[currentSection]}</h1>
               {currentSection === 'overview' && (
                 <p className="text-slate-600 dark:text-white/75 text-base mt-1 font-medium">Welcome back, {user.name}</p>
               )}
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 text-slate-600 dark:text-white/80 text-base font-medium">
-                <CalendarDays className="w-4 h-4" />
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </div>
-              <ThemeToggle />
             </div>
           </div>
 

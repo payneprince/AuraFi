@@ -75,6 +75,13 @@ export default function SettingsSection() {
     },
   ];
 
+  const buildAppUrl = (port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="rounded-xl p-5 bg-gradient-to-r from-black via-white/15 to-green-500 text-white border border-white/20">
@@ -136,7 +143,7 @@ export default function SettingsSection() {
           clearUnifiedAuthSession();
           localStorage.removeItem('aurasuite_userId');
           sessionStorage.removeItem('aurasuite_userId');
-          window.location.href = '/';
+          window.location.href = buildAppUrl(3000, '/login');
         }}
       >
         <LogOut className="w-4 h-4" />

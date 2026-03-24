@@ -44,16 +44,7 @@ export default function BudgetPage() {
     .slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-text-light">Budget & Analytics</h2>
-          <p className="text-text-light/80 mt-1">Track your spending and manage budgets</p>
-        </div>
-        {/* Removed "+ Create Budget" button for now */}
-      </div>
-
+    <div className="space-y-4">
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-magenta-500 to-cyan-500 rounded-2xl p-6 text-white shadow-xl">

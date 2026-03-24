@@ -619,7 +619,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('aurabank_user');
+    sessionStorage.removeItem('userId');
     clearUnifiedAuthSession();
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    window.location.href = `${protocol}//${host}:3000/login`;
   };
 
   const updateAccounts = (newAccounts: Account[]) => {

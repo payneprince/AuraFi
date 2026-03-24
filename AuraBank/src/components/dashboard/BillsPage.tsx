@@ -174,14 +174,8 @@ export default function BillsPage() {
   const overdueBills = bills.filter(b => b.status === 'overdue');
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-text-light">Bill Management</h2>
-          <p className="text-text-light/80 mt-1">Manage and pay your bills</p>
-        </div>
-        {/* ✅ NEW: + Auto-Pay Button */}
+    <div className="space-y-4">
+      <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
           className="px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium rounded-lg hover:from-magenta-600 hover:to-teal-600 transition"

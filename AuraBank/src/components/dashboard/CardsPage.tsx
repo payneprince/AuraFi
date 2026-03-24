@@ -142,12 +142,8 @@ export default function CardsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">My Cards</h2>
-          <p className="text-slate-600 mt-1">Manage your debit and credit cards</p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <button
             onClick={() => {

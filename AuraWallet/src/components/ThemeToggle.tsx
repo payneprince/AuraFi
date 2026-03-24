@@ -30,11 +30,13 @@ export default function ThemeToggle() {
 
   return (
     <button
-      onClick={() => setDark(d => !d)}
-      className="px-2 py-1 rounded border border-slate-300 bg-white text-slate-900 dark:bg-white/5 dark:text-white dark:border-white/15 flex items-center gap-1.5"
+      type="button"
+      onClick={() => setDark((value) => !value)}
+      className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition-colors dark:border-white/20 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={dark ? 'Light mode' : 'Dark mode'}
     >
-      {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-      {dark ? 'Light' : 'Dark'}
+      {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </button>
   );
 }

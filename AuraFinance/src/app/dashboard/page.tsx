@@ -4,7 +4,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
 import { getBankInsights, getOverallInsights, getVestInsights, getWalletInsights } from 'lib/shared/auraai-core';
 import { getUser } from 'lib/shared/mock-data';
 import Image from 'next/image';
@@ -60,6 +59,10 @@ export default function DashboardPage() {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [transferMsg, setTransferMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityAppFilter, setActivityAppFilter] = useState<'all' | 'bank' | 'vest' | 'wallet'>('all');
+  const [activityTypeFilter, setActivityTypeFilter] = useState<'all' | 'transfer' | 'funding' | 'trade' | 'other'>('all');
+  const [activityDateRange, setActivityDateRange] = useState<'all' | '7d' | '30d' | '90d'>('30d');
   const [transferSuccessModal, setTransferSuccessModal] = useState<{
     amount: number;
     from: 'bank' | 'wallet' | 'vest';
@@ -302,12 +305,28 @@ export default function DashboardPage() {
       maximumFractionDigits: digits,
     }).format(amount);
 
+  const buildAppUrl = (port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
+  };
+
   const openAuraWalletTransfer = () => {
-    window.open('http://localhost:3003', '_blank', 'noopener,noreferrer');
+    window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
   };
 
   const openAuraVestInvest = () => {
-    window.open('http://localhost:3002/dashboard', '_blank', 'noopener,noreferrer');
+    window.open(buildAppUrl(3002, '/dashboard'), '_blank', 'noopener,noreferrer');
+  };
+
+  const openLauncherApp = (app: 'bank' | 'vest' | 'wallet') => {
+    const url = app === 'bank'
+      ? buildAppUrl(3001)
+      : app === 'vest'
+        ? buildAppUrl(3002)
+        : buildAppUrl(3003);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const appLabel = (app: 'bank' | 'wallet' | 'vest') => {
@@ -603,7 +622,7 @@ export default function DashboardPage() {
       : []),
   ];
 
-  const activityFeed = unifiedLedgerEvents.slice(0, 20).map((event) => {
+  const activityFeed = unifiedLedgerEvents.map((event) => {
     const source = event.app === 'bank' ? 'AuraBank' : event.app === 'vest' ? 'AuraVest' : 'AuraWallet';
     const isTransfer = event.type.startsWith('transfer.');
     const signedAmount = event.type === 'funding.withdrawal' || isTransfer
@@ -617,11 +636,48 @@ export default function DashboardPage() {
     return {
       id: event.id,
       source,
+      app: event.app,
+      type: event.type,
       title: String(event.metadata?.description || fallbackTitle),
       date: new Date(event.timestamp).toLocaleString(),
+      timestamp: new Date(event.timestamp).getTime(),
       amount: Number.isFinite(signedAmount) ? signedAmount : 0,
     };
   });
+
+  const now = Date.now();
+  const activityDateCutoff = activityDateRange === '7d'
+    ? now - (7 * 24 * 60 * 60 * 1000)
+    : activityDateRange === '30d'
+      ? now - (30 * 24 * 60 * 60 * 1000)
+      : activityDateRange === '90d'
+        ? now - (90 * 24 * 60 * 60 * 1000)
+        : 0;
+
+  const filteredActivityFeed = activityFeed
+    .filter((activity) => {
+      if (activityAppFilter !== 'all' && activity.app !== activityAppFilter) return false;
+
+      if (activityTypeFilter !== 'all') {
+        const eventType = String(activity.type || '').toLowerCase();
+        if (activityTypeFilter === 'other') {
+          const known = eventType.startsWith('transfer.') || eventType.startsWith('funding.') || eventType.startsWith('trade.');
+          if (known) return false;
+        } else if (!eventType.startsWith(`${activityTypeFilter}.`)) {
+          return false;
+        }
+      }
+
+      if (activityDateCutoff > 0 && Number.isFinite(activity.timestamp) && activity.timestamp < activityDateCutoff) {
+        return false;
+      }
+
+      const search = activitySearch.trim().toLowerCase();
+      if (!search) return true;
+      const haystack = `${activity.source} ${activity.title} ${activity.type}`.toLowerCase();
+      return haystack.includes(search);
+    })
+    .slice(0, 50);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -714,7 +770,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-10">
-          <Link href="http://localhost:3001" target="_blank" className="block group">
+          <button type="button" onClick={() => openLauncherApp('bank')} className="block group text-left w-full">
             <div className="bg-gradient-to-br from-aurabank-magenta to-aurabank-cyan text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
@@ -724,8 +780,8 @@ export default function DashboardPage() {
               </div>
               <p className="text-white/90">Manage your accounts and transactions</p>
             </div>
-          </Link>
-          <Link href="http://localhost:3002" target="_blank" className="block group">
+          </button>
+          <button type="button" onClick={() => openLauncherApp('vest')} className="block group text-left w-full">
             <div className="bg-gradient-to-br from-auravest-black to-auravest-crimson text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
@@ -735,8 +791,8 @@ export default function DashboardPage() {
               </div>
               <p className="text-white/90">Invest in stocks, crypto, and more</p>
             </div>
-          </Link>
-          <Link href="http://localhost:3003" target="_blank" className="block group">
+          </button>
+          <button type="button" onClick={() => openLauncherApp('wallet')} className="block group text-left w-full">
             <div className="bg-gradient-to-br from-emerald-400 via-green-600 to-black text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
@@ -746,7 +802,7 @@ export default function DashboardPage() {
               </div>
               <p className="text-white/90">Send and receive money instantly</p>
             </div>
-          </Link>
+          </button>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-10">
@@ -888,11 +944,50 @@ export default function DashboardPage() {
             <h3 className="text-xl font-bold">Unified Activity Feed</h3>
             <span className="text-xs text-muted-foreground">AuraBank • AuraVest • AuraWallet</span>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <input
+              value={activitySearch}
+              onChange={(event) => setActivitySearch(event.target.value)}
+              placeholder="Search activity"
+              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            />
+            <select
+              value={activityAppFilter}
+              onChange={(event) => setActivityAppFilter(event.target.value as 'all' | 'bank' | 'vest' | 'wallet')}
+              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="all">All Apps</option>
+              <option value="bank">AuraBank</option>
+              <option value="vest">AuraVest</option>
+              <option value="wallet">AuraWallet</option>
+            </select>
+            <select
+              value={activityTypeFilter}
+              onChange={(event) => setActivityTypeFilter(event.target.value as 'all' | 'transfer' | 'funding' | 'trade' | 'other')}
+              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="all">All Types</option>
+              <option value="transfer">Transfers</option>
+              <option value="funding">Funding</option>
+              <option value="trade">Trades</option>
+              <option value="other">Other</option>
+            </select>
+            <select
+              value={activityDateRange}
+              onChange={(event) => setActivityDateRange(event.target.value as 'all' | '7d' | '30d' | '90d')}
+              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="all">All Time</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+            </select>
+          </div>
           <div className="space-y-3">
-            {activityFeed.length === 0 ? (
+            {filteredActivityFeed.length === 0 ? (
               <p className="text-sm text-muted-foreground">No activity available yet.</p>
             ) : (
-              activityFeed.map((activity) => (
+              filteredActivityFeed.map((activity) => (
                 <div key={activity.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/70 dark:from-slate-800 dark:to-slate-700 border border-slate-100 dark:border-slate-700">
                   <div>
                     <div className="flex items-center gap-2 mb-1">

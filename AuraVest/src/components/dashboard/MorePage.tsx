@@ -16,7 +16,6 @@ import {
   Moon, 
   Sun,
   ChevronRight,
-  RotateCcw
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { exportTransactionsCSV } from '@/lib/mockAPI';
@@ -42,25 +41,11 @@ export default function MorePage() {
     document.documentElement.classList.toggle('dark', newDarkMode);
   };
 
-  const resetAuraVestDemoData = () => {
-    if (typeof window === 'undefined') return;
-    const confirmed = window.confirm('Reset AuraVest demo portfolio data for this browser?');
-    if (!confirmed) return;
-
-    const keysToReset = [
-      'auravest_transactions',
-      'auravest_trade_holdings',
-      'auravest_portfolio',
-      'auravest_cash_balance',
-      'auravest_cash_starting_balance',
-      'auravest_local_positions',
-      'auravest_watchlist',
-      'auravest_dca',
-      'auravest_alerts',
-    ];
-
-    keysToReset.forEach((key) => localStorage.removeItem(key));
-    window.location.href = '/dashboard';
+  const buildAppUrl = (port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
   };
 
   const menuSections = [
@@ -68,8 +53,6 @@ export default function MorePage() {
       title: 'Account',
       items: [
         { icon: User, label: 'Profile', description: 'Manage your profile' },
-        { icon: Wallet, label: 'AuraBank', description: 'Connect your bank account' },
-        { icon: Wallet, label: 'AuraWallet', description: 'Withdraw to wallet' },
       ]
     },
     {
@@ -106,12 +89,6 @@ export default function MorePage() {
             }
           }
         },
-        {
-          icon: RotateCcw,
-          label: 'Reset Demo Data',
-          description: 'Clear AuraVest data in this browser only',
-          action: resetAuraVestDemoData,
-        },
       ]
     },
     {
@@ -126,7 +103,7 @@ export default function MorePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">More</h1>
+        <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground">Settings and additional features</p>
       </div>
 
@@ -196,7 +173,7 @@ export default function MorePage() {
         onClick={() => {
           clearUnifiedAuthSession();
           sessionStorage.removeItem('paynesuite_userId');
-          window.location.href = '/';
+          window.location.href = buildAppUrl(3000, '/login');
         }}
       >
         <LogOut className="w-4 h-4" />

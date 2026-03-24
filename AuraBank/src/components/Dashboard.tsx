@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getUser } from '@/lib/shared/mock-data';
-import { getBankInsights } from '@/lib/shared/payneai-core';
 import DashboardHome from './dashboard/DashboardHome';
 import AccountsPage from './dashboard/AccountsPage';
 import TransactionsPage from './dashboard/TransactionsPage';
@@ -16,20 +15,27 @@ import {
   BarChart3,
   ArrowLeftRight,
   CreditCard,
-  FileText,
   File,
   Wallet,
   TrendingUp,
   PiggyBank,
   User,
+  LayoutGrid,
+  Moon,
+  Sun,
 } from 'lucide-react';
+import { subscribeUnifiedAuthSession } from '../../../shared/unified-auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 type PageType = 'home' | 'accounts' | 'transactions' | 'bills' | 'cards' | 'budget' | 'investments' | 'profile';
 
 export default function Dashboard() {
+  const { theme, setTheme } = useAuth();
   const [currentPage, setCurrentPage] = useState<PageType>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userIdNum, setUserIdNum] = useState(1);
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
+  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const userId = parseInt(sessionStorage.getItem('userId') || '1');
@@ -38,8 +44,33 @@ export default function Dashboard() {
 
   const userData = getUser(userIdNum.toString());
   const user = userData;
-  const accounts = userData?.bank.accounts || [];
-  const insights = getBankInsights(userIdNum);
+
+  const buildAppUrl = (port: number, path = '') => {
+    if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${host}:${port}${path}`;
+  };
+
+  useEffect(() => {
+    return subscribeUnifiedAuthSession((session) => {
+      if (session) return;
+      sessionStorage.removeItem('userId');
+      localStorage.removeItem('aurabank_user');
+      window.location.href = buildAppUrl(3000, '/login');
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!appSwitcherRef.current) return;
+      if (appSwitcherRef.current.contains(event.target as Node)) return;
+      setAppSwitcherOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const navigation = [
     { id: 'home', name: 'Overview', icon: <BarChart3 className="w-5 h-5" /> },
@@ -49,21 +80,19 @@ export default function Dashboard() {
     { id: 'bills', name: 'Bills', icon: <File className="w-5 h-5" /> },
     { id: 'cards', name: 'Cards', icon: <Wallet className="w-5 h-5" /> },
     { id: 'budget', name: 'Budget', icon: <TrendingUp className="w-5 h-5" /> },
-    { id: 'profile', name: 'Profile', icon: <User className="w-5 h-5" /> },
+    { id: 'profile', name: 'Settings', icon: <User className="w-5 h-5" /> },
   ];
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'home':
-        return <DashboardHome userId={userIdNum} />;
       case 'accounts':
         return <AccountsPage userId={userIdNum} />;
       case 'transactions':
         return <TransactionsPage userId={userIdNum} />;
       case 'bills':
-        return <BillsPage />;
+        return <BillsPage userId={userIdNum} />;
       case 'cards':
-        return <CardsPage />;
+        return <CardsPage userId={userIdNum} />;
       case 'budget':
         return <BudgetPage />;
       case 'investments':
@@ -76,7 +105,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-navy-900">
+    <div className="flex h-screen bg-gradient-to-b from-navy-800 via-navy-900 to-navy-900">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-navy-800 border-r border-navy-700 transition-all duration-300 flex flex-col`}>
         <div className="p-6 border-b border-navy-700">
@@ -125,46 +154,79 @@ export default function Dashboard() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
         {/* Header */}
-        <header className="bg-navy-800 border-b border-navy-700 px-8 py-4">
+        <header className="bg-navy-800/70 backdrop-blur-sm px-8 pt-5 pb-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-text-light">
                 {navigation.find(n => n.id === currentPage)?.name}
               </h1>
-              <p className="text-sm text-text-light/80 mt-1">
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
             </div>
 
-            <div className="flex items-center space-x-4">
-              {/* AI Insights */}
-              <div className="text-right">
-                <p className="text-sm font-semibold text-text-light">AuraAI</p>
-                <p className="text-xs text-text-light/70">{insights.insights[0]}</p>
+            <div className="flex items-center gap-2">
+              <div ref={appSwitcherRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAppSwitcherOpen((prev) => !prev)}
+                  className="inline-flex items-center justify-center w-10 h-10 bg-navy-700 border border-navy-600 text-text-light rounded-lg hover:bg-navy-600 transition-colors"
+                  aria-label="Open app switcher"
+                  aria-expanded={appSwitcherOpen}
+                >
+                  <LayoutGrid className="w-5 h-5" />
+                </button>
+
+                {appSwitcherOpen && (
+                  <div className="absolute right-0 mt-2 w-44 rounded-lg border border-navy-600 bg-navy-800/95 backdrop-blur-sm shadow-xl overflow-hidden z-20">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
+                    >
+                      AuraFinance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3002), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
+                    >
+                      AuraVest
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppSwitcherOpen(false);
+                        window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
+                    >
+                      AuraWallet
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* User Menu */}
-<div className="flex items-center space-x-3 border-l border-navy-700 pl-4">
-  <div className="text-right">
-    <p className="text-sm font-semibold text-text-light">{user?.name}</p>
-    <p className="text-xs text-text-light/70">{user?.email}</p>
-  </div>
-  <button
-    onClick={() => setCurrentPage('profile')}
-    className="w-10 h-10 bg-gradient-to-br from-magenta-500 to-teal-500 rounded-full flex items-center justify-center text-white font-semibold hover:opacity-90 transition cursor-pointer"
-    title="View Profile"
-  >
-    {user?.name?.charAt(0)}
-  </button>
-</div>
+              <button
+                type="button"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="inline-flex items-center justify-center w-10 h-10 bg-navy-700 border border-navy-600 text-text-light rounded-lg hover:bg-navy-600 transition-colors"
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              >
+                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-8 hide-scrollbar">
+        <main className="flex-1 overflow-y-auto px-8 pb-8 pt-2 hide-scrollbar">
           {renderPage()}
         </main>
       </div>

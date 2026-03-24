@@ -215,20 +215,14 @@ export default function InvestmentsPage() {
   const estimatedAnnualEarnings = positions.reduce((sum, item) => sum + item.amount * (item.annualRate / 100), 0);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-text-light">Investments</h2>
-            <p className="text-sm text-text-light/70 mt-1">Local Ghana investment products available through AuraBank</p>
-          </div>
-          <button
-            onClick={() => window.open('http://localhost:3002', '_self')}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white text-sm font-semibold"
-          >
-            Invest in AuraVest
-          </button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => window.open('http://localhost:3002', '_self')}
+          className="px-4 py-2 rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white text-sm font-semibold"
+        >
+          Invest in AuraVest
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

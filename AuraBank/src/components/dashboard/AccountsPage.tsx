@@ -117,12 +117,8 @@ export default function AccountsPage({ userId }: { userId: number }) {
     });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">My Accounts</h2>
-          <p className="text-slate-600 mt-1">Manage all your banking accounts</p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
           className="px-6 py-3 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-semibold rounded-lg hover:from-magenta-600 hover:to-teal-600 transition shadow-lg"

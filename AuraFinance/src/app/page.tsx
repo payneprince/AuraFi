@@ -1,3 +1,5 @@
+import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
 import { Navigation } from "@/components/Navigation";
 import { Hero } from "@/components/Hero";
 import { Products } from "@/components/Products";
@@ -13,8 +15,14 @@ import { Integration } from "@/components/Integration";
 import { Footer } from "@/components/Footer";
 import { BackToTop } from "@/components/BackToTop";
 import { LiveChat } from "@/components/LiveChat";
+import { authOptions } from "./api/auth/[...nextauth]/route";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  if (session) {
+    redirect('/dashboard');
+  }
+
   return (
     <main className="min-h-screen">
       <Navigation />
