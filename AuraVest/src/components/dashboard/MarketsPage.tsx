@@ -630,8 +630,10 @@ export default function MarketsPage() {
                   >
                     <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-lg">
-                        {crypto.image}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                        {crypto.image?.startsWith('http') ? (
+                          <img src={crypto.image} alt={crypto.symbol} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : crypto.symbol?.slice(0, 2)}
                       </div>
                       <div>
                         <p className="font-semibold">{crypto.name}</p>
@@ -653,7 +655,7 @@ export default function MarketsPage() {
                           <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-current' : ''}`} />
                         </span>
                         <div className="text-right">
-                          <p className="font-semibold">${crypto.price.toLocaleString()}</p>
+                          <p className="font-semibold">${(crypto.price ?? 0).toLocaleString()}</p>
                           <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                             {formatPercent(crypto.change24h)}%
                           </p>
@@ -770,7 +772,7 @@ export default function MarketsPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold">GHS {stock.price.toLocaleString()}</p>
+                          <p className="font-semibold">GHS {(stock.price ?? 0).toLocaleString()}</p>
                           <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                             {formatPercent(stock.change24h)}%
                           </p>
@@ -797,8 +799,26 @@ export default function MarketsPage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg">
-                            {stock.image}
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {stock.image?.startsWith('http') ? (
+                              <img
+                                src={stock.image}
+                                alt={stock.symbol}
+                                className="w-8 h-8 object-contain"
+                                onError={(e) => {
+                                  const img = e.target as HTMLImageElement;
+                                  img.style.display = 'none';
+                                  const fallback = img.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <span
+                              className="text-xs font-bold text-slate-700"
+                              style={{ display: stock.image?.startsWith('http') ? 'none' : 'flex' }}
+                            >
+                              {stock.symbol?.slice(0, 2)}
+                            </span>
                           </div>
                           <div>
                             <p className="font-semibold">{stock.name}</p>
@@ -820,7 +840,7 @@ export default function MarketsPage() {
                             <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-current' : ''}`} />
                           </span>
                           <div className="text-right">
-                            <p className="font-semibold">${stock.price.toLocaleString()}</p>
+                            <p className="font-semibold">${(stock.price ?? 0).toLocaleString()}</p>
                             <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                               {formatPercent(stock.change24h)}%
                             </p>
@@ -893,7 +913,7 @@ export default function MarketsPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">${gold.price.toLocaleString()}</p>
+                      <p className="font-semibold">${(gold.price ?? 0).toLocaleString()}</p>
                       <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                         {formatPercent(gold.change24h)}%
                       </p>
@@ -1226,10 +1246,10 @@ export default function MarketsPage() {
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${
-                              isCrypto ? 'from-purple-500 to-blue-500' : 'from-blue-500 to-cyan-500'
-                            } flex items-center justify-center text-white font-bold text-lg`}>
-                              {asset.image}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0 ${!isCrypto && asset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : isCrypto ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'}`}>
+                              {asset.image?.startsWith('http') ? (
+                                <img src={asset.image} alt={asset.symbol} className={asset.image?.includes('simpleicons.org') ? 'w-7 h-7 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              ) : <span className="text-white">{asset.symbol?.slice(0, 2)}</span>}
                             </div>
                             <div>
                               <p className="font-semibold">{asset.name}</p>
@@ -1251,7 +1271,7 @@ export default function MarketsPage() {
                               <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-current' : ''}`} />
                             </span>
                             <div className="text-right">
-                              <p className="font-semibold">${asset.price.toLocaleString()}</p>
+                              <p className="font-semibold">${(asset.price ?? 0).toLocaleString()}</p>
                               <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                                 {formatPercent(asset.change24h)}%
                               </p>

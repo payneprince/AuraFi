@@ -9,6 +9,12 @@ const BANK_STATE_FILE = path.join(suiteRoot, 'AuraBank', '.data', 'aurabank-stat
 const WALLET_STATE_FILE = path.join(suiteRoot, 'AuraWallet', '.data', 'aurawallet-state.json');
 const VEST_STATE_FILE = path.join(suiteRoot, 'AuraVest', '.data', 'auravest-state.json');
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 const ensureFile = async (filePath: string) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   try {
@@ -42,7 +48,7 @@ const parseJson = <T,>(raw: string | null | undefined, fallback: T): T => {
 export async function GET(request: NextRequest) {
   const userId = String(request.nextUrl.searchParams.get('userId') || '').trim();
   if (!userId) {
-    return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing userId' }, { status: 400, headers: corsHeaders });
   }
 
   const [bankMap, walletMap, vestMap] = await Promise.all([
@@ -82,5 +88,9 @@ export async function GET(request: NextRequest) {
     walletBalance: Number(Number(wallet.balance || 0).toFixed(2)),
     vestPortfolioValue: Number(Number(vestPortfolio.totalValue || 0).toFixed(2)),
     vestTopHoldings: vestHoldings,
-  });
+  }, { headers: corsHeaders });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

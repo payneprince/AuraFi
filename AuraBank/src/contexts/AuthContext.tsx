@@ -5,7 +5,6 @@ import type { User, Account, Transaction, Card, Bill, Budget, Notification, Recu
 import { getUser } from '@/lib/shared/mock-data';
 import { persistScopedAppStorage, switchScopedAppStorage } from '../../../shared/browser-app-state';
 import { AURABANK_STORAGE_KEYS } from '@/lib/bankStateKeys';
-import { findBrowserRegisteredUserByEmail } from '../../../shared/browser-user-directory';
 import {
   clearUnifiedAuthSession,
   readUnifiedAuthSession,
@@ -14,6 +13,9 @@ import {
 } from '../../../shared/unified-auth';
 import { claimCrossAppTransfersForApp } from '../../../shared/cross-app-transfer-sync';
 import { appendUnifiedLedgerEvent, getUnifiedLedgerEvents } from '../../../shared/unified-ledger';
+
+import type { TransferToastData } from '@/components/TransferToast';
+export type BankTransferToast = TransferToastData;
 
 interface AuthContextType {
   user: User | null;
@@ -29,6 +31,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
+  transferToasts: BankTransferToast[];
+  dismissTransferToast: (id: string) => void;
   updateAccounts: (accounts: Account[]) => void;
   updateBills: (bills: Bill[]) => void;
   addTransaction: (transaction: Transaction) => void;
@@ -71,7 +75,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isReady, setIsReady] = useState(false);
+  const [transferToasts, setTransferToasts] = useState<BankTransferToast[]>([]);
   const lastServerStateSnapshotRef = useRef('');
+
+  const dismissTransferToast = useCallback((id: string) => {
+    setTransferToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const addTransferToast = useCallback((toast: BankTransferToast) => {
+    setTransferToasts((prev) => [...prev.slice(-3), toast]);
+  }, []);
 
   const createBankUserProfile = useCallback((params: { id: string; name?: string; email?: string }): User => ({
     id: params.id,
@@ -79,6 +92,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     email: params.email || 'user@aurabank.com',
     avatar: '/profile.jpg',
   }), []);
+
+  const syncActiveSessionUserId = useCallback((userId: string) => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('userId', String(userId || ''));
+  }, []);
 
   const buildBankStorageDefaults = useCallback((targetUser: User) => {
     const isDemoUser = String(targetUser.id) === '1' || String(targetUser.email).toLowerCase() === 'demo@aurafinance.com';
@@ -263,17 +281,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [captureBankStateSnapshot]);
 
   useEffect(() => {
+    const urlUserId = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('userId')
+      : null;
     const unifiedSession = readUnifiedAuthSession();
     const genericSavedUser = localStorage.getItem('aurabank_user');
     const parsedSavedUser = genericSavedUser ? (JSON.parse(genericSavedUser) as User) : null;
 
-    const targetUser = unifiedSession
-      ? createBankUserProfile({
-          id: unifiedSession.userId,
-          name: unifiedSession.name || 'User',
-          email: unifiedSession.email || 'user@aurabank.com',
-        })
-      : (parsedSavedUser || createBankUserProfile({ id: '1', name: 'Demo User', email: 'demo@aurafinance.com' }));
+    const targetUser = urlUserId
+      ? createBankUserProfile({ id: urlUserId, name: unifiedSession?.name || 'User', email: unifiedSession?.email || 'user@aurabank.com' })
+      : unifiedSession
+        ? createBankUserProfile({ id: unifiedSession.userId, name: unifiedSession.name || 'User', email: unifiedSession.email || 'user@aurabank.com' })
+        : (parsedSavedUser || createBankUserProfile({ id: '1', name: 'Demo User', email: 'demo@aurafinance.com' }));
 
     const bootstrap = async () => {
       try {
@@ -289,6 +308,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       applyBankStateForUser(targetUser);
+      syncActiveSessionUserId(String(targetUser.id));
+
+      // Write unified session AFTER state is loaded — avoids BroadcastChannel race condition
+      if (urlUserId && !unifiedSession?.userId) {
+        writeUnifiedAuthSession({ userId: urlUserId, sourceApp: 'AuraBank' });
+      }
+
+      const isDemoTarget = String(targetUser.id) === '1' || String(targetUser.email).toLowerCase() === 'demo@aurafinance.com';
+      if (isDemoTarget) {
+        const mockUser = getUser('user_123');
+        if (mockUser?.bank) {
+          const defaultUser: User = {
+            id: 'user_123',
+            name: mockUser.name || 'Prince',
+            email: mockUser.email || 'prince@test.com',
+            phone: mockUser.phone || '+233 55 827 9979',
+            address: mockUser.address || 'Accra, Ghana',
+          };
+
+          const demoAccounts = mockUser.bank.accounts || [];
+          const demoTransactions = mockUser.bank.accounts?.flatMap((acc: any) =>
+            (acc.transactions || []).map((tx: any) => ({ ...tx, accountId: acc.id }))
+          ) || [];
+
+          setUser(defaultUser);
+          setAccounts(demoAccounts);
+          setTransactions(demoTransactions);
+          setCards(mockUser.bank.cards || []);
+          setBills(mockUser.bank.bills || []);
+          setBudgets(mockUser.bank.budgets || []);
+
+          localStorage.setItem('aurabank_user', JSON.stringify(defaultUser));
+          localStorage.setItem('aurabank_accounts', JSON.stringify(demoAccounts));
+          localStorage.setItem('aurabank_transactions', JSON.stringify(demoTransactions));
+          localStorage.setItem('aurabank_cards', JSON.stringify(mockUser.bank.cards || []));
+          localStorage.setItem('aurabank_bills', JSON.stringify(mockUser.bank.bills || []));
+          localStorage.setItem('aurabank_budgets', JSON.stringify(mockUser.bank.budgets || []));
+
+          await persistBankStateToServer('1');
+          setIsReady(true);
+          return;
+        }
+      }
 
       const savedUser = localStorage.getItem('aurabank_user');
       const savedAccounts = localStorage.getItem('aurabank_accounts');
@@ -512,6 +574,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setTransactions(nextTransactions.slice(0, 500));
       localStorage.setItem('aurabank_accounts', JSON.stringify(nextAccounts));
       localStorage.setItem('aurabank_transactions', JSON.stringify(nextTransactions.slice(0, 500)));
+
+      // Show a toast for each claimed transfer
+      for (const event of transferEvents) {
+        const amount = Number(event.amount || 0);
+        addTransferToast({
+          id: event.id,
+          amount,
+          fromApp: event.fromApp,
+          toApp: event.toApp,
+          direction: event.fromApp === 'bank' ? 'outgoing' : 'incoming',
+        });
+      }
     };
 
     applyQueuedTransfers();
@@ -571,25 +645,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user, isReady, applyBankStateForUser]);
 
   const login = async (email: string, password: string) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const isDemoUser = normalizedEmail === 'demo@aurafinance.com' && password === 'demo123';
-    const registeredUser = isDemoUser ? {
-      id: '1',
-      name: 'Demo User',
-      email: normalizedEmail,
-    } : findBrowserRegisteredUserByEmail(normalizedEmail);
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
 
-    if (!isDemoUser && (!registeredUser || registeredUser.password !== password)) {
-      throw new Error('Invalid email or password');
+    const data = await response.json() as { id?: string; email?: string; name?: string; error?: string };
+    if (!response.ok) {
+      throw new Error(data.error || 'Invalid email or password');
     }
 
     const authenticatedUser = createBankUserProfile({
-      id: String(registeredUser?.id || '1'),
-      name: registeredUser?.name || 'Demo User',
-      email: registeredUser?.email || normalizedEmail,
+      id: String(data.id || '1'),
+      name: data.name || 'User',
+      email: data.email || email,
     });
 
     applyBankStateForUser(authenticatedUser);
+    syncActiveSessionUserId(String(authenticatedUser.id));
 
     setUser(authenticatedUser);
     localStorage.setItem('aurabank_user', JSON.stringify(authenticatedUser));
@@ -602,16 +676,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const signup = async (email: string, password: string, name: string) => {
-    // Mock signup
-    const mockUser: User = createBankUserProfile({ id: '1', name, email });
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name }),
+    });
 
-    applyBankStateForUser(mockUser);
-    setUser(mockUser);
-    localStorage.setItem('aurabank_user', JSON.stringify(mockUser));
+    const data = await response.json() as { id?: string; email?: string; name?: string; error?: string };
+    if (!response.ok) {
+      throw new Error(data.error || 'Registration failed');
+    }
+
+    const newUser = createBankUserProfile({
+      id: String(data.id || '1'),
+      name: data.name || name,
+      email: data.email || email,
+    });
+
+    applyBankStateForUser(newUser);
+    syncActiveSessionUserId(String(newUser.id));
+    setUser(newUser);
+    localStorage.setItem('aurabank_user', JSON.stringify(newUser));
     writeUnifiedAuthSession({
-      userId: String(mockUser.id),
-      email: mockUser.email,
-      name: mockUser.name,
+      userId: String(newUser.id),
+      email: newUser.email,
+      name: newUser.name,
       sourceApp: 'AuraBank',
     });
   };
@@ -720,6 +809,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     signup,
     logout,
+    transferToasts,
+    dismissTransferToast,
     updateAccounts,
     updateBills,
     addTransaction,

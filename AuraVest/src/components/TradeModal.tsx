@@ -25,6 +25,8 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
   const isPositive = asset.change24h >= 0;
   const isLocalGhanaStock = asset?.exchange === 'GSE' || asset?.currency === 'GHS';
   const isLogoImage = typeof asset?.image === 'string' && asset.image.startsWith('/logos/');
+  const isStockIcon = typeof asset?.image === 'string' && asset.image.includes('simpleicons.org');
+  const isExternalImage = typeof asset?.image === 'string' && asset.image.startsWith('http');
   const currencyPrefix = isLocalGhanaStock ? 'GHS ' : '$';
   const resolveAssetClass = () => {
     const explicitAssetClass = asset?.assetClass || asset?.assetType || asset?.category;
@@ -409,22 +411,20 @@ export default function TradeModal({ asset, onClose, initialType = 'buy' }: Trad
       <div className="bg-card border border-border rounded-xl max-w-lg w-full max-h-[90vh] overflow-auto animate-slideIn shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold overflow-hidden ${isLogoImage ? 'bg-transparent' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
-              {asset.image?.startsWith('/nft/') || asset.image?.startsWith('/logos/') ? (
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold overflow-hidden ${isStockIcon ? 'bg-white border border-slate-200' : isLogoImage ? 'bg-transparent' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+              {isExternalImage || asset.image?.startsWith('/nft/') || asset.image?.startsWith('/logos/') ? (
                 <img
                   src={asset.image}
                   alt={asset.symbol}
-                  className="w-full h-full object-cover"
+                  className={isStockIcon ? 'w-8 h-8 object-contain' : 'w-full h-full object-cover'}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                     const fallback = e.currentTarget.nextElementSibling as HTMLElement;
                     if (fallback) fallback.style.display = 'flex';
                   }}
                 />
-              ) : (
-                asset.image || asset.symbol?.slice(0, 2)
-              )}
-              <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold hidden">
+              ) : null}
+              <div className={`w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold ${isExternalImage || asset.image?.startsWith('/nft/') || asset.image?.startsWith('/logos/') ? 'hidden' : ''}`}>
                 {asset.symbol?.slice(0, 2)}
               </div>
             </div>

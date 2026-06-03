@@ -15,12 +15,19 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
-import UnifiedActivityFeed from './UnifiedActivityFeed';
 
 export default function SettingsSection() {
   const [notifications, setNotifications] = useState(true);
   const [twoFactor, setTwoFactor] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(
+    typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  const toggleDarkMode = (val: boolean) => {
+    setDarkMode(val);
+    document.documentElement.classList.toggle('dark', val);
+    localStorage.setItem('aurawallet_dark_mode', String(val));
+  };
 
   const sections = [
     {
@@ -55,7 +62,7 @@ export default function SettingsSection() {
           description: darkMode ? 'On' : 'Off',
           toggle: true,
           value: darkMode,
-          onChange: setDarkMode,
+          onChange: toggleDarkMode,
         },
       ],
     },
@@ -93,9 +100,6 @@ export default function SettingsSection() {
           </div>
         </div>
       </div>
-
-      {/* Unified Activity Feed */}
-      <UnifiedActivityFeed />
 
       {sections.map((section, index) => (
         <div key={index} className="rounded-lg border border-white/10 bg-[#0B1E39] overflow-hidden">

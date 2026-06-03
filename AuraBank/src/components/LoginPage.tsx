@@ -21,8 +21,8 @@ export default function LoginPage() {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('prince@test.com');
-    setPassword('secure123');
+    setEmail('demo@aurafinance.com');
+    setPassword('demo123');
   };
 
   return (

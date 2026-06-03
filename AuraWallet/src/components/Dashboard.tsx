@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { LayoutGrid } from 'lucide-react';
 // @ts-ignore
 import { walletData, users } from '@/lib/shared/mock-data';
-// @ts-ignore
-import { getWalletInsights } from '@/lib/shared/auraai-core';
 import AuraChat from '@/components/AuraChat';
 import ThemeToggle from '@/components/ThemeToggle';
 import Sidebar from '@/components/Sidebar';
@@ -15,8 +13,10 @@ import PortfolioSection from '@/components/dashboard/PortfolioSection';
 import SettingsSection from '@/components/dashboard/SettingsSection';
 import { WalletSection } from '@/components/dashboard/types';
 import { walletSectionTitles } from '@/components/dashboard/navigation';
+import { TransferToastContainer, TransferToastData } from './TransferToast';
 import {
   readUnifiedAuthSession,
+  writeUnifiedAuthSession,
   subscribeUnifiedAuthSession,
 } from '../../../shared/unified-auth';
 import { claimCrossAppTransfersForApp } from '../../../shared/cross-app-transfer-sync';
@@ -30,6 +30,8 @@ export default function Dashboard() {
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isReady, setIsReady] = useState(false);
   const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
+  const [transferToasts, setTransferToasts] = useState<TransferToastData[]>([]);
+  const dismissTransferToast = (id: string) => setTransferToasts((p) => p.filter((t) => t.id !== id));
   const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   const buildAppUrl = useCallback((port: number, path = '') => {
@@ -69,9 +71,18 @@ export default function Dashboard() {
       const urlUserId = new URLSearchParams(window.location.search).get('userId');
       const unifiedSession = readUnifiedAuthSession();
       const sessionUserId = sessionStorage.getItem('aurasuite_userId');
+
+      if (!urlUserId && !unifiedSession?.userId && !sessionUserId) {
+        const host = window.location.hostname || 'localhost';
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        window.location.href = `${protocol}//${host}:3000/login`;
+        return;
+      }
+
       const id = parseInt(urlUserId || unifiedSession?.userId || sessionUserId || '1', 10);
       const normalizedUserId = String(id);
 
+      // Load server state into localStorage FIRST — before any BroadcastChannel can race
       try {
         const response = await fetch(`/api/state?userId=${encodeURIComponent(normalizedUserId)}`);
         if (response.ok) {
@@ -91,6 +102,7 @@ export default function Dashboard() {
         // Fall back to local snapshot/default runtime values.
       }
 
+      // Hydrate from now-correct localStorage
       const hydratedState = hydrateWalletRuntimeForUser({
         userId: normalizedUserId,
         name: unifiedSession?.name || undefined,
@@ -99,6 +111,12 @@ export default function Dashboard() {
       setUserId(id);
       setWalletBalance(Number(hydratedState.balance || 0));
       sessionStorage.setItem('aurasuite_userId', id.toString());
+
+      // Write unified session AFTER localStorage is correct so BroadcastChannel callbacks read good data
+      if (urlUserId && !unifiedSession?.userId) {
+        writeUnifiedAuthSession({ userId: normalizedUserId, sourceApp: 'AuraWallet' });
+      }
+
       await persistWalletStateToServer(normalizedUserId);
       setIsReady(true);
     };
@@ -115,6 +133,9 @@ export default function Dashboard() {
         return;
       }
 
+      // Only re-hydrate after bootstrap is complete — prevents race with initial load
+      if (!isReady) return;
+
       const nextUserId = Number.parseInt(session.userId, 10);
       const normalizedUserId = Number.isNaN(nextUserId) ? 1 : nextUserId;
       const hydratedState = hydrateWalletRuntimeForUser({
@@ -126,7 +147,7 @@ export default function Dashboard() {
       setUserId(normalizedUserId);
       setWalletBalance(Number(hydratedState.balance || 0));
     });
-  }, [buildAppUrl]);
+  }, [buildAppUrl, isReady]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -164,8 +185,14 @@ export default function Dashboard() {
     void persistWalletStateToServer(String(userId));
   }, [userId, walletBalance, isReady, persistWalletStateToServer]);
 
-  const user = users.find(u => u.id === userId) || users[0];
-  const insights = getWalletInsights(userId);
+  const mockUser = users.find(u => u.id === userId);
+  const authSession = readUnifiedAuthSession();
+  const user = mockUser || {
+    ...users[0],
+    id: userId,
+    name: authSession?.name || sessionStorage.getItem('aurasuite_userId') ? `User ${userId}` : users[0].name,
+    email: authSession?.email || users[0].email,
+  };
 
   const writeWalletSnapshotCookie = useCallback((balance: number) => {
     const snapshot = {
@@ -235,6 +262,17 @@ export default function Dashboard() {
       setWalletBalance(Number(hydrated.balance || 0));
       persistWalletStateForUser(activeUserId);
       void persistWalletStateToServer(activeUserId);
+
+      // Show a toast for each claimed transfer
+      for (const event of transferEvents) {
+        setTransferToasts((prev) => [...prev.slice(-3), {
+          id: event.id,
+          amount: Number(event.amount || 0),
+          fromApp: event.fromApp,
+          toApp: event.toApp,
+          direction: event.fromApp === 'wallet' ? 'outgoing' : 'incoming',
+        }]);
+      }
     };
 
     applyQueuedTransfers();
@@ -308,7 +346,7 @@ export default function Dashboard() {
         return (
           <OverviewSection
             walletBalance={walletBalance}
-            insight={insights.insights[0]}
+            insight="Chat with AuraAI below for personalized wallet insights."
             onTransferComplete={handleTransferComplete}
           />
         );
@@ -393,6 +431,7 @@ export default function Dashboard() {
         </div>
       </div>
       <AuraChat userId={user.id} />
+      <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
     </div>
   );
 }

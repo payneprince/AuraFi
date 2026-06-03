@@ -20,7 +20,6 @@ import {
 import { useState, useEffect } from 'react';
 import { exportTransactionsCSV } from '@/lib/mockAPI';
 import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
-import UnifiedActivityFeed from './UnifiedActivityFeed';
 
 export default function MorePage() {
   const [darkMode, setDarkMode] = useState(false);
@@ -119,9 +118,6 @@ export default function MorePage() {
           </div>
         </div>
       </div>
-
-      {/* Unified Activity Feed */}
-      <UnifiedActivityFeed />
 
       {/* Menu Sections */}
       {menuSections.map((section, idx) => (

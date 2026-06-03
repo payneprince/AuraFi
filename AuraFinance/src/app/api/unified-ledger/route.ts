@@ -4,10 +4,16 @@ import {
   getUnifiedLedgerEventsForUser,
 } from '../../../../../shared/unified-ledger-server';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 export async function GET(request: NextRequest) {
   const userId = String(request.nextUrl.searchParams.get('userId') || '').trim();
   const events = await getUnifiedLedgerEventsForUser(userId || undefined);
-  return NextResponse.json({ userId: userId || null, events });
+  return NextResponse.json({ userId: userId || null, events }, { headers: corsHeaders });
 }
 
 export async function POST(request: NextRequest) {
@@ -16,12 +22,16 @@ export async function POST(request: NextRequest) {
     const userId = String(body?.userId || (body?.event as { userId?: string } | undefined)?.userId || '').trim();
 
     if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing userId' }, { status: 400, headers: corsHeaders });
     }
 
     const event = await appendUnifiedLedgerEventForUser(userId, body?.event || {});
-    return NextResponse.json({ ok: true, event });
+    return NextResponse.json({ ok: true, event }, { headers: corsHeaders });
   } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400, headers: corsHeaders });
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

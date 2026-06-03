@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -)",
+      "Bash(npx next *)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(curl -s \"http://localhost:3000/api/suite-balances?userId=1\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"http://localhost:3000/api/suite-balances?userId=2\")",
+      "Bash(tail -20 /tmp/aurafinance-dev.log 2>/dev/null || echo \"No log\")",
+      "Read(//private/tmp/**)",
+      "Bash(xargs kill)",
+      "Bash(git add *)"
+    ]
+  }
+}

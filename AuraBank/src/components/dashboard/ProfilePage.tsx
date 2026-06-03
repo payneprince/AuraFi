@@ -17,7 +17,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
-import UnifiedActivityFeed from './UnifiedActivityFeed';
 
 export default function ProfilePage() {
   const { user, theme, setTheme, soundEnabled, toggleSound } = useAuth();
@@ -57,7 +56,7 @@ export default function ProfilePage() {
           description: theme === 'dark' ? 'On' : 'Off',
           toggle: true,
           value: theme === 'dark',
-          onChange: (val) => setTheme(val ? 'dark' : 'light'),
+          onChange: (val: boolean) => setTheme(val ? 'dark' : 'light'),
         },
         {
           icon: Bell,
@@ -94,7 +93,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="rounded-xl p-5 bg-gradient-to-r from-black via-white/15 to-green-500 text-white border border-white/20">
+      <div className="rounded-xl p-5 bg-gradient-to-r from-magenta-500 to-teal-500 text-white border border-white/20">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
             {(user?.name || 'D').charAt(0).toUpperCase()}
@@ -105,9 +104,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-
-      {/* Unified Activity Feed */}
-      <UnifiedActivityFeed />
 
       {sections.map((section, index) => (
         <div key={index} className="rounded-lg border border-white/10 bg-[#0B1E39] overflow-hidden">

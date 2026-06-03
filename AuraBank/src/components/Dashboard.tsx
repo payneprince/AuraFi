@@ -26,11 +26,12 @@ import {
 } from 'lucide-react';
 import { subscribeUnifiedAuthSession } from '../../../shared/unified-auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { TransferToastContainer } from './TransferToast';
 
 type PageType = 'home' | 'accounts' | 'transactions' | 'bills' | 'cards' | 'budget' | 'investments' | 'profile';
 
 export default function Dashboard() {
-  const { theme, setTheme } = useAuth();
+  const { theme, setTheme, transferToasts, dismissTransferToast } = useAuth();
   const [currentPage, setCurrentPage] = useState<PageType>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userIdNum, setUserIdNum] = useState(1);
@@ -90,9 +91,9 @@ export default function Dashboard() {
       case 'transactions':
         return <TransactionsPage userId={userIdNum} />;
       case 'bills':
-        return <BillsPage userId={userIdNum} />;
+        return <BillsPage />;
       case 'cards':
-        return <CardsPage userId={userIdNum} />;
+        return <CardsPage />;
       case 'budget':
         return <BudgetPage />;
       case 'investments':
@@ -233,6 +234,9 @@ export default function Dashboard() {
 
       {/* AuraAI Chat */}
       <AuraAIChat />
+
+      {/* Transfer notifications */}
+      <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
     </div>
   );
 }

@@ -403,7 +403,11 @@ export default function TradePage() {
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{asset.image}</span>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${asset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+                          {asset.image?.startsWith('http') || asset.image?.startsWith('/') ? (
+                            <img src={asset.image} alt={asset.symbol} className={asset.image?.includes('simpleicons.org') ? 'w-6 h-6 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ) : <span className="text-white text-xs font-bold">{asset.symbol?.slice(0, 2)}</span>}
+                        </div>
                         <div>
                           <p className="font-medium text-sm">{asset.symbol}</p>
                           <p className="text-xs text-muted-foreground">{asset.name}</p>

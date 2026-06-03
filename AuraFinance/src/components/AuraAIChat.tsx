@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { Sparkles, Send, Mail } from 'lucide-react';
+import { readUnifiedAuthSession } from '../../../shared/unified-auth';
 
 export default function AuraAIChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,7 +31,7 @@ export default function AuraAIChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userQuery: input,
-          userId: 'demo',
+          userId: readUnifiedAuthSession()?.userId || '1',
         }),
       });
 
@@ -59,7 +60,7 @@ export default function AuraAIChat() {
       const res = await fetch('/api/ai/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'demo' }),
+        body: JSON.stringify({ userId: readUnifiedAuthSession()?.userId || '1' }),
       });
       const data = await res.json();
       if (data.success) {

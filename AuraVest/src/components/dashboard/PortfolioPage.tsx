@@ -443,10 +443,18 @@ export default function PortfolioPage() {
       return false;
     }
   })();
+  const isDemoUser = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('auravest_user') || '{}');
+      return String(u?.id || '1') === '1';
+    } catch { return true; }
+  })();
   const synthesizedPortfolioHoldings = buildRepresentativeHoldingsFromAssets(Array.isArray(assets) ? assets : []);
   const holdings = hasUserPortfolioActivity
     ? [...localHoldings, ...tradeHoldings, ...(tradeHoldings.length === 0 && localHoldings.length === 0 ? synthesizedPortfolioHoldings : [])]
-    : [...localHoldings, ...tradeHoldings, ...baseHoldings];
+    : isDemoUser
+      ? [...localHoldings, ...tradeHoldings, ...baseHoldings]
+      : [...localHoldings, ...tradeHoldings];
   const filteredHoldings = holdings.filter((holding: any) => {
     if (holdingsFilter === 'all') return true;
     if (holdingsFilter === 'local') return holding.type === 'Local Investments' || holding.currency === 'GHS';

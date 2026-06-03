@@ -60,8 +60,10 @@ export default function PriceComparison({ assets }: PriceComparisonProps) {
           </select>
 
           <div className="text-center">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold mx-auto mb-2">
-              {asset1.image || asset1.symbol.slice(0, 2)}
+            <div className={`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-bold overflow-hidden ${asset1.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+              {asset1.image?.startsWith('http') || asset1.image?.startsWith('/') ? (
+                <img src={asset1.image} alt={asset1.symbol} className={asset1.image?.includes('simpleicons.org') ? 'w-8 h-8 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ) : <span className="text-white">{asset1.symbol.slice(0, 2)}</span>}
             </div>
             <p className="text-2xl font-bold mb-1">${asset1.price.toLocaleString()}</p>
             <p className={`text-sm ${asset1.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -92,8 +94,10 @@ export default function PriceComparison({ assets }: PriceComparisonProps) {
           </select>
 
           <div className="text-center">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-green-500 flex items-center justify-center text-white font-bold mx-auto mb-2">
-              {asset2.image || asset2.symbol.slice(0, 2)}
+            <div className={`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-bold overflow-hidden ${asset2.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-cyan-500 to-green-500'}`}>
+              {asset2.image?.startsWith('http') || asset2.image?.startsWith('/') ? (
+                <img src={asset2.image} alt={asset2.symbol} className={asset2.image?.includes('simpleicons.org') ? 'w-8 h-8 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ) : <span className="text-white">{asset2.symbol.slice(0, 2)}</span>}
             </div>
             <p className="text-2xl font-bold mb-1">${asset2.price.toLocaleString()}</p>
             <p className={`text-sm ${asset2.change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>

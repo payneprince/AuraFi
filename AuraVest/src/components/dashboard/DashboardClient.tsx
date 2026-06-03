@@ -24,13 +24,29 @@ import { getPortfolio } from '@/lib/mockAPI';
 import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
 import { claimCrossAppTransfersForApp } from '../../../../shared/cross-app-transfer-sync';
 import { readUnifiedAuthSession, subscribeUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { TransferToastContainer, TransferToastData } from '@/components/TransferToast';
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'markets' | 'portfolio' | 'trade' | 'more' | 'learn'>('home');
   const [darkMode, setDarkMode] = useState(false);
   const [syncVersion, setSyncVersion] = useState(0);
   const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
+  const [transferToasts, setTransferToasts] = useState<TransferToastData[]>([]);
+  const dismissTransferToast = (id: string) => setTransferToasts((p) => p.filter((t) => t.id !== id));
   const appSwitcherRef = useRef<HTMLDivElement | null>(null);
+
+  // Redirect to login if no session exists on first load
+  useEffect(() => {
+    const unifiedSession = readUnifiedAuthSession();
+    const sessionStorageId = sessionStorage.getItem('paynesuite_userId');
+    const vestUser = (() => { try { return JSON.parse(localStorage.getItem('auravest_user') || '{}') as { id?: string }; } catch { return {}; } })();
+
+    if (!unifiedSession?.userId && !sessionStorageId && !vestUser?.id) {
+      const host = window.location.hostname || 'localhost';
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      window.location.href = `${protocol}//${host}:3000/login`;
+    }
+  }, []);
 
   // Dark mode setup
   useEffect(() => {
@@ -95,6 +111,18 @@ export default function DashboardClient() {
 
       // Rebuild portfolio/cash snapshots from the updated transaction ledger.
       await getPortfolio();
+
+      // Show a toast for each claimed transfer
+      for (const event of transferEvents) {
+        setTransferToasts((prev) => [...prev.slice(-3), {
+          id: event.id,
+          amount: Number(event.amount || 0),
+          fromApp: event.fromApp,
+          toApp: event.toApp,
+          direction: event.fromApp === 'vest' ? 'outgoing' : 'incoming',
+        }]);
+      }
+      setSyncVersion((v) => v + 1);
     };
 
     void applyQueuedTransfers();
@@ -344,6 +372,7 @@ export default function DashboardClient() {
       </main>
 
       <AuraAIChat />
+      <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
     </div>
   );
 }

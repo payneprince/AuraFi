@@ -3,10 +3,18 @@
     {
       "id": "1",
       "email": "demo@aurafinance.com",
-      "password": "demo123",
+      "password": "ab54fef21d2823ab80a1547c36858ad7:badf83db35e4ea9430e353464c71a21c36168ed57b956762cbc03e24823a39b757c7a897f9ac76378e8c230e5fbd74940e8d6c5f7aee813abf9666764556f705",
       "name": "Demo User",
       "accountType": "personal",
       "createdAt": "2026-03-11T00:00:00.000Z"
+    },
+    {
+      "id": "2",
+      "email": "tackiep7@gmail.com",
+      "password": "c700a1894ae3ace9466e33e7c401b072:0a35a2859543d3a9a7e4af38d682a38945def9afc1e6a454130aa43e59dcb6ea3777854952e35fe8ed72aca2ab6729ca20c0d0ec6c9883b996ffef8e5c04f425",
+      "name": "Prince Nii Taki Tackie",
+      "accountType": "personal",
+      "createdAt": "2026-04-23T17:21:03.189Z"
     }
   ]
 }

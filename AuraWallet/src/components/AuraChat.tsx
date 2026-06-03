@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { Sparkles, Send, Mail } from 'lucide-react';
-// @ts-ignore
-import { getOverallInsights } from "@/lib/shared/auraai-core";
 
 export default function AuraChat({ userId = 1 }: { userId?: number }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,22 +14,7 @@ export default function AuraChat({ userId = 1 }: { userId?: number }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const generateReply = (query: string) => {
-    const normalized = query.toLowerCase();
-    const overall = getOverallInsights(userId);
-    if (normalized.includes('insight') || normalized.includes('summary') || normalized.includes('overview')) {
-      return overall.insights.join('\n');
-    }
-    if (normalized.includes('save') || normalized.includes('budget')) {
-      return "Try setting a weekly transfer cap, review recurring payments, and keep at least 20% of inflows in your wallet reserve.";
-    }
-    if (normalized.includes('security') || normalized.includes('safe') || normalized.includes('fraud')) {
-      return "For better wallet security: verify recipient details, avoid public Wi-Fi for transfers, and enable transaction alerts for every debit.";
-    }
-    return overall.insights[0] || "I can help with transfers, spending patterns, and wallet security recommendations.";
-  };
-
-  const sendMessage = (e?: React.FormEvent) => {
+  const sendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -40,17 +23,41 @@ export default function AuraChat({ userId = 1 }: { userId?: number }) {
     setInput("");
     setIsLoading(true);
 
-    setTimeout(() => {
-      setMessages((m) => [...m, { role: "ai", content: generateReply(userMsg) }]);
+    try {
+      const res = await fetch('/api/ai/insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userQuery: userMsg, userId: String(userId) }),
+      });
+      const data = await res.json() as { success: boolean; message: string };
+      setMessages((m) => [...m, { role: 'ai', content: data.message }]);
+    } catch {
+      setMessages((m) => [...m, { role: 'ai', content: 'Network error. Check your connection and try again.' }]);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
-  const scheduleWeeklyDigest = () => {
-    setMessages((prev) => [
-      ...prev,
-      { role: 'ai', content: '✅ Weekly wallet digest scheduled! You’ll see a summary here every Monday at 8 AM.' },
-    ]);
+  const scheduleWeeklyDigest = async () => {
+    try {
+      const res = await fetch('/api/ai/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: String(userId) }),
+      });
+      const data = await res.json() as { success: boolean; message: string };
+      if (data.success) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'ai', content: '✅ Weekly wallet digest scheduled! You\'ll get a summary every Monday at 8 AM.' },
+        ]);
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'ai', content: 'Failed to schedule digest. Try again later.' },
+      ]);
+    }
   };
 
   return (

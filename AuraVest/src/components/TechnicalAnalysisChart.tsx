@@ -60,6 +60,7 @@ interface TechnicalAnalysisChartProps {
     symbol: string;
     price: number;
     change24h: number;
+    image?: string;
     exchange?: string;
     currency?: string;
   };
@@ -358,8 +359,10 @@ export default function TechnicalAnalysisChart({ asset, onClose, isEmbedded = fa
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-black to-crimson-600 flex items-center justify-center text-white font-bold text-sm">
-                {asset.symbol.slice(0, 2)}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden ${asset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-black to-crimson-600'}`}>
+                {asset.image?.startsWith('http') ? (
+                  <img src={asset.image} alt={asset.symbol} className={asset.image?.includes('simpleicons.org') ? 'w-6 h-6 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                ) : <span className="text-white">{asset.symbol.slice(0, 2)}</span>}
               </div>
               <div>
                 <h3 className="font-semibold">{asset.name}</h3>

@@ -2,14 +2,14 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { getBankInsights, getOverallInsights, getVestInsights, getWalletInsights } from 'lib/shared/auraai-core';
+import { getBankInsights, getVestInsights, getWalletInsights } from 'lib/shared/auraai-core';
 import { getUser } from 'lib/shared/mock-data';
 import Image from 'next/image';
 import AuraAIChat from '@/components/AuraAIChat';
 import UserProfileMenu from '@/components/UserProfileMenu';
-import { AlertTriangle, BellRing, Info, Moon, Sun } from 'lucide-react';
+import { AlertTriangle, BellRing, Info, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight } from 'lucide-react';
 import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 import { AURAFINANCE_STORAGE_KEYS } from '@/lib/financeStateKeys';
 import {
@@ -53,7 +53,6 @@ export default function DashboardPage() {
   const [unifiedLedgerEvents, setUnifiedLedgerEvents] = useState<UnifiedLedgerEvent[]>([]);
   const [vestHoldings, setVestHoldings] = useState<VestHolding[]>([]);
   // Transfer panel state
-  const [showTransferPanel, setShowTransferPanel] = useState(false);
   const [transferFrom, setTransferFrom] = useState<'bank' | 'wallet' | 'vest'>('bank');
   const [transferTo, setTransferTo] = useState<'bank' | 'wallet' | 'vest'>('wallet');
   const [transferAmount, setTransferAmount] = useState('');
@@ -71,6 +70,16 @@ export default function DashboardPage() {
     reference: string;
   } | null>(null);
   const sessionUserId = String((session?.user as { id?: string } | undefined)?.id || '1');
+
+  // Counter animation
+  const [animBank, setAnimBank] = useState(0);
+  const [animVest, setAnimVest] = useState(0);
+  const [animWallet, setAnimWallet] = useState(0);
+  const [balancesAnimated, setBalancesAnimated] = useState(false);
+
+  // Chart hover
+  const [chartHover, setChartHover] = useState<{ index: number } | null>(null);
+  const chartSvgRef = useRef<SVGSVGElement>(null);
 
   const captureFinanceStateSnapshot = useCallback(() => {
     const snapshot: Record<string, string | null> = {};
@@ -243,6 +252,28 @@ export default function DashboardPage() {
     };
   }, [sessionUserId, session, refreshUnifiedReplay]);
 
+  // Trigger count-up animation when balances first arrive
+  useEffect(() => {
+    if (bankBalanceValue === null || vestPortfolioValue === null || walletBalanceValue === null) return;
+    if (balancesAnimated) return;
+    const tBank = bankBalanceValue;
+    const tVest = vestPortfolioValue;
+    const tWallet = walletBalanceValue;
+    if (tBank === 0 && tVest === 0 && tWallet === 0) { setBalancesAnimated(true); return; }
+    const duration = 900;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setAnimBank(tBank * ease);
+      setAnimVest(tVest * ease);
+      setAnimWallet(tWallet * ease);
+      if (t < 1) requestAnimationFrame(tick);
+      else setBalancesAnimated(true);
+    };
+    requestAnimationFrame(tick);
+  }, [bankBalanceValue, vestPortfolioValue, walletBalanceValue, balancesAnimated]);
+
   const toggleDarkMode = () => {
     const newDarkMode = !darkMode;
     setDarkMode(newDarkMode);
@@ -251,15 +282,38 @@ export default function DashboardPage() {
     void persistFinanceStateToServer(sessionUserId);
   };
 
+  const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = chartSvgRef.current;
+    if (!svg || chartPoints.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width) * 100;
+    let nearest = 0;
+    let dist = Infinity;
+    chartPoints.forEach((pt, i) => {
+      const d = Math.abs(pt.x - mouseX);
+      if (d < dist) { dist = d; nearest = i; }
+    });
+    setChartHover({ index: nearest });
+  };
+
   if (status === 'loading') return <div>Loading...</div>;
   if (!session) return null;
 
-  const userId = sessionUserId ? parseInt(sessionUserId, 10) : 1;
-  const user = getUser(userId);
-  const insights = getOverallInsights(userId);
-  const bankInsights = getBankInsights(userId);
-  const vestInsights = getVestInsights(userId);
-  const walletInsights = getWalletInsights(userId);
+  const isDemoUser = sessionUserId === '1';
+
+  // Personalized greeting
+  const getTimeGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+  const firstName = (session.user?.name ?? '').split(' ')[0] || 'there';
+
+  const bankInsights = isDemoUser ? getBankInsights(1) : { totalBalance: 0, monthlySpending: 0 };
+  const vestInsights = isDemoUser ? getVestInsights(1) : { totalValue: 0 };
+  const walletInsights = isDemoUser ? getWalletInsights(1) : { balance: 0 };
+  const mockUser = isDemoUser ? getUser(parseInt(sessionUserId, 10)) : null;
 
   const baseBankBalance = bankBalanceValue ?? bankInsights.totalBalance;
   const baseVestValue = vestPortfolioValue ?? vestInsights.totalValue;
@@ -269,9 +323,28 @@ export default function DashboardPage() {
   const effectiveVestValue = Number(baseVestValue.toFixed(2));
   const effectiveWalletBalance = Number(baseWalletBalance.toFixed(2));
   const liveNetWorth = effectiveBankBalance + effectiveVestValue + effectiveWalletBalance;
+  const isNewUser = !isDemoUser && liveNetWorth === 0;
 
-  const recentTransactions = user?.bank?.transactions?.slice(-5).reverse() ?? [];
-  const mockHoldings = (user?.vest?.portfolio ?? []).map((holding, index: number) => {
+  // Animated display values (count-up on first load, then live)
+  const isLoading = bankBalanceValue === null;
+  const dispBank = balancesAnimated ? effectiveBankBalance : animBank;
+  const dispVest = balancesAnimated ? effectiveVestValue : animVest;
+  const dispWallet = balancesAnimated ? effectiveWalletBalance : animWallet;
+  const dispNetWorth = dispBank + dispVest + dispWallet;
+
+  // Portfolio allocation for donut chart
+  const allocTotal = effectiveBankBalance + effectiveVestValue + effectiveWalletBalance;
+  const bankAlloc = allocTotal > 0 ? (effectiveBankBalance / allocTotal) * 100 : 0;
+  const vestAlloc = allocTotal > 0 ? (effectiveVestValue / allocTotal) * 100 : 0;
+  const walletAlloc = allocTotal > 0 ? (effectiveWalletBalance / allocTotal) * 100 : 0;
+  const donutR = 38;
+  const donutCirc = 2 * Math.PI * donutR;
+  const bankDash = (bankAlloc / 100) * donutCirc;
+  const vestDash = (vestAlloc / 100) * donutCirc;
+  const walletDash = (walletAlloc / 100) * donutCirc;
+
+  const recentTransactions = mockUser?.bank?.transactions?.slice(-5).reverse() ?? [];
+  const mockHoldings = (mockUser?.vest?.portfolio ?? []).map((holding, index: number) => {
     const row = (holding && typeof holding === 'object') ? (holding as Record<string, unknown>) : {};
     return {
       id: String(row.id || `mock-holding-${index}`),
@@ -282,18 +355,17 @@ export default function DashboardPage() {
   });
   const topHoldings = (vestHoldings.length > 0 ? vestHoldings : mockHoldings).slice(0, 3);
 
-  // Spending by category (mock data)
-  const spendingCategories = [
+  const spendingCategories = isDemoUser ? [
     { name: 'Groceries', amount: 450, color: 'bg-accent' },
     { name: 'Dining', amount: 320, color: 'bg-magenta' },
     { name: 'Transport', amount: 180, color: 'bg-primary' },
     { name: 'Entertainment', amount: 120, color: 'bg-purple' },
-    { name: 'Other', amount: 230, color: 'bg-lightGray' }
-  ];
+    { name: 'Other', amount: 230, color: 'bg-lightGray' },
+  ] : [];
   const totalSpending = spendingCategories.reduce((sum, cat) => sum + cat.amount, 0);
 
-  // Cash flow data
-  const monthlyIncome = 4500;
+  // Cash flow data — only meaningful for demo user; real users start at 0
+  const monthlyIncome = isDemoUser ? 4500 : 0;
   const monthlyExpenses = bankInsights.monthlySpending;
   const cashFlow = monthlyIncome - monthlyExpenses;
 
@@ -313,20 +385,16 @@ export default function DashboardPage() {
   };
 
   const openAuraWalletTransfer = () => {
-    window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
+    window.open(buildAppUrl(3003, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
   };
 
   const openAuraVestInvest = () => {
-    window.open(buildAppUrl(3002, '/dashboard'), '_blank', 'noopener,noreferrer');
+    window.open(buildAppUrl(3002, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
   };
 
   const openLauncherApp = (app: 'bank' | 'vest' | 'wallet') => {
-    const url = app === 'bank'
-      ? buildAppUrl(3001)
-      : app === 'vest'
-        ? buildAppUrl(3002)
-        : buildAppUrl(3003);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const port = app === 'bank' ? 3001 : app === 'vest' ? 3002 : 3003;
+    window.open(buildAppUrl(port, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
   };
 
   const appLabel = (app: 'bank' | 'wallet' | 'vest') => {
@@ -568,12 +636,11 @@ export default function DashboardPage() {
     URL.revokeObjectURL(objectUrl);
   };
 
-  // Upcoming bills
-  const upcomingBills = [
+  const upcomingBills = isDemoUser ? [
     { name: 'Rent', amount: 1200, dueDate: 'Mar 1', status: 'pending' },
     { name: 'Internet', amount: 60, dueDate: 'Mar 5', status: 'pending' },
-    { name: 'Phone', amount: 45, dueDate: 'Mar 10', status: 'pending' }
-  ];
+    { name: 'Phone', amount: 45, dueDate: 'Mar 10', status: 'pending' },
+  ] : [];
 
   const trendMultipliers: Record<'7D' | '30D' | '90D' | '1Y', number[]> = {
     '7D': [0.982, 0.987, 0.992, 0.989, 0.996, 0.998, 1],
@@ -599,13 +666,24 @@ export default function DashboardPage() {
     return { ...point, x, y };
   });
 
-  const linePath = chartPoints
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ');
+  // Smooth cubic bezier curve
+  const smoothLinePath = chartPoints.length > 1
+    ? chartPoints.reduce((acc, pt, i) => {
+        if (i === 0) return `M ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`;
+        const prev = chartPoints[i - 1];
+        const cp1x = (prev.x + (pt.x - prev.x) / 3).toFixed(2);
+        const cp2x = (pt.x - (pt.x - prev.x) / 3).toFixed(2);
+        return `${acc} C ${cp1x} ${prev.y.toFixed(2)} ${cp2x} ${pt.y.toFixed(2)} ${pt.x.toFixed(2)} ${pt.y.toFixed(2)}`;
+      }, '')
+    : `M 50 50`;
 
-  const areaPath = chartPoints.length
-    ? `M ${chartPoints[0].x} 100 ${linePath.replace('M ', 'L ')} L ${chartPoints[chartPoints.length - 1].x} 100 Z`
+  const smoothAreaPath = chartPoints.length > 1
+    ? `M ${chartPoints[0].x.toFixed(2)} 102 ${smoothLinePath.replace(/^M/, 'L')} L ${chartPoints[chartPoints.length - 1].x.toFixed(2)} 102 Z`
     : '';
+
+  // Keep old paths as fallback
+  const linePath = smoothLinePath;
+  const areaPath = smoothAreaPath;
 
   const smartAlerts = [
     ...(bankInsights.monthlySpending > 3000
@@ -682,14 +760,18 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between gap-4 mb-8 bg-white/60 dark:bg-slate-900/70 backdrop-blur-sm p-6 rounded-2xl shadow-sm border border-white/40 dark:border-slate-700/60">
+        <div className="sticky top-3 z-30 flex items-center justify-between gap-4 mb-8 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-4 rounded-2xl shadow-md border border-white/50 dark:border-slate-700/60">
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 rounded-2xl bg-white dark:bg-white shadow-lg flex items-center justify-center overflow-hidden">
               <Image src="/images/suite.jpeg" alt="Aura Finance" width={56} height={56} className="object-contain" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-magenta to-accent bg-clip-text text-transparent">Welcome 👋</h1>
-              <p className="text-sm text-muted-foreground">Your unified view of banking, investing, and payments</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-magenta to-accent bg-clip-text text-transparent">
+                {getTimeGreeting()}, {firstName} 👋
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -705,39 +787,167 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Net Worth */}
           <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Net Worth</h3>
-            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(liveNetWorth)}</p>
-            <p className="text-xs text-muted-foreground">Across all products</p>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Net Worth</h3>
+              {!isLoading && liveNetWorth > 0 && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trendChangePercent >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                  {trendChangePercent >= 0 ? '↑' : '↓'} {Math.abs(trendChangePercent).toFixed(1)}%
+                </span>
+              )}
+            </div>
+            {isLoading ? <div className="h-9 w-36 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse mb-1" /> : <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(dispNetWorth)}</p>}
+            <p className="text-xs text-muted-foreground">{selectedRange} performance</p>
           </div>
+
+          {/* AuraBank */}
           <div className="bg-gradient-to-br from-white to-pink-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraBank Balance</h3>
-            <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(effectiveBankBalance)}</p>
-            <p className="text-xs text-muted-foreground">Monthly spend: {formatCurrency(bankInsights.monthlySpending)}</p>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">AuraBank</h3>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${effectiveBankBalance > 0 ? 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                {isLoading ? '…' : effectiveBankBalance > 0 ? '● Live' : '● Empty'}
+              </span>
+            </div>
+            {isLoading ? <div className="h-9 w-28 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse mb-1" /> : <p className="text-3xl font-bold text-aurabank-magenta mb-1">{formatCurrency(dispBank)}</p>}
+            <p className="text-xs text-muted-foreground">
+              {isDemoUser ? `Spend: ${formatCurrency(bankInsights.monthlySpending)}/mo` : effectiveBankBalance > 0 ? 'Checking & savings' : 'Open AuraBank to deposit'}
+            </p>
           </div>
+
+          {/* AuraVest */}
           <div className="bg-gradient-to-br from-white to-red-50/40 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraVest Portfolio</h3>
-            <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(effectiveVestValue)}</p>
-            <p className="text-xs text-muted-foreground">Top: {topHoldings[0]?.symbol ?? 'N/A'}</p>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">AuraVest</h3>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${effectiveVestValue > 0 ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                {isLoading ? '…' : effectiveVestValue > 0 ? `↑ Top: ${topHoldings[0]?.symbol ?? '—'}` : '● Empty'}
+              </span>
+            </div>
+            {isLoading ? <div className="h-9 w-24 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse mb-1" /> : <p className="text-3xl font-bold text-auravest-crimson mb-1">{formatCurrency(dispVest)}</p>}
+            <p className="text-xs text-muted-foreground">
+              {effectiveVestValue > 0 ? `${topHoldings.length} holding${topHoldings.length !== 1 ? 's' : ''}` : 'Start investing in AuraVest'}
+            </p>
           </div>
+
+          {/* AuraWallet */}
           <div className="bg-gradient-to-br from-white via-green-50/60 to-emerald-100/70 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-all hover:-translate-y-1">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">AuraWallet Balance</h3>
-            <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(effectiveWalletBalance)}</p>
-            <p className="text-xs text-muted-foreground">Last activity: {walletInsights.insights[1]}</p>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">AuraWallet</h3>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${effectiveWalletBalance > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                {isLoading ? '…' : effectiveWalletBalance > 0 ? '● Live' : '● Empty'}
+              </span>
+            </div>
+            {isLoading ? <div className="h-9 w-28 rounded-lg bg-slate-200 dark:bg-slate-700 animate-pulse mb-1" /> : <p className="text-3xl font-bold text-accent mb-1">{formatCurrency(dispWallet)}</p>}
+            <p className="text-xs text-muted-foreground">
+              {unifiedLedgerEvents.length > 0 ? `Last: ${unifiedLedgerEvents[0]?.metadata?.description ?? unifiedLedgerEvents[0]?.type}` : 'No recent activity'}
+            </p>
           </div>
         </div>
 
-        <div className="mb-8 p-4 rounded-xl border border-slate-200/70 dark:border-slate-700/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Unified Ledger Status</p>
-              <p className="text-xs text-muted-foreground">
-                Events: {unifiedReplaySnapshot?.eventCount ?? 0}
-                {unifiedReplaySnapshot?.lastEventAt ? ` • Last update: ${new Date(unifiedReplaySnapshot.lastEventAt).toLocaleString()}` : ' • Waiting for events'}
-              </p>
+        {/* New user onboarding */}
+        {isNewUser && (
+          <div className="mb-8 bg-gradient-to-r from-primary/5 via-magenta/5 to-accent/5 border border-primary/20 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-magenta flex items-center justify-center">
+                <span className="text-white text-lg">🚀</span>
+              </div>
+              <div>
+                <h2 className="font-bold text-lg">Welcome to Aura Finance, {firstName}!</h2>
+                <p className="text-sm text-muted-foreground">Complete these steps to get started</p>
+              </div>
             </div>
-            <div className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-              {unifiedReplaySnapshot ? 'Replay Active' : 'Fallback Mode'}
+            <div className="grid sm:grid-cols-3 gap-4">
+              <button onClick={() => openLauncherApp('bank')} className="group text-left p-4 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-border hover:border-primary/40 hover:shadow-md transition-all">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-aurabank-magenta to-aurabank-cyan flex items-center justify-center text-white font-bold text-sm">1</div>
+                  <span className="font-semibold text-sm">Open AuraBank</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Set up your checking account and make your first deposit</p>
+                <p className="text-xs text-primary font-medium mt-2 group-hover:underline">Open AuraBank →</p>
+              </button>
+              <button onClick={() => openLauncherApp('wallet')} className="group text-left p-4 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-border hover:border-primary/40 hover:shadow-md transition-all">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">2</div>
+                  <span className="font-semibold text-sm">Connect AuraWallet</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Fund your wallet to send and receive money instantly</p>
+                <p className="text-xs text-primary font-medium mt-2 group-hover:underline">Open AuraWallet →</p>
+              </button>
+              <button onClick={() => openLauncherApp('vest')} className="group text-left p-4 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-border hover:border-primary/40 hover:shadow-md transition-all">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-auravest-black to-auravest-crimson flex items-center justify-center text-white font-bold text-sm">3</div>
+                  <span className="font-semibold text-sm">Start Investing</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Buy stocks, crypto, and more with AuraVest</p>
+                <p className="text-xs text-primary font-medium mt-2 group-hover:underline">Open AuraVest →</p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Portfolio Allocation */}
+        <div className="mb-8 p-6 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            {/* Donut SVG */}
+            <div className="relative flex-shrink-0">
+              <svg viewBox="0 0 100 100" className="w-28 h-28 -rotate-90">
+                {allocTotal === 0 ? (
+                  <circle cx="50" cy="50" r={donutR} fill="none" stroke="#e2e8f0" strokeWidth="16" />
+                ) : (
+                  <>
+                    {/* Bank — pink/magenta */}
+                    <circle cx="50" cy="50" r={donutR} fill="none" stroke="#D91E78" strokeWidth="16"
+                      strokeDasharray={`${bankDash} ${donutCirc}`}
+                      strokeDashoffset={0} />
+                    {/* Vest — crimson */}
+                    <circle cx="50" cy="50" r={donutR} fill="none" stroke="#DC2626" strokeWidth="16"
+                      strokeDasharray={`${vestDash} ${donutCirc}`}
+                      strokeDashoffset={-bankDash} />
+                    {/* Wallet — emerald */}
+                    <circle cx="50" cy="50" r={donutR} fill="none" stroke="#10b981" strokeWidth="16"
+                      strokeDasharray={`${walletDash} ${donutCirc}`}
+                      strokeDashoffset={-(bankDash + vestDash)} />
+                  </>
+                )}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] font-semibold text-muted-foreground leading-tight">Total</span>
+                <span className="text-xs font-bold leading-tight">{formatCurrency(liveNetWorth, 0)}</span>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex-1 w-full">
+              <p className="text-sm font-semibold mb-3">Portfolio Allocation</p>
+              <div className="space-y-2">
+                {[
+                  { label: 'AuraBank', value: effectiveBankBalance, pct: bankAlloc, color: 'bg-aurabank-magenta' },
+                  { label: 'AuraVest', value: effectiveVestValue, pct: vestAlloc, color: 'bg-red-600' },
+                  { label: 'AuraWallet', value: effectiveWalletBalance, pct: walletAlloc, color: 'bg-emerald-500' },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${item.color}`} />
+                    <span className="text-xs text-muted-foreground w-20">{item.label}</span>
+                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${item.color} transition-all duration-700`} style={{ width: `${item.pct}%` }} />
+                    </div>
+                    <span className="text-xs font-semibold w-12 text-right">{item.pct.toFixed(1)}%</span>
+                    <span className="text-xs text-muted-foreground w-24 text-right">{formatCurrency(item.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sync status */}
+            <div className="flex-shrink-0 text-center">
+              <div className={`text-xs px-3 py-1.5 rounded-full font-semibold ${unifiedReplaySnapshot ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                {unifiedReplaySnapshot ? '● Live' : '○ Syncing'}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {unifiedReplaySnapshot?.lastEventAt
+                  ? new Date(unifiedReplaySnapshot.lastEventAt).toLocaleTimeString()
+                  : 'No events yet'}
+              </p>
             </div>
           </div>
         </div>
@@ -751,7 +961,11 @@ export default function DashboardPage() {
               <h3 className="text-xl font-bold">AuraAI Insights</h3>
             </div>
             <ul className="space-y-3 text-sm text-muted-foreground">
-              {insights.insights.map((insight, idx) => (
+              {[
+                `Net worth: ${formatCurrency(liveNetWorth)} across all accounts.`,
+                `Bank: ${formatCurrency(effectiveBankBalance)} · Vest: ${formatCurrency(effectiveVestValue)} · Wallet: ${formatCurrency(effectiveWalletBalance)}`,
+                'Ask AuraAI (bottom right) for personalized advice.',
+              ].map((insight, idx) => (
                 <li key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-700 hover:from-blue-50 hover:to-purple-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
                   <span className="mt-1 h-2 w-2 rounded-full bg-gradient-to-r from-accent to-magenta flex-shrink-0" />
                   <span>{insight}</span>
@@ -771,36 +985,57 @@ export default function DashboardPage() {
 
         <div className="grid md:grid-cols-3 gap-6 mb-10">
           <button type="button" onClick={() => openLauncherApp('bank')} className="block group text-left w-full">
-            <div className="bg-gradient-to-br from-aurabank-magenta to-aurabank-cyan text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
-              <div className="flex items-center gap-3 mb-4">
+            <div className="bg-gradient-to-br from-aurabank-magenta to-aurabank-cyan text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
                   <Image src="/images/bank.jpg" alt="AuraBank" width={48} height={48} className="object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold">AuraBank</h3>
               </div>
-              <p className="text-white/90">Manage your accounts and transactions</p>
+              <div className="mb-3">
+                {isLoading
+                  ? <div className="h-8 w-32 rounded bg-white/20 animate-pulse" />
+                  : <p className="text-3xl font-extrabold">{formatCurrency(dispBank)}</p>
+                }
+                <p className="text-white/70 text-xs mt-0.5">Total balance</p>
+              </div>
+              <p className="text-white/80 text-sm flex items-center gap-1">Manage accounts <ArrowRight className="w-3.5 h-3.5 opacity-70 group-hover:translate-x-1 transition-transform" /></p>
             </div>
           </button>
           <button type="button" onClick={() => openLauncherApp('vest')} className="block group text-left w-full">
-            <div className="bg-gradient-to-br from-auravest-black to-auravest-crimson text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
-              <div className="flex items-center gap-3 mb-4">
+            <div className="bg-gradient-to-br from-auravest-black to-auravest-crimson text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
                   <Image src="/images/vest.jpeg" alt="AuraVest" width={48} height={48} className="object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold">AuraVest</h3>
               </div>
-              <p className="text-white/90">Invest in stocks, crypto, and more</p>
+              <div className="mb-3">
+                {isLoading
+                  ? <div className="h-8 w-28 rounded bg-white/20 animate-pulse" />
+                  : <p className="text-3xl font-extrabold">{formatCurrency(dispVest)}</p>
+                }
+                <p className="text-white/70 text-xs mt-0.5">Portfolio value</p>
+              </div>
+              <p className="text-white/80 text-sm flex items-center gap-1">Trade & invest <ArrowRight className="w-3.5 h-3.5 opacity-70 group-hover:translate-x-1 transition-transform" /></p>
             </div>
           </button>
           <button type="button" onClick={() => openLauncherApp('wallet')} className="block group text-left w-full">
-            <div className="bg-gradient-to-br from-emerald-400 via-green-600 to-black text-white p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
-              <div className="flex items-center gap-3 mb-4">
+            <div className="bg-gradient-to-br from-emerald-400 via-green-600 to-black text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
                   <Image src="/images/aurawallet-logo.jpeg" alt="AuraWallet" width={48} height={48} className="object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold">AuraWallet</h3>
               </div>
-              <p className="text-white/90">Send and receive money instantly</p>
+              <div className="mb-3">
+                {isLoading
+                  ? <div className="h-8 w-28 rounded bg-white/20 animate-pulse" />
+                  : <p className="text-3xl font-extrabold">{formatCurrency(dispWallet)}</p>
+                }
+                <p className="text-white/70 text-xs mt-0.5">Wallet balance</p>
+              </div>
+              <p className="text-white/80 text-sm flex items-center gap-1">Send & receive <ArrowRight className="w-3.5 h-3.5 opacity-70 group-hover:translate-x-1 transition-transform" /></p>
             </div>
           </button>
         </div>
@@ -821,75 +1056,94 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="h-52 p-4 rounded-xl bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 overflow-hidden">
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-                {[20, 40, 60, 80].map((line) => (
-                  <line
-                    key={line}
-                    x1="0"
-                    y1={line}
-                    x2="100"
-                    y2={line}
-                    className="stroke-slate-300/60 dark:stroke-slate-600/60"
-                    strokeWidth="0.6"
-                    vectorEffect="non-scaling-stroke"
-                  />
+            {/* Hover tooltip */}
+            {chartHover !== null && chartPoints[chartHover.index] && (
+              <div className="mb-2 flex items-center gap-3">
+                <span className="text-2xl font-bold text-primary">{formatCurrency(chartPoints[chartHover.index].value)}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${chartHover.index > 0 && chartPoints[chartHover.index].value >= chartPoints[chartHover.index - 1].value ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  Point {chartHover.index + 1} of {chartPoints.length}
+                </span>
+              </div>
+            )}
+            <div className="relative h-64 rounded-xl bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/60 dark:to-slate-900/40 overflow-hidden border border-slate-100 dark:border-slate-700/50">
+              {/* Y-axis labels */}
+              <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between py-3 px-2 pointer-events-none">
+                {[trendMax, (trendMax + trendMin) / 2, trendMin].map((v, i) => (
+                  <span key={i} className="text-[9px] text-muted-foreground/70 text-right block">{formatCurrency(v, 0)}</span>
                 ))}
-
-                {areaPath && (
-                  <path
-                    d={areaPath}
-                    fill="url(#networthArea)"
-                    className="opacity-70"
-                  />
-                )}
-
-                {linePath && (
-                  <path
-                    d={linePath}
-                    fill="none"
-                    stroke="url(#networthLine)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-
-                {chartPoints.map((point, index) => (
-                  <circle
-                    key={`${point.label}-${index}`}
-                    cx={point.x}
-                    cy={point.y}
-                    r="1.6"
-                    className="fill-white dark:fill-slate-900 stroke-primary"
-                    strokeWidth="1.2"
-                  >
-                    <title>{formatCurrency(point.value)}</title>
-                  </circle>
-                ))}
-
+              </div>
+              <svg
+                ref={chartSvgRef}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                className="w-full h-full pl-16 cursor-crosshair"
+                onMouseMove={handleChartMouseMove}
+                onMouseLeave={() => setChartHover(null)}
+              >
                 <defs>
-                  <linearGradient id="networthLine" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <linearGradient id="nwLine" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="hsl(var(--primary))" />
                     <stop offset="100%" stopColor="#D91E78" />
                   </linearGradient>
-                  <linearGradient id="networthArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.02" />
+                  <linearGradient id="nwArea" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.22" />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
                   </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="1" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
                 </defs>
+
+                {/* Grid lines */}
+                {[20, 40, 60, 80].map((line) => (
+                  <line key={line} x1="0" y1={line} x2="100" y2={line} stroke="currentColor" strokeOpacity="0.07" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+                ))}
+
+                {/* Area fill */}
+                {areaPath && <path d={areaPath} fill="url(#nwArea)" />}
+
+                {/* Smooth line */}
+                {linePath && (
+                  <path d={linePath} fill="none" stroke="url(#nwLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" filter="url(#glow)" />
+                )}
+
+                {/* Hover crosshair */}
+                {chartHover !== null && chartPoints[chartHover.index] && (
+                  <>
+                    <line
+                      x1={chartPoints[chartHover.index].x} y1="0"
+                      x2={chartPoints[chartHover.index].x} y2="100"
+                      stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="0.8"
+                      strokeDasharray="2 2" vectorEffect="non-scaling-stroke"
+                    />
+                    <circle cx={chartPoints[chartHover.index].x} cy={chartPoints[chartHover.index].y} r="2.5"
+                      fill="white" stroke="hsl(var(--primary))" strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+                    />
+                    <circle cx={chartPoints[chartHover.index].x} cy={chartPoints[chartHover.index].y} r="5"
+                      fill="hsl(var(--primary))" fillOpacity="0.15" vectorEffect="non-scaling-stroke"
+                    />
+                  </>
+                )}
               </svg>
             </div>
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Current net worth</span>
-              <span className="font-bold text-lg text-primary">{formatCurrency(insights.netWorth)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Range low: {formatCurrency(trendMin)}</span>
-              <span className={`font-semibold ${trendChangePercent >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                {trendChangePercent >= 0 ? '+' : ''}{trendChangePercent.toFixed(2)}% ({selectedRange})
-              </span>
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <div>
+                <span className="text-muted-foreground text-xs">
+                  {chartHover !== null ? 'Hover value' : 'Current net worth'}
+                </span>
+                <p className="font-bold text-lg text-primary">
+                  {chartHover !== null && chartPoints[chartHover.index]
+                    ? formatCurrency(chartPoints[chartHover.index].value)
+                    : formatCurrency(dispNetWorth)}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-muted-foreground text-xs">{selectedRange} change</span>
+                <p className={`font-bold text-lg ${trendChangePercent >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                  {trendChangePercent >= 0 ? '+' : ''}{trendChangePercent.toFixed(2)}%
+                </p>
+              </div>
             </div>
           </div>
 
@@ -944,44 +1198,38 @@ export default function DashboardPage() {
             <h3 className="text-xl font-bold">Unified Activity Feed</h3>
             <span className="text-xs text-muted-foreground">AuraBank • AuraVest • AuraWallet</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-            <input
-              value={activitySearch}
-              onChange={(event) => setActivitySearch(event.target.value)}
-              placeholder="Search activity"
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-            />
-            <select
-              value={activityAppFilter}
-              onChange={(event) => setActivityAppFilter(event.target.value as 'all' | 'bank' | 'vest' | 'wallet')}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-            >
-              <option value="all">All Apps</option>
-              <option value="bank">AuraBank</option>
-              <option value="vest">AuraVest</option>
-              <option value="wallet">AuraWallet</option>
-            </select>
-            <select
-              value={activityTypeFilter}
-              onChange={(event) => setActivityTypeFilter(event.target.value as 'all' | 'transfer' | 'funding' | 'trade' | 'other')}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-            >
-              <option value="all">All Types</option>
-              <option value="transfer">Transfers</option>
-              <option value="funding">Funding</option>
-              <option value="trade">Trades</option>
-              <option value="other">Other</option>
-            </select>
-            <select
-              value={activityDateRange}
-              onChange={(event) => setActivityDateRange(event.target.value as 'all' | '7d' | '30d' | '90d')}
-              className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
-            >
-              <option value="all">All Time</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-            </select>
+          <div className="space-y-3 mb-4">
+            {/* App pill tabs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {([['all','All'], ['bank','Bank'], ['vest','Vest'], ['wallet','Wallet']] as const).map(([v, label]) => (
+                <button key={v} onClick={() => setActivityAppFilter(v)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${activityAppFilter === v ? 'bg-gradient-to-r from-primary to-magenta text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                  {label}
+                </button>
+              ))}
+              <div className="ml-auto flex items-center gap-2">
+                {([['all','All time'], ['7d','7d'], ['30d','30d'], ['90d','90d']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setActivityDateRange(v)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${activityDateRange === v ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Type + search row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {([['all','All types'], ['transfer','Transfers'], ['funding','Funding'], ['trade','Trades']] as const).map(([v, label]) => (
+                <button key={v} onClick={() => setActivityTypeFilter(v)}
+                  className={`px-3 py-1 rounded-full text-xs transition-all border ${activityTypeFilter === v ? 'border-primary text-primary bg-primary/5' : 'border-slate-200 dark:border-slate-700 text-muted-foreground hover:border-slate-300'}`}>
+                  {label}
+                </button>
+              ))}
+              <div className="ml-auto">
+                <input value={activitySearch} onChange={(e) => setActivitySearch(e.target.value)}
+                  placeholder="Search…"
+                  className="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-primary w-36" />
+              </div>
+            </div>
           </div>
           <div className="space-y-3">
             {filteredActivityFeed.length === 0 ? (
@@ -1016,69 +1264,78 @@ export default function DashboardPage() {
         <div className="grid lg:grid-cols-2 gap-6 mb-10">
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Spending Breakdown</h3>
-            <div className="space-y-3">
-              {spendingCategories.map((cat, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-blue-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="font-medium">{cat.name}</span>
-                    <span className="font-bold">{formatCurrency(cat.amount, 0)}</span>
+            {spendingCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No spending data yet. Transactions will appear here once you start using AuraBank.</p>
+            ) : (
+              <div className="space-y-3">
+                {spendingCategories.map((cat, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-blue-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="font-medium">{cat.name}</span>
+                      <span className="font-bold">{formatCurrency(cat.amount, 0)}</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                      <div className={`h-2 rounded-full ${cat.color} shadow-sm`} style={{ width: `${(cat.amount / totalSpending) * 100}%` }} />
+                    </div>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                    <div 
-                      className={`h-2 rounded-full ${cat.color} shadow-sm`} 
-                      style={{ width: `${(cat.amount / totalSpending) * 100}%` }} 
-                    />
+                ))}
+                <div className="pt-3 border-t mt-4">
+                  <div className="flex items-center justify-between font-bold text-lg">
+                    <span>Total Spending</span>
+                    <span className="text-primary">{formatCurrency(totalSpending)}</span>
                   </div>
-                </div>
-              ))}
-              <div className="pt-3 border-t mt-4">
-                <div className="flex items-center justify-between font-bold text-lg">
-                  <span>Total Spending</span>
-                  <span className="text-primary">{formatCurrency(totalSpending)}</span>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Cash Flow</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-teal-100 dark:border-slate-700">
-                <span className="text-sm font-semibold">Income</span>
-                <span className="text-xl font-bold text-accent">+{formatCurrency(monthlyIncome)}</span>
+            {!isDemoUser && monthlyIncome === 0 && monthlyExpenses === 0 ? (
+              <p className="text-sm text-muted-foreground">No cash flow data yet. Your income and expense summary will appear here.</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-teal-100 dark:border-slate-700">
+                  <span className="text-sm font-semibold">Income</span>
+                  <span className="text-xl font-bold text-accent">+{formatCurrency(monthlyIncome)}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-red-100 dark:border-slate-700">
+                  <span className="text-sm font-semibold">Expenses</span>
+                  <span className="text-xl font-bold text-destructive">-{formatCurrency(monthlyExpenses)}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-md border-2 border-primary">
+                  <span className="text-sm font-bold">Net Cash Flow</span>
+                  <span className={`text-2xl font-bold ${cashFlow >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                    {cashFlow >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow))}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-center">Last 30 days</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-red-100 dark:border-slate-700">
-                <span className="text-sm font-semibold">Expenses</span>
-                <span className="text-xl font-bold text-destructive">-{formatCurrency(monthlyExpenses)}</span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-md border-2 border-primary">
-                <span className="text-sm font-bold">Net Cash Flow</span>
-                <span className={`text-2xl font-bold ${cashFlow >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                  {cashFlow >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow))}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 text-center">Last 30 days</p>
-            </div>
+            )}
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-10">
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Upcoming Bills</h3>
-            <div className="space-y-3">
-              {upcomingBills.map((bill, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-md transition-all bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-700">
-                  <div>
-                    <p className="font-semibold">{bill.name}</p>
-                    <p className="text-xs text-muted-foreground">Due {bill.dueDate}</p>
+            {upcomingBills.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No upcoming bills. Bills set in AuraBank will appear here.</p>
+            ) : (
+              <div className="space-y-3">
+                {upcomingBills.map((bill, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-md transition-all bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-700">
+                    <div>
+                      <p className="font-semibold">{bill.name}</p>
+                      <p className="text-xs text-muted-foreground">Due {bill.dueDate}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-lg">{formatCurrency(bill.amount)}</p>
+                      <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-500/20 dark:to-amber-500/20 text-yellow-900 dark:text-yellow-200 font-medium">Pending</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg">{formatCurrency(bill.amount)}</p>
-                    <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-500/20 dark:to-amber-500/20 text-yellow-900 dark:text-yellow-200 font-medium">Pending</span>
-                  </div>
-                </div>
-              ))}
-              <Button className="w-full mt-3 bg-gradient-to-r from-primary to-magenta hover:opacity-90" size="sm">View All Bills</Button>
-            </div>
+                ))}
+                <Button className="w-full mt-3 bg-gradient-to-r from-primary to-magenta hover:opacity-90" size="sm">View All Bills</Button>
+              </div>
+            )}
           </div>
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Recent Activity</h3>
@@ -1101,35 +1358,39 @@ export default function DashboardPage() {
           </div>
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Goals</h3>
-            <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700">
-                <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                  <span>Emergency Fund</span>
-                  <span className="font-bold">$3,200 / $10,000</span>
+            {!isDemoUser ? (
+              <p className="text-sm text-muted-foreground">No goals set yet. Start by making your first deposit.</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700">
+                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
+                    <span>Emergency Fund</span>
+                    <span className="font-bold">$3,200 / $10,000</span>
+                  </div>
+                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-accent to-teal shadow-sm" style={{ width: '32%' }} />
+                  </div>
                 </div>
-                <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                  <div className="h-3 rounded-full bg-gradient-to-r from-accent to-teal shadow-sm" style={{ width: '32%' }} />
+                <div className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-700">
+                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
+                    <span>Investing Goal</span>
+                    <span className="font-bold">$6,500 / $15,000</span>
+                  </div>
+                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-magenta to-purple-500 shadow-sm" style={{ width: '43%' }} />
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700">
+                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
+                    <span>Vacation Fund</span>
+                    <span className="font-bold">$900 / $2,500</span>
+                  </div>
+                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
+                    <div className="h-3 rounded-full bg-gradient-to-r from-primary to-blue-500 shadow-sm" style={{ width: '36%' }} />
+                  </div>
                 </div>
               </div>
-              <div className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-700">
-                <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                  <span>Investing Goal</span>
-                  <span className="font-bold">$6,500 / $15,000</span>
-                </div>
-                <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                  <div className="h-3 rounded-full bg-gradient-to-r from-magenta to-purple-500 shadow-sm" style={{ width: '43%' }} />
-                </div>
-              </div>
-              <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700">
-                <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                  <span>Vacation Fund</span>
-                  <span className="font-bold">$900 / $2,500</span>
-                </div>
-                <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                  <div className="h-3 rounded-full bg-gradient-to-r from-primary to-blue-500 shadow-sm" style={{ width: '36%' }} />
-                </div>
-              </div>
-            </div>
+            )}
           </div>
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
             <h3 className="text-xl font-bold mb-4">Top Holdings</h3>
@@ -1151,68 +1412,123 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Quick Transfer ──────────────────────────────────────────── */}
-        <div className="mb-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold">Quick Transfer</h3>
-            <button
-              onClick={() => setShowTransferPanel((v) => !v)}
-              className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-primary to-magenta text-white font-semibold"
-            >
-              {showTransferPanel ? 'Hide' : 'Open'}
-            </button>
-          </div>
-          {showTransferPanel && (
-            <div className="grid sm:grid-cols-4 gap-4 items-end">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">From</label>
-                <select
-                  value={transferFrom}
-                  onChange={(e) => setTransferFrom(e.target.value as 'bank' | 'wallet' | 'vest')}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="bank">AuraBank</option>
-                  <option value="wallet">AuraWallet</option>
-                  <option value="vest">AuraVest</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">To</label>
-                <select
-                  value={transferTo}
-                  onChange={(e) => setTransferTo(e.target.value as 'bank' | 'wallet' | 'vest')}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="bank">AuraBank</option>
-                  <option value="wallet">AuraWallet</option>
-                  <option value="vest">AuraVest</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Amount (USD)</label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={transferAmount}
-                  onChange={(e) => setTransferAmount(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <Button
-                onClick={handleQuickTransfer}
-                disabled={transferring}
-                className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white"
-              >
-                {transferring ? 'Sending…' : 'Transfer'}
-              </Button>
-              {transferMsg && (
-                <p className={`sm:col-span-4 text-sm font-medium ${transferMsg.type === 'ok' ? 'text-accent' : 'text-destructive'}`}>
-                  {transferMsg.text}
-                </p>
-              )}
+        <div className="mb-10 bg-gradient-to-br from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-magenta flex items-center justify-center">
+              <span className="text-white text-base">⇄</span>
             </div>
-          )}
+            <div>
+              <h3 className="text-xl font-bold">Quick Transfer</h3>
+              <p className="text-xs text-muted-foreground">Move funds instantly between your Aura apps</p>
+            </div>
+          </div>
+          {(() => {
+            const transferApps = [
+              { value: 'bank' as const, label: 'AuraBank', Icon: Landmark, color: 'text-aurabank-magenta' },
+              { value: 'wallet' as const, label: 'AuraWallet', Icon: Wallet, color: 'text-emerald-600' },
+              { value: 'vest' as const, label: 'AuraVest', Icon: TrendingUp, color: 'text-auravest-crimson' },
+            ];
+            return (
+              <div className="space-y-4">
+                <div className="grid sm:grid-cols-3 gap-4 items-end">
+                  {/* From selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-2">From</label>
+                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                      {transferApps.map(({ value, label, Icon, color }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTransferFrom(value)}
+                          className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                            transferFrom === value
+                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Arrow + To selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-2">To</label>
+                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                      {transferApps.map(({ value, label, Icon, color }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTransferTo(value)}
+                          className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                            transferTo === value
+                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount + Submit */}
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-2">Amount (USD)</label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={transferAmount}
+                        onChange={(e) => setTransferAmount(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="pt-5">
+                      <Button
+                        onClick={handleQuickTransfer}
+                        disabled={transferring}
+                        className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white rounded-xl h-10 px-4"
+                      >
+                        {transferring ? '…' : <ArrowRight className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Route preview */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {(() => {
+                    const from = transferApps.find(a => a.value === transferFrom)!;
+                    const to = transferApps.find(a => a.value === transferTo)!;
+                    return (
+                      <>
+                        <from.Icon className={`w-3.5 h-3.5 ${from.color}`} />
+                        <span className={from.color}>{from.label}</span>
+                        <ArrowRight className="w-3 h-3" />
+                        <to.Icon className={`w-3.5 h-3.5 ${to.color}`} />
+                        <span className={to.color}>{to.label}</span>
+                        {transferAmount && Number(transferAmount) > 0 && (
+                          <span className="ml-1 font-semibold text-foreground">· {formatCurrency(Number(transferAmount))}</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {transferMsg && (
+                  <p className={`text-sm font-semibold px-3 py-2 rounded-lg ${transferMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-destructive dark:bg-red-500/10'}`}>
+                    {transferMsg.text}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

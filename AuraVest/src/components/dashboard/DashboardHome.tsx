@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { portfolioData, recentTransactions, cryptoAssets, stockAssets, riskMetrics } from '@/lib/mockData';
+import { cryptoAssets, stockAssets, riskMetrics } from '@/lib/mockData';
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle } from 'lucide-react';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
@@ -22,7 +22,7 @@ export default function DashboardHome() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [tradeModal, setTradeModal] = useState<any>(null);
   const [showGamification, setShowGamification] = useState(false);
-  const [transactionFeed, setTransactionFeed] = useState<any[]>(recentTransactions || []);
+  const [transactionFeed, setTransactionFeed] = useState<any[]>([]);
   const [cashBalance, setCashBalance] = useState(0);
   const [netTradeCashflow, setNetTradeCashflow] = useState(0);
   const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
@@ -67,14 +67,12 @@ export default function DashboardHome() {
 
   const loadRecentTransactions = () => {
     const storedTransactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
-    if (storedTransactions.length > 0) {
-      const mappedTransactions = storedTransactions.slice(0, 8).map((tx: any) => ({
-        ...tx,
-        date: tx.timestamp || tx.date,
-        status: tx.status || 'filled',
-      }));
-      setTransactionFeed(mappedTransactions);
-    }
+    const mapped = storedTransactions.slice(0, 8).map((tx: any) => ({
+      ...tx,
+      date: tx.timestamp || tx.date,
+      status: tx.status || 'filled',
+    }));
+    setTransactionFeed(mapped);
   };
 
   useEffect(() => {
@@ -244,8 +242,10 @@ export default function DashboardHome() {
               return (
                 <div key={crypto.id} onClick={() => handleAssetClick(crypto)} className="flex items-center justify-between p-3 hover:bg-accent rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 group">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-                      {crypto.image}
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                      {crypto.image?.startsWith('http') ? (
+                        <img src={crypto.image} alt={crypto.symbol} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : crypto.symbol?.slice(0, 2)}
                     </div>
                     <div>
                       <p className="font-semibold">{crypto.name}</p>
@@ -254,7 +254,7 @@ export default function DashboardHome() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-semibold">${crypto.price.toLocaleString()}</p>
+                      <p className="font-semibold">${(crypto.price ?? 0).toLocaleString()}</p>
                       <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                         {isPositive ? '+' : ''}{crypto.change24h}%
                       </p>
@@ -285,8 +285,26 @@ export default function DashboardHome() {
               return (
                 <div key={stock.id} onClick={() => handleAssetClick(stock)} className="flex items-center justify-between p-3 hover:bg-accent rounded-lg transition-all cursor-pointer hover:scale-105 active:scale-95 group">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
-                      {stock.symbol.slice(0, 2)}
+                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {stock.image?.startsWith('http') ? (
+                        <img
+                          src={stock.image}
+                          alt={stock.symbol}
+                          className="w-8 h-8 object-contain"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const fallback = img.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <span
+                        className="text-xs font-bold text-slate-700"
+                        style={{ display: stock.image?.startsWith('http') ? 'none' : 'flex' }}
+                      >
+                        {stock.symbol?.slice(0, 2)}
+                      </span>
                     </div>
                     <div>
                       <p className="font-semibold">{stock.name}</p>
@@ -295,7 +313,7 @@ export default function DashboardHome() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-semibold">${stock.price.toLocaleString()}</p>
+                      <p className="font-semibold">${(stock.price ?? 0).toLocaleString()}</p>
                       <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                         {isPositive ? '+' : ''}{stock.change24h}%
                       </p>

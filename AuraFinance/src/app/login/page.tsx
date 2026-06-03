@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { saveBrowserRegisteredUser } from '../../../../shared/browser-user-directory';
 import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 
 export default function LoginPage() {
@@ -287,15 +286,25 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        saveBrowserRegisteredUser({
-          ...data.user,
+        // Auto-login immediately after account creation
+        const loginResult = await signIn('credentials', {
+          email: data.user.email,
           password: personalForm.newPassword,
+          redirect: false,
         });
-        setEmail(data.user.email);
-        setPassword(personalForm.newPassword);
+        if (!loginResult?.error) {
+          writeUnifiedAuthSession({
+            userId: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            sourceApp: 'AuraFinance',
+          });
+          router.push('/dashboard');
+          return;
+        }
       }
 
-      setSignupSuccess('Signup submitted successfully. Your verification is now in review.');
+      setSignupSuccess('Account created! You can now sign in with your credentials.');
     } catch {
       setSignupError('Network error while submitting signup. Please try again.');
     } finally {
@@ -339,15 +348,25 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        saveBrowserRegisteredUser({
-          ...data.user,
+        // Auto-login immediately after account creation
+        const loginResult = await signIn('credentials', {
+          email: data.user.email,
           password: businessForm.newPassword,
+          redirect: false,
         });
-        setEmail(data.user.email);
-        setPassword(businessForm.newPassword);
+        if (!loginResult?.error) {
+          writeUnifiedAuthSession({
+            userId: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+            sourceApp: 'AuraFinance',
+          });
+          router.push('/dashboard');
+          return;
+        }
       }
 
-      setSignupSuccess('Business signup submitted successfully. Compliance review has started.');
+      setSignupSuccess('Business account created! You can now sign in with your credentials.');
     } catch {
       setSignupError('Network error while submitting business signup. Please try again.');
     } finally {
@@ -384,63 +403,140 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow">
-        <div className="space-y-4">
-          <div className="flex justify-center">
-            <Image
-              src="/images/suite.jpeg"
-              alt="AuraFinance Logo"
-              width={130}
-              height={50}
-              className="rounded-lg object-contain"
-              priority
-            />
-          </div>
-          <h2 className="text-center text-3xl font-bold">Sign in to Aura Finance</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Demo: demo@aurafinance.com / demo123
-          </p>
-        </div>
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <Button type="submit" className="w-full">
-            Sign In
-          </Button>
-        </form>
+    <div className="min-h-screen flex">
 
-        <div className="pt-2 border-t space-y-3">
-          <p className="text-center text-sm font-medium text-gray-700">Sign up options</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* ── Left panel — branding ── */}
+      <div className="hidden lg:flex lg:w-2/5 relative flex-col bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 overflow-hidden">
+        {/* Background orbs */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-pink-500/5 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
+
+        {/* Top logo */}
+        <div className="relative z-10 p-10">
+          <Link href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity w-fit">
+            <div className="w-16 h-16 rounded-2xl border-2 border-white shadow-lg flex items-center justify-center overflow-hidden bg-white">
+              <Image src="/images/suite.jpeg" alt="Aura Finance" width={64} height={64} className="object-contain" priority />
+            </div>
+            <span className="text-white font-bold text-xl tracking-tight">Aura Finance</span>
+          </Link>
+        </div>
+
+        {/* Centre content */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center px-10">
+          <p className="text-blue-300 text-sm font-semibold uppercase tracking-widest mb-4">Your unified financial suite</p>
+          <h2 className="text-3xl font-extrabold text-white leading-tight mb-6">
+            Bank. Invest.<br />Send. All in one.
+          </h2>
+          <p className="text-slate-400 text-base leading-relaxed max-w-sm mb-10">
+            Manage your accounts, grow your portfolio, and send money instantly — all from a single dashboard.
+          </p>
+
+          {/* App tiles */}
+          <div className="grid grid-cols-2 gap-4 max-w-xs">
+            {[
+              { src: '/images/bank.jpg', name: 'AuraBank', desc: 'Accounts & payments', color: 'from-pink-500/20 to-cyan-500/20' },
+              { src: '/images/vest.jpeg', name: 'AuraVest', desc: 'Stocks & crypto', color: 'from-red-500/20 to-slate-500/20' },
+              { src: '/images/wallet.jpg', name: 'AuraWallet', desc: 'Send & receive', color: 'from-emerald-500/20 to-green-500/20' },
+              { src: '/images/ai.jpg', name: 'AuraAI', desc: 'Smart insights', color: 'from-purple-500/20 to-blue-500/20' },
+            ].map((app) => (
+              <div key={app.name} className={`flex items-center gap-3 bg-gradient-to-br ${app.color} border border-white/10 rounded-2xl p-3 backdrop-blur-sm`}>
+                <div className="w-9 h-9 rounded-xl bg-white shadow overflow-hidden flex-shrink-0">
+                  <Image src={app.src} alt={app.name} width={36} height={36} className="object-cover w-full h-full" />
+                </div>
+                <div>
+                  <p className="text-white text-xs font-semibold leading-tight">{app.name}</p>
+                  <p className="text-slate-400 text-[10px]">{app.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom stats */}
+        <div className="relative z-10 p-10 border-t border-white/10 flex gap-8">
+          {[['4', 'Apps'], ['1', 'Login'], ['Live', 'Sync']].map(([val, label]) => (
+            <div key={label}>
+              <p className="text-white font-extrabold text-xl">{val}</p>
+              <p className="text-slate-400 text-xs">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Right panel — form ── */}
+      <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-slate-950 px-6 py-12">
+        {/* Mobile logo */}
+        <Link href="/" className="lg:hidden flex items-center gap-3 mb-10 hover:opacity-80 transition-opacity">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center">
+            <Image src="/images/suite.jpeg" alt="Aura Finance" width={40} height={40} className="object-contain" priority />
+          </div>
+          <span className="font-bold text-xl text-slate-800 dark:text-white">Aura Finance</span>
+        </Link>
+
+        <div className="w-full max-w-sm">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Sign in to your account to continue</p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-11 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-11 rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:bg-white dark:focus:bg-slate-800 transition-colors"
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-4 py-3">
+                <span className="flex-shrink-0">⚠</span>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full h-11 rounded-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:opacity-90 text-white font-semibold shadow-lg shadow-blue-500/20 transition-all">
+              Sign In
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-100 dark:border-slate-800" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white dark:bg-slate-950 px-3 text-slate-400">Don&apos;t have an account?</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className="h-11 rounded-xl border-slate-200 dark:border-slate-700 font-medium"
               onClick={openSignupModal}
             >
-              Create Free Account
+              Create Account
             </Button>
-            <Button asChild variant="outline" className="w-full">
+            <Button asChild variant="ghost" className="h-11 rounded-xl text-slate-500 hover:text-slate-700 font-medium">
               <Link href="/contact">Contact Sales</Link>
             </Button>
           </div>

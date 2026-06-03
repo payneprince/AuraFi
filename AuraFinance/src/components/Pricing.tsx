@@ -14,7 +14,7 @@ export function Pricing() {
     },
     {
       name: "Plus",
-      price: "$9.99",
+      price: "$2.99",
       period: "/month",
       features: ["Everything in Free", "Unlimited AuraVest trades", "Advanced AuraAI features", "Priority support", "Cashback rewards (2%)"],
       cta: "Upgrade to Plus",
@@ -22,7 +22,7 @@ export function Pricing() {
     },
     {
       name: "Premium",
-      price: "$24.99",
+      price: "$9.99",
       period: "/month",
       features: ["Everything in Plus", "Dedicated account manager", "Premium investment research", "Higher savings APY", "Cashback rewards (5%)", "Early access to features"],
       cta: "Go Premium",
@@ -58,11 +58,13 @@ export function Pricing() {
                   </li>
                 ))}
               </ul>
-              <button className={`w-full py-3 rounded-full font-semibold transition ${
-                plan.popular
-                  ? "bg-gradient-to-r from-primary to-magenta text-white hover:opacity-90"
-                  : "border-2 hover:bg-white/10"
-              }`}>
+              <button
+                onClick={() => window.location.href = '/login'}
+                className={`w-full py-3 rounded-full font-semibold transition ${
+                  plan.popular
+                    ? "bg-gradient-to-r from-primary to-magenta text-white hover:opacity-90"
+                    : "border-2 hover:bg-white/10"
+                }`}>
                 {plan.cta}
               </button>
             </div>

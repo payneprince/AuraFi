@@ -3,19 +3,20 @@
 import { useState, useEffect } from 'react';
 import { Search, TrendingUp, TrendingDown } from 'lucide-react';
 import TechnicalAnalysisChart from '@/components/TechnicalAnalysisChart';
-import { getCryptoPage } from '@/lib/marketData';
+import { getCryptoPage, getStocksPage } from '@/lib/marketData';
 
 export default function AnalysisPage() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [cryptoAssets, setCryptoAssets] = useState<any[]>([]);
+  const [allAssets, setAllAssets] = useState<any[]>([]);
 
-  // Load crypto assets for selection
   useEffect(() => {
-    getCryptoPage(1).then(setCryptoAssets);
+    Promise.all([getCryptoPage(1), getStocksPage(1)]).then(([crypto, stocks]) => {
+      setAllAssets([...crypto, ...stocks]);
+    });
   }, []);
 
-  const filteredAssets = cryptoAssets.filter(
+  const filteredAssets = allAssets.filter(
     (asset) =>
       asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       asset.symbol.toLowerCase().includes(searchQuery.toLowerCase())
@@ -32,8 +33,10 @@ export default function AnalysisPage() {
             ← Back to Assets
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-              {selectedAsset.symbol.slice(0, 2)}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold overflow-hidden ${selectedAsset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+              {selectedAsset.image?.startsWith('http') ? (
+                <img src={selectedAsset.image} alt={selectedAsset.symbol} className={selectedAsset.image?.includes('simpleicons.org') ? 'w-7 h-7 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ) : <span className="text-white">{selectedAsset.symbol.slice(0, 2)}</span>}
             </div>
             <div>
               <h2 className="text-xl font-bold">{selectedAsset.name}</h2>
@@ -82,8 +85,10 @@ export default function AnalysisPage() {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-                    {asset.symbol.slice(0, 2)}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold overflow-hidden ${asset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+                    {asset.image?.startsWith('http') ? (
+                      <img src={asset.image} alt={asset.symbol} className={asset.image?.includes('simpleicons.org') ? 'w-7 h-7 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    ) : <span className="text-white">{asset.symbol.slice(0, 2)}</span>}
                   </div>
                   <div>
                     <p className="font-semibold">{asset.name}</p>
@@ -91,7 +96,7 @@ export default function AnalysisPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold">${asset.price.toLocaleString()}</p>
+                  <p className="font-semibold">{asset.currency === 'GHS' ? 'GHS ' : '$'}{(asset.price ?? 0).toLocaleString()}</p>
                   <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                     {isPositive ? '+' : ''}{asset.change24h.toFixed(2)}%
                   </p>

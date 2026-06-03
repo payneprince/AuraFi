@@ -35,7 +35,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         setPassword('');
       }, 2000);
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,26 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
+import { promisify } from 'util';
+
+const scryptAsync = promisify(scrypt);
+
+const hashPassword = async (password: string): Promise<string> => {
+  const salt = randomBytes(16).toString('hex');
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString('hex')}`;
+};
+
+const verifyPassword = async (password: string, stored: string): Promise<boolean> => {
+  const colonIdx = stored.indexOf(':');
+  if (colonIdx === -1) return false;
+  const salt = stored.slice(0, colonIdx);
+  const storedHash = stored.slice(colonIdx + 1);
+  const storedBuffer = Buffer.from(storedHash, 'hex');
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  if (derived.length !== storedBuffer.length) return false;
+  return timingSafeEqual(derived, storedBuffer);
+};
 
 export type RegisteredUser = {
   id: string;
@@ -51,7 +72,9 @@ export const findRegisteredUserByEmail = async (email: string) => {
 
 export const validateRegisteredUser = async (email: string, password: string) => {
   const user = await findRegisteredUserByEmail(email);
-  if (!user || user.password !== password) return null;
+  if (!user) return null;
+  const valid = await verifyPassword(password, user.password);
+  if (!valid) return null;
 
   return {
     id: user.id,
@@ -78,7 +101,7 @@ export const createRegisteredUser = async (params: {
   const newUser: RegisteredUser = {
     id: nextUserId(registry.users),
     email: normalizedEmail,
-    password: params.password,
+    password: await hashPassword(params.password),
     name: params.name.trim(),
     accountType: params.accountType,
     createdAt: new Date().toISOString(),

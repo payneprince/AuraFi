@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 type AccountType = 'checking' | 'savings' | 'credit';
 
 export default function AccountsPage({ userId }: { userId: number }) {
-  const { accounts, transactions } = useAuth();
+  const { accounts, transactions, updateAccounts } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewDetailsAccountId, setViewDetailsAccountId] = useState<string | null>(null);
   const [transferFromAccountId, setTransferFromAccountId] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function AccountsPage({ userId }: { userId: number }) {
     };
 
     const updatedAccounts = [...accounts, newAccount];
-    // updateAccounts(updatedAccounts); // Removed - not needed
+    updateAccounts(updatedAccounts);
     setSuccess(true);
 
     setName('');
@@ -362,9 +362,9 @@ export default function AccountsPage({ userId }: { userId: number }) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-gradient-to-br from-magenta-50 to-teal-50 rounded-xl">
-                  <p className="text-xs text-slate-600 mb-1">Current Balance</p>
-                  <p className="text-lg font-bold text-slate-900">{formatMoney(account.balance, account.currency)}</p>
+                <div className="p-3 bg-gradient-to-br from-magenta-600 to-teal-600 rounded-xl text-white shadow-sm">
+                  <p className="text-xs text-white/80 mb-1">Current Balance</p>
+                  <p className="text-lg font-bold text-white">{formatMoney(account.balance, account.currency)}</p>
                 </div>
                 <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl">
                   <p className="text-xs text-slate-600 mb-1">Available</p>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import DashboardClient from '@/components/dashboard/DashboardClient';
 import { switchScopedAppStorage } from '../../../shared/browser-app-state';
-import { readUnifiedAuthSession } from '../../../shared/unified-auth';
+import { readUnifiedAuthSession, writeUnifiedAuthSession } from '../../../shared/unified-auth';
 import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
 
 export default function HomePage() {
@@ -78,6 +78,14 @@ export default function HomePage() {
       const urlUserId = new URLSearchParams(window.location.search).get('userId');
       const unifiedSession = readUnifiedAuthSession();
       const sessionUserId = sessionStorage.getItem('paynesuite_userId');
+
+      if (!urlUserId && !unifiedSession?.userId && !sessionUserId) {
+        const host = window.location.hostname || 'localhost';
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        window.location.href = `${protocol}//${host}:3000/login`;
+        return;
+      }
+
       const id = parseInt(urlUserId || unifiedSession?.userId || sessionUserId || '1', 10);
       const isDemoUser = String(id) === '1';
       activeUserId = String(id);
@@ -102,6 +110,10 @@ export default function HomePage() {
       });
 
       sessionStorage.setItem('paynesuite_userId', id.toString());
+      // Write unified session AFTER state is loaded so BroadcastChannel callbacks read correct data
+      if (urlUserId && !unifiedSession?.userId) {
+        writeUnifiedAuthSession({ userId: activeUserId, sourceApp: 'AuraVest' });
+      }
       await persistStateToServer();
       setIsReady(true);
     };

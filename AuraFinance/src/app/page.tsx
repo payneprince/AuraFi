@@ -1,8 +1,8 @@
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { Navigation } from "@/components/Navigation";
 import { Hero } from "@/components/Hero";
-import { Products } from "@/components/Products";
+import Products from "@/components/Products";
 import { Stats } from "@/components/Stats";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Features } from "@/components/Features";
@@ -15,7 +15,7 @@ import { Integration } from "@/components/Integration";
 import { Footer } from "@/components/Footer";
 import { BackToTop } from "@/components/BackToTop";
 import { LiveChat } from "@/components/LiveChat";
-import { authOptions } from "./api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);

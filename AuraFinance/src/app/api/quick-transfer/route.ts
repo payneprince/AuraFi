@@ -20,6 +20,15 @@ const BANK_STATE_FILE = path.join(suiteRoot, 'AuraBank', '.data', 'aurabank-stat
 const WALLET_STATE_FILE = path.join(suiteRoot, 'AuraWallet', '.data', 'aurawallet-state.json');
 const VEST_STATE_FILE = path.join(suiteRoot, 'AuraVest', '.data', 'auravest-state.json');
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+const jsonWithCors = (body: unknown, init?: number | ResponseInit) =>
+  NextResponse.json(body, typeof init === 'number' ? { status: init, headers: corsHeaders } : { ...init, headers: { ...(init?.headers || {}), ...corsHeaders } });
+
 const ensureFile = async (filePath: string) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   try {
@@ -272,13 +281,13 @@ export async function POST(request: NextRequest) {
     const amount = Number(body?.amount || 0);
 
     if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+      return jsonWithCors({ error: 'Missing userId' }, 400);
     }
     if (!from || !to || from === to) {
-      return NextResponse.json({ error: 'Invalid source/destination apps' }, { status: 400 });
+      return jsonWithCors({ error: 'Invalid source/destination apps' }, 400);
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+      return jsonWithCors({ error: 'Invalid amount' }, 400);
     }
 
     const nowIso = new Date().toISOString();
@@ -297,7 +306,7 @@ export async function POST(request: NextRequest) {
       vestMap,
     });
     if (!source.ok) {
-      return NextResponse.json({ error: source.error }, { status: 400 });
+      return jsonWithCors({ error: source.error }, 400);
     }
 
     const destination = applyDelta({
@@ -311,7 +320,7 @@ export async function POST(request: NextRequest) {
       vestMap,
     });
     if (!destination.ok) {
-      return NextResponse.json({ error: destination.error }, { status: 400 });
+      return jsonWithCors({ error: destination.error }, 400);
     }
 
     await Promise.all([
@@ -320,7 +329,7 @@ export async function POST(request: NextRequest) {
       writeStateMap(VEST_STATE_FILE, vestMap),
     ]);
 
-    return NextResponse.json({
+    return jsonWithCors({
       ok: true,
       actionId: String(body?.actionId || ''),
       deltas: {
@@ -330,6 +339,10 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    return jsonWithCors({ error: 'Invalid request body' }, 400);
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
 }

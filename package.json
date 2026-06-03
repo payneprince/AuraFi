@@ -1,0 +1,17 @@
+{
+  "name": "aura-finance-suite",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"Finance,Bank,Vest,Wallet\" --prefix-colors \"blue,magenta,red,green\" \"npm run dev --prefix AuraFinance\" \"npm run dev --prefix AuraBank\" \"npm run dev --prefix AuraVest\" \"npm run dev --prefix AuraWallet\"",
+    "start": "concurrently --names \"Finance,Bank,Vest,Wallet\" --prefix-colors \"blue,magenta,red,green\" \"npm run start --prefix AuraFinance\" \"npm run start --prefix AuraBank\" \"npm run start --prefix AuraVest\" \"npm run start --prefix AuraWallet\"",
+    "build": "npm run build --prefix AuraFinance && npm run build --prefix AuraBank && npm run build --prefix AuraVest && npm run build --prefix AuraWallet",
+    "dev:finance": "npm run dev --prefix AuraFinance",
+    "dev:bank": "npm run dev --prefix AuraBank",
+    "dev:vest": "npm run dev --prefix AuraVest",
+    "dev:wallet": "npm run dev --prefix AuraWallet"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
