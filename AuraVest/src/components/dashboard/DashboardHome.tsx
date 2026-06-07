@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { cryptoAssets, stockAssets, riskMetrics } from '@/lib/mockData';
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle } from 'lucide-react';
+import { cryptoAssets, stockAssets } from '@/lib/mockData';
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle, Landmark } from 'lucide-react';
+import { readUnifiedAuthSession } from '../../../../shared/unified-auth';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
-import SuiteBalanceWidget from './SuiteBalanceWidget';
 import InterAppTransfer from './InterAppTransfer';
 import PriceComparison from '@/components/PriceComparison';
-import Gamification from '@/components/Gamification';
 import TradeModal from '@/components/TradeModal';
 import AssetDetailsModal from '@/components/AssetDetailsModal';
 import AuraAIInsight from '@/components/AuraAIInsight';
@@ -21,11 +20,96 @@ export default function DashboardHome() {
   const isPositive = change24h >= 0;
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [tradeModal, setTradeModal] = useState<any>(null);
-  const [showGamification, setShowGamification] = useState(false);
   const [transactionFeed, setTransactionFeed] = useState<any[]>([]);
   const [cashBalance, setCashBalance] = useState(0);
   const [netTradeCashflow, setNetTradeCashflow] = useState(0);
   const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
+  const isNewUser = isPortfolioReady && totalValue === 0 && cashBalance === 0 && transactionFeed.length === 0;
+
+  // ── Dynamic portfolio health ──────────────────────────────────
+  const computePortfolioHealth = () => {
+    let holdings: any[] = (() => {
+      try { return JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]'); }
+      catch { return []; }
+    })();
+
+    // Fallback: derive from portfolio.assets (e.g. demo user before any trades are recorded)
+    if (holdings.length === 0 && Array.isArray((portfolio as any)?.assets) && (portfolio as any).assets.length > 0) {
+      holdings = (portfolio as any).assets.map((a: any) => ({
+        type: a.type || 'stocks',
+        currentValue: Number(a.value || 0),
+      }));
+    }
+
+    if (holdings.length === 0) return null;
+
+    const riskWeights: Record<string, number> = {
+      crypto: 85, nft: 90, stocks: 55, gold: 25, local: 35,
+    };
+
+    // Value by asset class
+    const classTotals: Record<string, number> = {};
+    let totalHoldingsValue = 0;
+    for (const h of holdings) {
+      const cls = ((h.type || h.assetClass || 'stocks') as string).toLowerCase().replace(' ', '_');
+      const key = cls.includes('crypto') ? 'crypto'
+        : cls.includes('nft') ? 'nft'
+        : cls.includes('gold') ? 'gold'
+        : cls.includes('local') ? 'local'
+        : 'stocks';
+      const val = Number(h.currentValue || h.value || 0);
+      classTotals[key] = (classTotals[key] || 0) + val;
+      totalHoldingsValue += val;
+    }
+
+    if (totalHoldingsValue === 0) return null;
+
+    // Risk score: weighted average
+    let weightedRisk = 0;
+    for (const [cls, val] of Object.entries(classTotals)) {
+      const pct = val / totalHoldingsValue;
+      weightedRisk += pct * (riskWeights[cls] ?? 55);
+    }
+    const riskScore = Math.round(weightedRisk);
+    const riskLevel = riskScore > 70 ? 'High' : riskScore > 40 ? 'Moderate' : 'Low';
+
+    // Diversification: classes with >5% of portfolio
+    const significantClasses = Object.entries(classTotals)
+      .filter(([, v]) => v / totalHoldingsValue > 0.05).length;
+    const divScore = Math.min(100, [0, 20, 45, 65, 82, 100][significantClasses] ?? 100);
+
+    // Recommendations
+    const recs: string[] = [];
+    const cryptoPct = ((classTotals.crypto || 0) / totalHoldingsValue) * 100;
+    const goldPct = ((classTotals.gold || 0) / totalHoldingsValue) * 100;
+    const stocksPct = ((classTotals.stocks || 0) / totalHoldingsValue) * 100;
+
+    if (cryptoPct > 60) recs.push(`${cryptoPct.toFixed(0)}% in crypto — consider moving some to stable assets.`);
+    if (goldPct === 0) recs.push('No gold holdings — gold hedges against inflation.');
+    if (stocksPct === 0 && cryptoPct > 0) recs.push('Add stocks to balance your crypto exposure.');
+    if (significantClasses < 2) recs.push('Portfolio is highly concentrated — diversify across more asset classes.');
+    if (divScore >= 65 && recs.length === 0) recs.push('Well diversified — keep monitoring your allocation balance.');
+
+    return { riskScore, riskLevel, divScore, recs, classTotals, totalHoldingsValue };
+  };
+
+  const health = computePortfolioHealth();
+
+  const getTimeGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+  const session = readUnifiedAuthSession();
+  const firstName = (session?.name ?? '').split(' ')[0] || 'there';
+
+  const openAuraBank = () => {
+    const host = window.location.hostname || 'localhost';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const uid = session?.userId || '1';
+    window.open(`${protocol}//${host}:3001?userId=${uid}`, '_blank', 'noopener,noreferrer');
+  };
 
   const refreshCapitalMetrics = () => {
     const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
@@ -109,122 +193,180 @@ export default function DashboardHome() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Personalized header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Overview</h1>
-          <p className="text-muted-foreground">Welcome back! Here's your portfolio overview.</p>
+          <h1 className="text-3xl font-bold mb-1">{getTimeGreeting()}, {firstName} 👋</h1>
+          <p className="text-muted-foreground text-sm">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
         </div>
-        <button onClick={() => setShowGamification(!showGamification)} className="px-4 py-2 bg-gradient-to-r from-black to-crimson-600 text-white rounded-lg font-semibold hover:opacity-90 transition-opacity">
-          {showGamification ? 'Hide' : 'Show'} Achievements
-        </button>
+        {isPortfolioReady && totalValue > 0 && (
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${isPositive ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+            {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            {isPositive ? '+' : ''}{change24h}% today
+          </div>
+        )}
       </div>
 
-      {showGamification && (
-        <div className="animate-fadeIn">
-          <Gamification />
-        </div>
-      )}
-
+      {/* Portfolio value card */}
       <div className="gradient-primary rounded-xl p-6 text-white animate-fadeIn">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-sm opacity-90 mb-1">Total Portfolio Value</p>
-            <h2 className="text-4xl font-bold">{isPortfolioReady ? `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</h2>
+            <p className="text-sm opacity-80 mb-1">Total Portfolio Value</p>
+            {!isPortfolioReady
+              ? <div className="h-10 w-48 rounded-lg bg-white/20 animate-pulse" />
+              : <h2 className="text-4xl font-bold">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
+            }
           </div>
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-            {isPositive ? <TrendingUp className="w-4 h-4 text-green-300" /> : <TrendingDown className="w-4 h-4 text-red-300" />}
-            <span className={`text-sm font-semibold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : ''}{change24h}%</span>
-          </div>
+          {isPortfolioReady && totalValue > 0 && (
+            <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+              {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span className="text-sm font-semibold">{isPositive ? '+' : ''}{change24h}%</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-          <span className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)</span>
+
+        {isPortfolioReady && totalValue > 0 && (
+          <div className="flex items-center gap-2 mb-4">
+            {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+            <span className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
+              {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)
+            </span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          {[
+            { label: 'Holdings Value', value: `$${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
+            { label: 'Cash Balance', value: `$${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
+            { label: 'Net Cashflow', value: `${netTradeCashflow >= 0 ? '+' : '-'}$${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, colored: true, positive: netTradeCashflow >= 0 },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
+              <p className="opacity-80 text-xs mb-0.5">{stat.label}</p>
+              {!isPortfolioReady
+                ? <div className="h-5 w-20 rounded bg-white/20 animate-pulse" />
+                : <p className={`font-semibold ${stat.colored ? (stat.positive ? 'text-green-200' : 'text-red-200') : ''}`}>{stat.value}</p>
+              }
+            </div>
+          ))}
         </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Holdings Value</p>
-            <p className="font-semibold">${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Cash Balance</p>
-            <p className="font-semibold">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Net Trade Cashflow</p>
-            <p className={`font-semibold ${netTradeCashflow >= 0 ? 'text-green-200' : 'text-red-200'}`}>
-              {netTradeCashflow >= 0 ? '+' : '-'}${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-white/80">Total Portfolio = Holdings Value + Cash Balance</p>
       </div>
 
+      {/* Empty state — new users */}
+      {isNewUser && (
+        <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-7 h-7 text-primary" />
+          </div>
+          <h3 className="text-lg font-bold mb-2">Start your investment journey</h3>
+          <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-6">
+            Fund your AuraVest account from AuraBank to start trading stocks, crypto, gold and more.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={openAuraBank}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-black to-red-700 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg"
+            >
+              <Landmark className="w-4 h-4" />
+              Fund from AuraBank
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Portfolio Health Widget */}
-      <div className="bg-card border border-border rounded-lg p-6 animate-slideIn">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Shield className="w-5 h-5 text-orange-500" />
-            <h3 className="font-semibold">Portfolio Health</h3>
-          </div>
-          <button className="text-sm text-primary hover:underline">View Details</button>
+      <div className="bg-card border border-border rounded-xl p-6 animate-slideIn">
+        <div className="flex items-center gap-3 mb-5">
+          <Shield className="w-5 h-5 text-orange-500" />
+          <h3 className="font-semibold">Portfolio Health</h3>
+          {health && (
+            <span className={`ml-auto text-xs font-semibold px-2.5 py-1 rounded-full ${
+              health.riskLevel === 'High' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+              : health.riskLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
+              : 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400'
+            }`}>
+              {health.riskLevel} Risk
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Risk Score */}
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Risk Score</p>
-            <div className="flex items-end gap-2">
-              <span className="text-2xl font-bold">{riskMetrics.score}/100</span>
-              <span className={`text-xs px-2 py-0.5 rounded ${riskMetrics.level === 'High' ? 'bg-red-500/20 text-red-500' : riskMetrics.level === 'Moderate' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'}`}>
-                {riskMetrics.level}
-              </span>
-            </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div className={`h-2 rounded-full ${riskMetrics.score > 70 ? 'bg-red-500' : riskMetrics.score > 40 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${riskMetrics.score}%` }} />
-            </div>
+        {!health ? (
+          /* Empty state */
+          <div className="text-center py-6">
+            <Shield className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">No holdings to analyse</p>
+            <p className="text-xs text-muted-foreground/70 mt-1">Make your first trade to see your portfolio health score.</p>
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
+              {/* Risk Score */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Risk Score</p>
+                  <span className="text-sm font-bold">{health.riskScore}/100</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2.5">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-700 ${health.riskScore > 70 ? 'bg-red-500' : health.riskScore > 40 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                    style={{ width: `${health.riskScore}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {health.riskScore > 70 ? 'High volatility — consider balancing with stable assets'
+                    : health.riskScore > 40 ? 'Moderate risk — reasonable balance for growth'
+                    : 'Conservative — low volatility portfolio'}
+                </p>
+              </div>
 
-          {/* Diversification */}
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Diversification</p>
-            <div className="flex items-end gap-2">
-              <span className="text-2xl font-bold">{riskMetrics.diversification}%</span>
-              <span className="text-xs text-muted-foreground">Target: 70%</span>
-            </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div className={`h-2 rounded-full ${riskMetrics.diversification >= 70 ? 'bg-green-500' : riskMetrics.diversification >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${riskMetrics.diversification}%` }} />
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Quick Actions</p>
-            <div className="flex gap-2">
-              <button className="flex-1 px-3 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
-                Rebalance
-              </button>
-              <button className="flex-1 px-3 py-2 bg-blue-500/10 text-blue-500 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors">
-                Add Gold
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Risk Recommendations */}
-        {riskMetrics.recommendations && riskMetrics.recommendations.length > 0 && (
-          <div className="mt-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-orange-700 dark:text-orange-400">Recommendations</p>
-                <ul className="text-xs text-orange-600 dark:text-orange-300 mt-1 space-y-1">
-                  {riskMetrics.recommendations.map((rec, idx) => (
-                    <li key={idx}>• {rec}</li>
-                  ))}
-                </ul>
+              {/* Diversification */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Diversification</p>
+                  <span className="text-sm font-bold">{health.divScore}% <span className="text-xs font-normal text-muted-foreground">/ target 65%</span></span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2.5">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-700 ${health.divScore >= 65 ? 'bg-green-500' : health.divScore >= 45 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    style={{ width: `${health.divScore}%` }}
+                  />
+                </div>
+                {/* Asset class breakdown */}
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {Object.entries(health.classTotals).map(([cls, val]) => {
+                    const pct = Math.round((val / health.totalHoldingsValue) * 100);
+                    return (
+                      <span key={cls} className="text-[10px] px-2 py-0.5 rounded-full bg-muted font-medium capitalize">
+                        {cls} {pct}%
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* Recommendations */}
+            {health.recs.length > 0 && (
+              <div className={`p-3 rounded-xl border text-sm ${
+                health.divScore >= 65 && health.riskScore <= 70
+                  ? 'bg-green-500/5 border-green-500/20'
+                  : 'bg-orange-500/5 border-orange-500/20'
+              }`}>
+                <div className="flex items-start gap-2">
+                  {health.divScore >= 65 && health.riskScore <= 70
+                    ? <Shield className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    : <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                  }
+                  <ul className="space-y-1">
+                    {health.recs.map((rec, i) => (
+                      <li key={i} className="text-xs text-muted-foreground">• {rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -372,8 +514,6 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Aura Suite Overview */}
-      <SuiteBalanceWidget />
 
       {/* Cross-App Transfer */}
       <div className="bg-card border border-border rounded-lg p-5 flex items-center justify-between gap-4">

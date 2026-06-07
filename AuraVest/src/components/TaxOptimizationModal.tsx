@@ -12,20 +12,64 @@ interface TaxOptimizationModalProps {
 export default function TaxOptimizationModal({ isOpen, onClose }: TaxOptimizationModalProps) {
   const [selectedOpportunities, setSelectedOpportunities] = useState<string[]>([]);
   const [step, setStep] = useState(1);
+  const [executed, setExecuted] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleExecuteOptimization = () => {
-    // Simulate tax optimization execution
-    // Here you would typically call an API to execute tax-loss harvesting
-    // For now, we'll show a success modal instead of alert
+  const resetAndClose = () => {
+    setStep(1);
+    setExecuted(false);
     onClose();
-    // You could emit an event or callback here to show success modal
-    // For demo purposes, we'll use alert as placeholder
-    setTimeout(() => {
-      alert(`Tax optimization executed! Potential savings: $${taxOptimization.potentialSavings.toLocaleString()}`);
-    }, 100);
   };
+
+  const handleExecuteOptimization = () => {
+    setExecuted(true);
+  };
+
+  if (executed) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="bg-card border border-border rounded-2xl max-w-md w-full shadow-2xl shadow-black/40 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="h-1 w-full bg-gradient-to-r from-green-600 via-green-400 to-emerald-400" />
+          <div className="px-6 py-10 text-center space-y-3">
+            <div className="relative w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s' }} />
+              <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.35s' }} />
+              <div className="absolute inset-2 rounded-full bg-green-500/15 border border-green-500/25 flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-green-500" />
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Tax Optimization Executed</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Estimated savings: <span className="text-green-500 font-semibold">${taxOptimization.potentialSavings.toLocaleString()}</span>
+              </p>
+            </div>
+            <div className="space-y-1.5 pt-1 text-left">
+              {taxOptimization.opportunities.map((opportunity, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 text-sm animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                  style={{ animationDelay: `${idx * 70}ms`, animationDuration: '300ms' }}
+                >
+                  <span className="font-medium">{opportunity.asset}</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-500">
+                    Saved ${opportunity.potentialTaxSavings.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={resetAndClose}
+              className="mt-2 px-6 py-2 rounded-xl bg-green-500 hover:bg-green-400 text-white text-sm font-bold transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -36,7 +80,7 @@ export default function TaxOptimizationModal({ isOpen, onClose }: TaxOptimizatio
             <h2 className="text-xl font-semibold">Tax Optimization</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={resetAndClose}
             className="p-2 hover:bg-accent rounded-lg"
           >
             <X className="w-5 h-5" />
@@ -211,7 +255,7 @@ export default function TaxOptimizationModal({ isOpen, onClose }: TaxOptimizatio
 
           <div className="flex gap-3">
             <button
-              onClick={onClose}
+              onClick={resetAndClose}
               className="px-4 py-2 border border-border rounded-lg hover:bg-accent"
             >
               Cancel

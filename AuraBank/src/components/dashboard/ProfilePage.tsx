@@ -95,8 +95,11 @@ export default function ProfilePage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="rounded-xl p-5 bg-gradient-to-r from-magenta-500 to-teal-500 text-white border border-white/20">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
-            {(user?.name || 'D').charAt(0).toUpperCase()}
+          <div className="relative flex-shrink-0" style={{ width: 48, height: 48 }}>
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80 border-r-white/30 animate-spin" style={{ animationDuration: '2.5s' }} />
+            <div className="absolute inset-[3px] rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
+              {(user?.name || 'D').charAt(0).toUpperCase()}
+            </div>
           </div>
           <div>
             <h2 className="font-bold">{user?.name || 'Demo User'}</h2>

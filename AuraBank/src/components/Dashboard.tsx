@@ -101,7 +101,7 @@ export default function Dashboard() {
       case 'profile':
         return <ProfilePage />;
       default:
-        return <DashboardHome userId={userIdNum} />;
+        return <DashboardHome userId={userIdNum} onNavigate={(page) => setCurrentPage(page as PageType)} />;
     }
   };
 

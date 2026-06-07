@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Settings, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { X, Settings, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface RebalancingWizardProps {
   isOpen: boolean;
@@ -18,8 +18,16 @@ export default function RebalancingWizard({
 }: RebalancingWizardProps) {
   const [step, setStep] = useState(1);
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [executed, setExecuted] = useState(false);
 
   if (!isOpen) return null;
+
+  const resetAndClose = () => {
+    setStep(1);
+    setSelectedAssets([]);
+    setExecuted(false);
+    onClose();
+  };
 
   const totalValue = currentAllocations.reduce((sum, asset) => sum + asset.value, 0);
 
@@ -39,16 +47,54 @@ export default function RebalancingWizard({
   });
 
   const handleExecuteRebalancing = () => {
-    // Simulate rebalancing execution
-    // Here you would typically call an API to execute the rebalancing
-    // For now, we'll show a success modal instead of alert
-    onClose();
-    // You could emit an event or callback here to show success modal
-    // For demo purposes, we'll use alert as placeholder
-    setTimeout(() => {
-      alert('Rebalancing executed successfully! Portfolio has been rebalanced.');
-    }, 100);
+    setExecuted(true);
   };
+
+  if (executed) {
+    const executedActions = rebalancingActions.filter((action) => selectedAssets.includes(action.type));
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+        <div className="bg-card border border-border rounded-2xl max-w-md w-full shadow-2xl shadow-black/40 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
+          <div className="px-6 py-10 text-center space-y-3">
+            <div className="relative w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full bg-primary/15 animate-ping" style={{ animationDuration: '1.6s' }} />
+              <div className="absolute inset-0 rounded-full bg-primary/15 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.35s' }} />
+              <div className="absolute inset-2 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-primary" />
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-base">Rebalancing Executed</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {executedActions.length} trade{executedActions.length === 1 ? '' : 's'} placed to align your portfolio with its targets.
+              </p>
+            </div>
+            <div className="space-y-1.5 pt-1 text-left">
+              {executedActions.map((action, idx) => (
+                <div
+                  key={action.type}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 text-sm animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                  style={{ animationDelay: `${idx * 70}ms`, animationDuration: '300ms' }}
+                >
+                  <span className="font-medium">{action.type}</span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${action.action === 'buy' ? 'bg-green-500/15 text-green-500' : 'bg-red-500/15 text-red-500'}`}>
+                    {action.action === 'buy' ? '↑ Bought' : '↓ Sold'} ${action.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={resetAndClose}
+              className="mt-2 px-6 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-bold transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -59,7 +105,7 @@ export default function RebalancingWizard({
             <h2 className="text-xl font-semibold">Portfolio Rebalancing Wizard</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={resetAndClose}
             className="p-2 hover:bg-accent rounded-lg"
           >
             <X className="w-5 h-5" />
@@ -227,7 +273,7 @@ export default function RebalancingWizard({
 
           <div className="flex gap-3">
             <button
-              onClick={onClose}
+              onClick={resetAndClose}
               className="px-4 py-2 border border-border rounded-lg hover:bg-accent"
             >
               Cancel

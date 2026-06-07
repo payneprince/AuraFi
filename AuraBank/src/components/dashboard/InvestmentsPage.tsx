@@ -1,537 +1,309 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency as formatMoney } from '@/lib/currency';
-import { CheckCircle, X } from 'lucide-react';
+import { useMemo } from 'react';
+import { Landmark, Clock, ShieldCheck, TrendingUp, ExternalLink, Building2, Lightbulb } from 'lucide-react';
+
+const tBillRates = [
+  { tenor: '91-Day', rate: 17.8, color: 'magenta' },
+  { tenor: '182-Day', rate: 18.6, color: 'teal' },
+  { tenor: '364-Day', rate: 19.4, color: 'mint' },
+];
+
+const localInvestmentProducts = [
+  {
+    id: 'tbill-91',
+    name: 'Treasury Bill (91-Day)',
+    provider: 'Bank of Ghana',
+    minimum: 'GHS 100',
+    tenor: '91 days',
+    rate: '17.8%',
+    risk: 'Low',
+    tax: '0% Tax',
+  },
+  {
+    id: 'fixed-6m',
+    name: 'Fixed Deposit Plus',
+    provider: 'Databank',
+    minimum: 'GHS 1,000',
+    tenor: '6 months',
+    rate: '16.2%',
+    risk: 'Low',
+    tax: '8% WHT',
+  },
+  {
+    id: 'money-market',
+    name: 'Money Market Saver',
+    provider: 'Ecobank Capital',
+    minimum: 'GHS 50',
+    tenor: 'Flexible',
+    rate: '13.9%',
+    risk: 'Low',
+    tax: '0% Tax',
+  },
+  {
+    id: 'bond-2y',
+    name: 'Government Bond (2-Year)',
+    provider: 'Public Debt Market',
+    minimum: 'GHS 500',
+    tenor: '2 years',
+    rate: '19.1%',
+    risk: 'Low',
+    tax: '0% Tax',
+  },
+];
+
+const trustedProviders = [
+  { name: 'Databank', category: 'Asset Manager', logo: '/logos/banks/databank.png' },
+  { name: 'Ecobank', category: 'Investment Bank', logo: '/logos/banks/ecobank.png' },
+  { name: 'GCB Bank', category: 'Commercial Bank', logo: '/logos/banks/gcb.png' },
+  { name: 'Bank of Ghana', category: 'Central Bank', logo: '/logos/banks/bog.png' },
+];
+
+const getRateStyle = (color: string) => {
+  switch (color) {
+    case 'magenta':
+      return { ring: 'border-t-magenta-500/80 border-r-magenta-500/30', bg: 'bg-magenta-500/10', text: 'text-magenta-600', bar: 'from-magenta-500 to-magenta-600' };
+    case 'teal':
+      return { ring: 'border-t-teal-400/80 border-r-teal-400/30', bg: 'bg-teal-100', text: 'text-teal-600', bar: 'from-teal-500 to-teal-400' };
+    default:
+      return { ring: 'border-t-mint-500/80 border-r-mint-500/30', bg: 'bg-mint-500/10', text: 'text-mint-600', bar: 'from-mint-500 to-mint-600' };
+  }
+};
 
 export default function InvestmentsPage() {
-  const { accounts, updateAccounts, addTransaction } = useAuth();
-  const bankInvestmentProducts = [
-    {
-      id: 'tbill-91',
-      name: 'Treasury Bill (91-Day)',
-      provider: 'Bank Investment Desk',
-      minimum: 'GHS 100',
-      minimumAmount: 100,
-      tenor: '91 days',
-      rate: '17.8% p.a.',
-      annualRate: 17.8,
-      tenorDays: 91,
-      risk: 'Low',
-      liquidity: 'Locked',
-    },
-    {
-      id: 'fixed-6m',
-      name: 'Fixed Deposit Plus',
-      provider: 'Bank Investment Desk',
-      minimum: 'GHS 1,000',
-      minimumAmount: 1000,
-      tenor: '6 months',
-      rate: '16.2% p.a.',
-      annualRate: 16.2,
-      tenorDays: 180,
-      risk: 'Low',
-      liquidity: 'Locked',
-    },
-    {
-      id: 'money-market',
-      name: 'Money Market Saver',
-      provider: 'Bank Investment Desk',
-      minimum: 'GHS 50',
-      minimumAmount: 50,
-      tenor: 'Flexible',
-      rate: '13.9% p.a.',
-      annualRate: 13.9,
-      tenorDays: null,
-      risk: 'Low',
-      liquidity: 'Flexible',
-    },
-    {
-      id: 'bond-2y',
-      name: 'Government Bond (2-Year)',
-      provider: 'Public Debt Market',
-      minimum: 'GHS 500',
-      minimumAmount: 500,
-      tenor: '2 years',
-      rate: '19.1% p.a.',
-      annualRate: 19.1,
-      tenorDays: 730,
-      risk: 'Low',
-      liquidity: 'Locked',
-    },
-  ];
+  const openAuraVest = () => window.open('http://localhost:3002', '_self');
 
-  const [positions, setPositions] = useState<any[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState('');
-  const [previewProductId, setPreviewProductId] = useState(bankInvestmentProducts[0].id);
-  const [previewAmount, setPreviewAmount] = useState('500');
-  const [investmentAmount, setInvestmentAmount] = useState('1000');
-  const [feedback, setFeedback] = useState('');
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    productId: string;
-    amount: string;
-  }>({
-    isOpen: false,
-    productId: '',
-    amount: '',
-  });
-  const [successModal, setSuccessModal] = useState<{
-    isOpen: boolean;
-    productName: string;
-    amount: number;
-    sourceAccountName: string;
-  }>({
-    isOpen: false,
-    productName: '',
-    amount: 0,
-    sourceAccountName: '',
-  });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('aurabank_investment_positions');
-    if (saved) {
-      setPositions(JSON.parse(saved));
-      return;
-    }
-
-    const starter = [
-      {
-        id: 'inv-seed-1',
-        productId: 'tbill-91',
-        productName: 'Treasury Bill (91-Day)',
-        amount: 1200,
-        annualRate: 17.8,
-        sourceAccountName: 'Cedi Account',
-        startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        maturityDate: new Date(Date.now() + 76 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ];
-    setPositions(starter);
+  const auctionCountdown = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const daysUntilMonday = (8 - day) % 7 || 7;
+    const next = new Date(now);
+    next.setDate(now.getDate() + daysUntilMonday);
+    next.setHours(10, 0, 0, 0);
+    const diffMs = next.getTime() - now.getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    return `${days}d ${hours}h`;
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('aurabank_investment_positions', JSON.stringify(positions));
-  }, [positions]);
-
-  useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(accounts[0].id);
-    }
-  }, [accounts, selectedAccountId]);
-
-  const previewProduct = bankInvestmentProducts.find((item) => item.id === previewProductId) || bankInvestmentProducts[0];
-  const previewPrincipal = Number(previewAmount) || 0;
-  const previewDays = previewProduct.tenorDays ?? 30;
-  const projectedValue = useMemo(() => {
-    if (previewPrincipal <= 0) return 0;
-    return previewPrincipal * (1 + (previewProduct.annualRate / 100) * (previewDays / 365));
-  }, [previewPrincipal, previewProduct.annualRate, previewDays]);
-
-  const openConfirmModal = (productId: string, amount: number) => {
-    setConfirmModal({
-      isOpen: true,
-      productId,
-      amount: String(amount),
-    });
-  };
-
-  const executeInvestment = (productId: string, amount: number) => {
-    const account = accounts.find((item: any) => item.id === selectedAccountId);
-    const product = bankInvestmentProducts.find((item) => item.id === productId);
-
-    if (!account || !product) {
-      setFeedback('Please select a valid source account.');
-      return;
-    }
-
-    if (!amount || amount <= 0) {
-      setFeedback('Enter a valid investment amount.');
-      return;
-    }
-
-    if (amount < product.minimumAmount) {
-      setFeedback(`Minimum for ${product.name} is GHS ${product.minimumAmount.toLocaleString()}.`);
-      return;
-    }
-
-    if (account.balance < amount) {
-      setFeedback('Insufficient balance for this investment amount.');
-      return;
-    }
-
-    const updatedAccounts = accounts.map((item: any) => {
-      if (item.id === account.id) {
-        return { ...item, balance: item.balance - amount };
-      }
-      return item;
-    });
-
-    updateAccounts(updatedAccounts as any);
-
-    const now = new Date();
-    const maturityDate = product.tenorDays ? new Date(now.getTime() + product.tenorDays * 24 * 60 * 60 * 1000).toISOString() : null;
-
-    const newPosition = {
-      id: `inv-${Date.now()}`,
-      productId: product.id,
-      productName: product.name,
-      amount,
-      annualRate: product.annualRate,
-      sourceAccountName: account.name,
-      startDate: now.toISOString(),
-      maturityDate,
-    };
-
-    setPositions((prev) => [newPosition, ...prev]);
-
-    addTransaction({
-      id: `tx-invest-${Date.now()}`,
-      accountId: account.id,
-      type: 'debit',
-      category: 'Investment',
-      description: `Invested in ${product.name}`,
-      amount: -amount,
-      date: now.toISOString(),
-      status: 'completed',
-    } as any);
-
-    setFeedback(`Investment placed: GHS ${amount.toLocaleString()} in ${product.name}.`);
-    setSuccessModal({
-      isOpen: true,
-      productName: product.name,
-      amount,
-      sourceAccountName: account.name,
-    });
-    setConfirmModal({
-      isOpen: false,
-      productId: '',
-      amount: '',
-    });
-  };
-
-  const totalInvested = positions.reduce((sum, item) => sum + item.amount, 0);
-  const estimatedAnnualEarnings = positions.reduce((sum, item) => sum + item.amount * (item.annualRate / 100), 0);
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          onClick={() => window.open('http://localhost:3002', '_self')}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white text-sm font-semibold"
-        >
-          Invest in AuraVest
-        </button>
+    <div className="space-y-6">
+      {/* Local Investments banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-navy-700 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-6 shadow-lg group">
+        <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-magenta-500/10 blur-3xl group-hover:bg-magenta-500/20 transition-all duration-700" />
+        <div className="absolute -left-10 -bottom-16 w-56 h-56 rounded-full bg-teal-500/10 blur-3xl group-hover:bg-teal-500/20 transition-all duration-700" />
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/70 border-r-white/25 animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                <Landmark className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-white">Local Investments</h2>
+                <span className="px-2 py-0.5 rounded-full bg-white/10 text-white text-[11px] font-semibold border border-white/20">GHS</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mint-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-mint-400" />
+                </span>
+              </div>
+              <p className="text-sm text-white/60 mt-1 max-w-md">
+                Ghana-market T-Bills, bonds and money-market funds are bought and tracked in AuraVest — open it to invest, your bank balance stays untouched.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={openAuraVest}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-magenta-500 to-teal-500 text-white text-sm font-semibold hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-300 flex-shrink-0"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Open AuraVest to Invest
+          </button>
+        </div>
       </div>
 
+      {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4">
-          <p className="text-xs text-slate-500">Total Invested</p>
-          <p className="text-2xl font-bold text-text-dark">GHS {totalInvested.toLocaleString()}</p>
+        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+          <div className="w-10 h-10 rounded-xl bg-magenta-500/10 text-magenta-600 flex items-center justify-center flex-shrink-0">
+            <Landmark className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">BOG Policy Rate</p>
+            <p className="text-lg font-bold text-text-dark tabular-nums">14.0%</p>
+          </div>
         </div>
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4">
-          <p className="text-xs text-slate-500">Estimated Annual Earnings</p>
-          <p className="text-2xl font-bold text-teal-600">GHS {estimatedAnnualEarnings.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+          <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Next T-Bill Auction</p>
+            <p className="text-lg font-bold text-text-dark tabular-nums">{auctionCountdown}</p>
+          </div>
         </div>
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4">
-          <p className="text-xs text-slate-500">Active Positions</p>
-          <p className="text-2xl font-bold text-text-dark">{positions.length}</p>
+        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+          <div className="w-10 h-10 rounded-xl bg-mint-500/10 text-mint-600 flex items-center justify-center flex-shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">T-Bills &amp; Funds Tax</p>
+            <p className="text-lg font-bold text-text-dark tabular-nums">0%</p>
+          </div>
         </div>
       </div>
 
+      {/* Live T-Bill rates */}
       <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">Source Account</label>
-            <select
-              value={selectedAccountId}
-              onChange={(event) => setSelectedAccountId(event.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-text-dark"
-            >
-              {accounts.map((account: any) => (
-                <option key={account.id} value={account.id}>
-                  {account.name} ({formatMoney(account.balance, account.currency)})
-                </option>
-              ))}
-            </select>
+            <h3 className="text-lg font-semibold text-text-dark">Live T-Bill Rates</h3>
+            <p className="text-sm text-slate-500">Indicative Bank of Ghana auction yields</p>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">Amount to Invest (GHS)</label>
-            <input
-              type="number"
-              min="1"
-              step="0.01"
-              value={investmentAmount}
-              onChange={(event) => setInvestmentAmount(event.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-text-dark"
-              placeholder="Enter amount"
-            />
-          </div>
+          <span className="flex items-center gap-1.5 text-xs text-teal-600 font-medium">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500" />
+            </span>
+            Live
+          </span>
         </div>
-        {feedback && <p className="text-sm text-teal-700 mt-3">{feedback}</p>}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {tBillRates.map((item, idx) => {
+            const style = getRateStyle(item.color);
+            return (
+              <div
+                key={item.tenor}
+                className="group/card relative overflow-hidden rounded-xl border border-navy-700 bg-navy-50 p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                style={{ animationDelay: `${idx * 70}ms` }}
+              >
+                <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full ${style.bg} blur-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500`} />
+                <div className="absolute inset-0 -translate-x-full group-hover/card:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+
+                <div className="relative flex items-center gap-3 mb-3">
+                  <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
+                    <div className={`absolute inset-0 rounded-full border-2 border-transparent ${style.ring} group-hover/card:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                    <div className={`absolute inset-[3px] rounded-full ${style.bg} ${style.text} flex items-center justify-center`}>
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-text-dark">{item.tenor} T-Bill</p>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">0% Tax</span>
+                  </div>
+                </div>
+                <p className={`relative text-3xl font-bold ${style.text} tabular-nums origin-left transition-transform duration-300 group-hover/card:scale-105`}>
+                  {item.rate}%<span className="text-xs font-medium text-slate-400 ml-1">p.a.</span>
+                </p>
+                <div className="relative mt-3 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${style.bar} transition-all duration-700`} style={{ width: `${Math.min(item.rate * 4, 100)}%` }} />
+                </div>
+                <p className="relative mt-2 text-[11px] text-slate-400">Indicative yield · updated weekly</p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
+      {/* Tax comparison callout */}
+      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-5 flex items-start gap-4">
+        <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center flex-shrink-0">
+          <Lightbulb className="w-5 h-5" />
+        </div>
+        <div>
+          <span className="inline-block mb-1.5 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-600 text-[11px] font-semibold tracking-wide uppercase border border-teal-500/20">Tax Tip</span>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            <span className="font-semibold text-text-dark">Why T-Bills beat a regular savings account — </span>
+            Treasury Bill and money-market fund returns are exempt from withholding tax <span className="font-semibold text-teal-600">(0%)</span>, while many fixed-income products carry an <span className="font-semibold text-magenta-600">8% WHT</span>. Open AuraVest to compare live local products and place an order.
+          </p>
+        </div>
+      </div>
+
+      {/* Available Products */}
       <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-text-dark">Available Products</h3>
+          <p className="text-sm text-slate-500">Buy and track these in AuraVest — your bank balance stays untouched</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {bankInvestmentProducts.map((product) => (
-            <div key={product.id} className="rounded-xl border border-navy-700 bg-navy-50 p-4 space-y-3">
+          {localInvestmentProducts.map((product, idx) => (
+            <div
+              key={product.id}
+              className="group rounded-xl border border-navy-700 bg-navy-50 p-4 space-y-3 transition-all duration-300 hover:shadow-md hover:-translate-y-1 hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+              style={{ animationDelay: `${idx * 60}ms` }}
+            >
               <div>
-                <h3 className="font-semibold text-text-dark">{product.name}</h3>
+                <h4 className="font-semibold text-text-dark transition-colors duration-200 group-hover:text-teal-600">{product.name}</h4>
                 <p className="text-xs text-slate-500">{product.provider}</p>
               </div>
 
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Minimum</span>
-                  <span className="font-medium text-text-dark">{product.minimum}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Tenor</span>
-                  <span className="font-medium text-text-dark">{product.tenor}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Indicative Return</span>
-                  <span className="font-semibold text-teal-600">{product.rate}</span>
-                </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[11px] font-medium">Risk: {product.risk}</span>
+                <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 text-[11px] font-medium">{product.tax}</span>
               </div>
 
-              <div className="flex items-center gap-2 text-xs">
-                <span className="px-2 py-1 rounded-full bg-green-100 text-green-700">Risk: {product.risk}</span>
-                <span className="px-2 py-1 rounded-full bg-magenta-100 text-magenta-700">{product.liquidity}</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => openConfirmModal(product.id, product.minimumAmount)}
-                  className="px-2 py-2 text-xs rounded-lg border border-navy-700 text-text-dark font-medium bg-white"
-                >
-                  Min
-                </button>
-                <button
-                  onClick={() => openConfirmModal(product.id, 500)}
-                  className="px-2 py-2 text-xs rounded-lg border border-navy-700 text-text-dark font-medium bg-white"
-                >
-                  GHS 500
-                </button>
-                <button
-                  onClick={() => openConfirmModal(product.id, 1000)}
-                  className="px-2 py-2 text-xs rounded-lg border border-navy-700 text-text-dark font-medium bg-white"
-                >
-                  GHS 1000
-                </button>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Return</p>
+                  <p className="text-sm font-bold text-teal-600 transition-transform duration-200 group-hover:scale-110 inline-block">{product.rate}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Min</p>
+                  <p className="text-sm font-semibold text-text-dark">{product.minimum}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Tenor</p>
+                  <p className="text-sm font-semibold text-text-dark">{product.tenor}</p>
+                </div>
               </div>
 
               <button
-                onClick={() => openConfirmModal(product.id, Number(investmentAmount) || 0)}
-                className="w-full px-2 py-2 text-xs rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-semibold"
+                onClick={openAuraVest}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-2 py-2 text-xs rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-semibold hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-300"
               >
-                Buy
+                <ExternalLink className="w-3.5 h-3.5" />
+                Invest in AuraVest
               </button>
-              <p className="text-[11px] text-slate-500">Choose an option above or enter any amount and click Buy. Minimum: GHS {product.minimumAmount.toLocaleString()}</p>
             </div>
           ))}
         </div>
-
-        <p className="text-xs text-slate-500 mt-4">Illustrative demo rates only, not investment advice.</p>
+        <p className="text-xs text-slate-500 mt-4">Illustrative rates shown for reference — open AuraVest for live pricing and to place an order.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6 space-y-4">
-          <div>
-            <h3 className="text-lg font-semibold text-text-dark">Maturity Preview</h3>
-            <p className="text-sm text-slate-500">Preview projected value before investing</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">Product</label>
-            <select
-              value={previewProductId}
-              onChange={(event) => setPreviewProductId(event.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-text-dark"
-            >
-              {bankInvestmentProducts.map((product) => (
-                <option key={product.id} value={product.id}>{product.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">Principal (GHS)</label>
-            <input
-              type="number"
-              min="1"
-              value={previewAmount}
-              onChange={(event) => setPreviewAmount(event.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-text-dark"
-            />
-          </div>
-
-          <div className="rounded-xl bg-navy-50 border border-navy-700 p-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Tenor used</span>
-              <span className="font-medium text-text-dark">{previewProduct.tenorDays ? `${previewProduct.tenorDays} days` : '30-day preview'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Projected value</span>
-              <span className="font-semibold text-teal-600">GHS {projectedValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Estimated gain</span>
-              <span className="font-semibold text-text-dark">GHS {(projectedValue - previewPrincipal).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-            </div>
-          </div>
+      {/* Trusted Providers */}
+      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-text-dark">Trusted Providers</h3>
+          <p className="text-sm text-slate-500">Licensed partners available when you invest through AuraVest</p>
         </div>
-
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-text-dark">My Bank Investments</h3>
-            <p className="text-sm text-slate-500">Your active and maturing positions</p>
-          </div>
-
-          <div className="space-y-3 max-h-[360px] overflow-y-auto hide-scrollbar">
-            {positions.length === 0 ? (
-              <p className="text-sm text-slate-500">No investments yet. Use Quick Buy to start.</p>
-            ) : (
-              positions.map((position) => {
-                const isMatured = position.maturityDate ? new Date(position.maturityDate).getTime() < Date.now() : false;
-                return (
-                  <div key={position.id} className="rounded-xl border border-navy-700 bg-navy-50 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-semibold text-text-dark">{position.productName}</p>
-                      <span className={`text-xs px-2 py-1 rounded-full ${isMatured ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {isMatured ? 'Matured' : 'Active'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <p className="text-slate-500">Amount: <span className="text-text-dark font-medium">GHS {position.amount.toLocaleString()}</span></p>
-                      <p className="text-slate-500">Rate: <span className="text-text-dark font-medium">{position.annualRate}% p.a.</span></p>
-                      <p className="text-slate-500">Source: <span className="text-text-dark font-medium">{position.sourceAccountName}</span></p>
-                      <p className="text-slate-500">Maturity: <span className="text-text-dark font-medium">{position.maturityDate ? new Date(position.maturityDate).toLocaleDateString() : 'Flexible'}</span></p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+        <div className="grid grid-cols-4 gap-2">
+          {trustedProviders.map((provider, idx) => (
+            <button
+              key={provider.name}
+              onClick={openAuraVest}
+              className="group bg-navy-50 border border-navy-700 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-teal-500/30 hover:shadow-sm transition-all animate-in fade-in zoom-in-95 fill-mode-both"
+              style={{ animationDelay: `${idx * 50}ms` }}
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-white flex items-center justify-center">
+                <img
+                  src={provider.logo}
+                  alt={provider.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+                <Building2 className="w-5 h-5 text-magenta-600 hidden" />
+              </div>
+              <span className="text-[10px] text-slate-500 group-hover:text-text-dark transition-colors text-center leading-tight">{provider.name}</span>
+            </button>
+          ))}
         </div>
       </div>
-
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl shadow-2xl border border-navy-700 w-full max-w-md p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={() => setConfirmModal({ isOpen: false, productId: '', amount: '' })}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-4">
-              <h3 className="text-xl font-bold text-text-dark">Confirm Investment</h3>
-              <p className="text-sm text-slate-500">Review and confirm before we place your order.</p>
-            </div>
-
-            {(() => {
-              const selectedProduct = bankInvestmentProducts.find((item) => item.id === confirmModal.productId);
-              const selectedAccount = accounts.find((item: any) => item.id === selectedAccountId);
-
-              if (!selectedProduct) return null;
-
-              return (
-                <div className="space-y-4">
-                  <div className="rounded-xl bg-navy-50 border border-navy-700 p-4 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Product</span>
-                      <span className="font-medium text-text-dark">{selectedProduct.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Source Account</span>
-                      <span className="font-medium text-text-dark">{selectedAccount?.name || 'Not selected'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Minimum</span>
-                      <span className="font-medium text-text-dark">GHS {selectedProduct.minimumAmount.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-text-dark mb-2">Amount (GHS)</label>
-                    <input
-                      type="number"
-                      min={selectedProduct.minimumAmount}
-                      step="0.01"
-                      value={confirmModal.amount}
-                      onChange={(event) => setConfirmModal((prev) => ({ ...prev, amount: event.target.value }))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-text-dark"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">You can type any amount above the minimum.</p>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={() => setConfirmModal({ isOpen: false, productId: '', amount: '' })}
-                      className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => executeInvestment(selectedProduct.id, Number(confirmModal.amount) || 0)}
-                      className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium"
-                    >
-                      Confirm Buy
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {successModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl shadow-2xl border border-navy-700 w-full max-w-sm p-6 relative animate-in fade-in zoom-in-95 duration-200">
-            <button
-              onClick={() => setSuccessModal({ isOpen: false, productName: '', amount: 0, sourceAccountName: '' })}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-green-100 mx-auto flex items-center justify-center mb-3">
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-bold text-text-dark mb-1">Investment Successful</h3>
-              <p className="text-sm text-slate-500">Your investment order has been confirmed.</p>
-            </div>
-
-            <div className="mt-5 rounded-xl bg-navy-50 border border-navy-700 p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Product</span>
-                <span className="font-medium text-text-dark">{successModal.productName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Amount</span>
-                <span className="font-semibold text-teal-600">GHS {successModal.amount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Source</span>
-                <span className="font-medium text-text-dark">{successModal.sourceAccountName}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSuccessModal({ isOpen: false, productName: '', amount: 0, sourceAccountName: '' })}
-              className="w-full mt-5 px-4 py-2 rounded-lg bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

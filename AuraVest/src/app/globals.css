@@ -142,23 +142,16 @@
   animation: flip 0.6s ease-in-out;
 }
 
-/* Custom scrollbar */
+/* Hidden scrollbar — keep scrolling, hide the bar itself */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary));
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.8);
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 /* Custom animations */
 @keyframes fade-in {

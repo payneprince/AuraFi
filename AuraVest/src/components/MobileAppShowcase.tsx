@@ -206,7 +206,7 @@ export default function MobileAppShowcase() {
                   <div className="pt-1 pb-2">
                     <div className="flex justify-between items-center mb-1.5">
                       <p className="text-[10px] font-semibold text-white">Recent Activity</p>
-                      <button className="text-[8px] text-crimson-400">See All</button>
+                      <span className="text-[8px] text-crimson-400">See All</span>
                     </div>
                     <div className="space-y-1.5">
                       {[

@@ -78,8 +78,11 @@ export function CardSettingsModal({ isOpen, onClose, card, onUpdateSettings }: C
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <Settings className="w-6 h-6 text-blue-600" />
+            <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400/80 border-r-blue-400/30 animate-spin" style={{ animationDuration: '2.5s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-blue-100 flex items-center justify-center">
+                <Settings className="w-5 h-5 text-blue-600" />
+              </div>
             </div>
             <div>
               <h3 className="text-xl font-bold text-slate-900">Card Settings</h3>

@@ -67,6 +67,14 @@ interface TechnicalAnalysisChartProps {
   isEmbedded?: boolean;
 }
 
+function getIntervalMs(tf: string): number {
+  const map: Record<string, number> = {
+    '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
+    '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000, '1w': 604_800_000,
+  };
+  return map[tf] ?? 3_600_000;
+}
+
 export default function TechnicalAnalysisChart({ asset, onClose, isEmbedded = false }: TechnicalAnalysisChartProps & { onClose?: () => void }) {
   const [timeframe, setTimeframe] = useState('1h');
   const [candleData, setCandleData] = useState<CandleData[]>([]);
@@ -83,6 +91,30 @@ export default function TechnicalAnalysisChart({ asset, onClose, isEmbedded = fa
     const data = generateHistoricalData(asset.price, 30, timeframe as any);
     setCandleData(data);
   }, [asset.price, timeframe]);
+
+  // Live tick — push a new candle every 2s, drop the oldest
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCandleData(prev => {
+        if (!prev.length) return prev;
+        const last = prev[prev.length - 1];
+        const volatility = last.close * 0.008;
+        const change = (Math.random() - 0.48) * volatility;
+        const newClose = Math.max(last.close + change, last.close * 0.5);
+        const swing = Math.abs(change) * (0.5 + Math.random());
+        const newCandle: CandleData = {
+          timestamp: last.timestamp + getIntervalMs(timeframe),
+          open: last.close,
+          high: Math.max(last.close, newClose) + swing,
+          low: Math.min(last.close, newClose) - swing,
+          close: newClose,
+          volume: last.volume * (0.7 + Math.random() * 0.6),
+        };
+        return [...prev.slice(1), newCandle];
+      });
+    }, 2000);
+    return () => clearInterval(id);
+  }, [timeframe]);
 
   // Toggle indicators
   const toggleIndicator = (indicatorId: string) => {
@@ -258,6 +290,9 @@ export default function TechnicalAnalysisChart({ asset, onClose, isEmbedded = fa
 
   // Chart options
   const chartOptions = {
+    animation: {
+      duration: 300,
+    },
     responsive: true,
     maintainAspectRatio: false,
     interaction: {
@@ -359,10 +394,13 @@ export default function TechnicalAnalysisChart({ asset, onClose, isEmbedded = fa
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden ${asset.image?.includes('simpleicons.org') ? 'bg-white border border-slate-200' : 'bg-gradient-to-br from-black to-crimson-600'}`}>
-                {asset.image?.startsWith('http') ? (
-                  <img src={asset.image} alt={asset.symbol} className={asset.image?.includes('simpleicons.org') ? 'w-6 h-6 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                ) : <span className="text-white">{asset.symbol.slice(0, 2)}</span>}
+              <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400/80 border-r-blue-400/30 animate-spin" style={{ animationDuration: '2.5s' }} />
+                <div className={`absolute inset-[3px] rounded-full overflow-hidden flex items-center justify-center font-bold text-sm ${(asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/')) ? 'bg-white' : 'bg-muted'}`}>
+                  {(asset.image?.startsWith('http') || asset.image?.startsWith('/')) ? (
+                    <img src={asset.image} alt={asset.symbol} className={(asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/')) ? 'w-5 h-5 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : <span className="text-foreground text-xs font-black">{asset.symbol.slice(0, 2)}</span>}
+                </div>
               </div>
               <div>
                 <h3 className="font-semibold">{asset.name}</h3>

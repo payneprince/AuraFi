@@ -169,22 +169,26 @@ export default function CardsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {displayCards.map((card) => (
-          <div key={card.id} className="space-y-4">
+        {displayCards.map((card, idx) => (
+          <div
+            key={card.id}
+            className="space-y-4 group animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+            style={{ animationDelay: `${idx * 70}ms` }}
+          >
             {/* Card Display */}
             <div
-              className={`relative bg-gradient-to-br ${getCardGradient(card.brand, card.isVirtual)} rounded-2xl p-8 text-white shadow-2xl cursor-pointer transform transition hover:scale-105`}
+              className={`relative bg-gradient-to-br ${getCardGradient(card.brand, card.isVirtual)} rounded-2xl p-8 text-white shadow-2xl cursor-pointer transform transition-all duration-300 hover:scale-105 group-hover:-translate-y-1`}
               onClick={() => setSelectedCard(selectedCard === card.id ? null : card.id)}
             >
               {/* Brand Logo + Badges */}
               <div className="flex items-center justify-between mb-12">
                 <div className="text-2xl font-bold">
                   {card.brand === 'visa' ? (
-                    <div className="w-10 h-10 flex items-center justify-center">
+                    <div className="w-10 h-10 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
                       <img src="/visa.svg" alt="Visa" className="max-w-full max-h-full object-contain" />
                     </div>
                   ) : card.brand === 'mastercard' ? (
-                    <div className="w-10 h-10 flex items-center justify-center">
+                    <div className="w-10 h-10 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
                       <img src="/mastercard.svg" alt="Mastercard" className="max-w-full max-h-full object-contain" />
                     </div>
                   ) : (

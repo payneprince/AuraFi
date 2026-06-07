@@ -27,6 +27,9 @@ const COINGECKO_IDS = [
   'polkadot', 'chainlink', 'avalanche-2', 'matic-network', 'uniswap',
   'algorand', 'vechain', 'ripple', 'dogecoin', 'shiba-inu',
   'litecoin', 'monero', 'cosmos', 'near', 'the-sandbox',
+  'tron', 'stellar', 'ethereum-classic', 'filecoin', 'internet-computer',
+  'aptos', 'arbitrum', 'optimism', 'sui', 'bitcoin-cash',
+  'hedera-hashgraph', 'fantom', 'theta-token', 'mantle', 'toncoin',
 ].join(',');
 
 const STOCK_ICON_SLUGS: Record<string, string> = {
@@ -46,7 +49,7 @@ async function fetchCrypto() {
   const cached = getCached<unknown[]>('crypto');
   if (cached) return cached;
 
-  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINGECKO_IDS}&order=market_cap_desc&per_page=20&page=1&sparkline=false`;
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINGECKO_IDS}&order=market_cap_desc&per_page=50&page=1&sparkline=false`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error(`CoinGecko ${res.status}`);
 

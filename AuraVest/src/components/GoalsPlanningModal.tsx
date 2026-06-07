@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Target, TrendingUp, Calendar, DollarSign, BarChart3 } from 'lucide-react';
+import { X, Target, TrendingUp, Calendar, DollarSign, BarChart3, CheckCircle } from 'lucide-react';
 import { monteCarloData } from '@/lib/mockData';
 
 interface GoalsPlanningModalProps {
@@ -11,8 +11,14 @@ interface GoalsPlanningModalProps {
 
 export default function GoalsPlanningModal({ isOpen, onClose }: GoalsPlanningModalProps) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [savedFlash, setSavedFlash] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleUpdateGoalSettings = () => {
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 2200);
+  };
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Target },
@@ -242,7 +248,18 @@ export default function GoalsPlanningModal({ isOpen, onClose }: GoalsPlanningMod
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+        <div className="relative flex items-center justify-end gap-3 p-6 border-t border-border">
+          {savedFlash && (
+            <div className="absolute left-6 flex items-center gap-2 text-sm font-medium text-green-500 animate-in fade-in slide-in-from-left-2 duration-300">
+              <div className="relative w-5 h-5 flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping" style={{ animationDuration: '1.4s' }} />
+                <div className="absolute inset-0 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                  <CheckCircle className="w-3 h-3 text-green-500" />
+                </div>
+              </div>
+              Goal settings updated
+            </div>
+          )}
           <button
             onClick={onClose}
             className="px-4 py-2 border border-border rounded-lg hover:bg-accent"
@@ -250,13 +267,8 @@ export default function GoalsPlanningModal({ isOpen, onClose }: GoalsPlanningMod
             Close
           </button>
           <button
-            onClick={() => {
-              // Simulate goal settings update
-              // Here you would typically call an API to update goal settings
-              // For now, we'll show a success message instead of alert
-              alert('Goal settings updated successfully!');
-            }}
-            className="px-4 py-2 bg-crimson-600 text-white rounded-lg hover:bg-crimson-700"
+            onClick={handleUpdateGoalSettings}
+            className="px-4 py-2 bg-crimson-600 text-white rounded-lg hover:bg-crimson-700 transition-all active:scale-95"
           >
             Update Goal Settings
           </button>

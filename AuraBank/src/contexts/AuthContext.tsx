@@ -320,7 +320,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const mockUser = getUser('user_123');
         if (mockUser?.bank) {
           const defaultUser: User = {
-            id: 'user_123',
+            id: targetUser.id,
             name: mockUser.name || 'Prince',
             email: mockUser.email || 'prince@test.com',
             phone: mockUser.phone || '+233 55 827 9979',
@@ -346,7 +346,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           localStorage.setItem('aurabank_bills', JSON.stringify(mockUser.bank.bills || []));
           localStorage.setItem('aurabank_budgets', JSON.stringify(mockUser.bank.budgets || []));
 
-          await persistBankStateToServer('1');
+          await persistBankStateToServer(String(targetUser.id));
           setIsReady(true);
           return;
         }
@@ -397,7 +397,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (mockUser && String(targetUser.id) === '1') {
           if (!savedUser) {
             const defaultUser: User = {
-              id: 'user_123',
+              id: targetUser.id,
               name: mockUser.name || 'Prince',
               email: mockUser.email || 'prince@test.com',
               phone: mockUser.phone || '+233 55 827 9979',

@@ -1,6 +1,25 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { AURABANK_STORAGE_KEYS } from '@/lib/bankStateKeys';
+import { getUnifiedLedgerEventsForUser } from '../../../../shared/unified-ledger-server';
+
+const DEMO_USER_ID = '1';
+
+const hasLedgerActivity = async (userId: string): Promise<boolean> => {
+  if (userId === DEMO_USER_ID) return true;
+  try {
+    const events = await getUnifiedLedgerEventsForUser(userId);
+    return events.length > 0;
+  } catch { return false; }
+};
+
+const enforceEmptyForNewUser = async (userId: string, state: Record<string, string | null>): Promise<Record<string, string | null>> => {
+  if (userId === DEMO_USER_ID) return state;
+  const active = await hasLedgerActivity(userId);
+  if (active) return state;
+  // New real user with no activity — reset accounts and transactions to empty
+  return { ...state, aurabank_accounts: JSON.stringify([]), aurabank_transactions: JSON.stringify([]) };
+};
 
 type StoredBankState = Record<string, string | null>;
 type BankStateFileShape = Record<string, StoredBankState>;
@@ -63,18 +82,21 @@ export const getBankStateForUser = async (userId: string): Promise<StoredBankSta
 
   const stateMap = await readAllStates();
   const storedState = stateMap[normalizedUserId];
-  return storedState ? sanitizeState(storedState) : null;
+  if (!storedState) return null;
+
+  const sanitized = sanitizeState(storedState);
+  return enforceEmptyForNewUser(normalizedUserId, sanitized);
 };
 
 export const setBankStateForUser = async (userId: string, state: unknown): Promise<StoredBankState> => {
   const normalizedUserId = String(userId || '').trim();
-  if (!normalizedUserId) {
-    throw new Error('Invalid userId');
-  }
+  if (!normalizedUserId) throw new Error('Invalid userId');
 
-  const normalizedState = sanitizeState(state);
+  const normalized = sanitizeState(state);
+  const safe = await enforceEmptyForNewUser(normalizedUserId, normalized);
+
   const stateMap = await readAllStates();
-  stateMap[normalizedUserId] = normalizedState;
+  stateMap[normalizedUserId] = safe;
   await writeAllStates(stateMap);
-  return normalizedState;
+  return safe;
 };

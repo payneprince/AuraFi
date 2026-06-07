@@ -82,6 +82,13 @@ export default function Dashboard() {
       const id = parseInt(urlUserId || unifiedSession?.userId || sessionUserId || '1', 10);
       const normalizedUserId = String(id);
 
+      // Pre-clear stale localStorage for non-demo users so a failed fetch yields $0, not stale data
+      if (normalizedUserId !== '1') {
+        for (const key of getAuraWalletStorageKeys(normalizedUserId)) {
+          localStorage.removeItem(key);
+        }
+      }
+
       // Load server state into localStorage FIRST — before any BroadcastChannel can race
       try {
         const response = await fetch(`/api/state?userId=${encodeURIComponent(normalizedUserId)}`);

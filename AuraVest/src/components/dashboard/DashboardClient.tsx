@@ -48,6 +48,19 @@ export default function DashboardClient() {
     }
   }, []);
 
+  // Allow nested components (e.g. trade analytics recommendations) to request a tab switch
+  // without prop-drilling through every intermediate page component.
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (tab && ['home', 'markets', 'portfolio', 'trade', 'more', 'learn'].includes(tab)) {
+        setActiveTab(tab as typeof activeTab);
+      }
+    };
+    window.addEventListener('auravest:navigate', handleNavigate);
+    return () => window.removeEventListener('auravest:navigate', handleNavigate);
+  }, []);
+
   // Dark mode setup
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -254,113 +267,88 @@ export default function DashboardClient() {
       </div>
 
       {/* Sidebar - Hidden on mobile */}
-      <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col">
-        <div className="p-4 border-b border-border">
+      <aside className="hidden md:flex w-60 bg-black flex-col border-r border-slate-800/40">
+        {/* Logo */}
+        <div className="px-5 py-5 border-b border-slate-800/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10">
-              <Image
-                src="/logo.jpeg"
-                alt="AuraVest Logo"
-                width={40}
-                height={40}
-                className="object-contain"
-              />
+            <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
+              <Image src="/logo.jpeg" alt="AuraVest" width={36} height={36} className="object-contain" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">AuraVest</h1>
-              <p className="text-xs text-muted-foreground">Invest Smarter, Grow Stronger</p>
+              <h1 className="text-base font-bold text-white leading-tight">AuraVest</h1>
+              <p className="text-[10px] text-slate-400 leading-tight">Invest Smarter</p>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-2 space-y-1">
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
           {[
-            { id: 'home', label: 'Home', icon: Home },
-            { id: 'markets', label: 'Markets', icon: TrendingUp },
+            { id: 'home',      label: 'Home',      icon: Home },
+            { id: 'markets',   label: 'Markets',   icon: TrendingUp },
             { id: 'portfolio', label: 'Portfolio', icon: Wallet },
-            { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
-            
-            { id: 'more', label: 'Settings', icon: Menu },
-            { id: 'learn', label: 'Learn', icon: BookOpen },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
-              className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-left transition-colors ${
-                activeTab === item.id
-                  ? 'bg-gradient-to-r from-black to-crimson-600 text-white'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          ))}
+            { id: 'trade',     label: 'Trade',     icon: ArrowLeftRight },
+            { id: 'learn',     label: 'Learn',     icon: BookOpen },
+            { id: 'more',      label: 'Settings',  icon: Menu },
+          ].map((item) => {
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all ${
+                  active
+                    ? 'bg-gradient-to-r from-red-700 to-red-900 text-white shadow-lg shadow-red-900/30'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <item.icon className={`w-4.5 h-4.5 flex-shrink-0 ${active ? 'text-white' : ''}`} />
+                <span className="font-medium text-sm">{item.label}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white/70" />}
+              </button>
+            );
+          })}
         </nav>
 
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
-        <div className="hidden md:flex items-center justify-end gap-2 mb-4">
+        {/* Bottom: app switcher + dark mode */}
+        <div className="px-3 py-4 border-t border-slate-800/60 space-y-1">
           <div ref={appSwitcherRef} className="relative">
             <button
               type="button"
               onClick={() => setAppSwitcherOpen((prev) => !prev)}
-              className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border bg-card text-foreground hover:bg-accent transition-colors"
-              aria-label="Open app switcher"
-              aria-expanded={appSwitcherOpen}
-              title="App switcher"
+              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
             >
-              <LayoutGrid className="w-5 h-5" />
+              <LayoutGrid className="w-4 h-4 flex-shrink-0" />
+              <span className="font-medium text-sm">Switch App</span>
             </button>
-
             {appSwitcherOpen && (
-              <div className="absolute right-0 mt-2 w-44 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-20">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSwitcherOpen(false);
-                    window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                >
-                  AuraFinance
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSwitcherOpen(false);
-                    window.open(buildAppUrl(3001), '_blank', 'noopener,noreferrer');
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                >
-                  AuraBank
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppSwitcherOpen(false);
-                    window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                >
-                  AuraWallet
-                </button>
+              <div className="absolute bottom-full left-0 mb-2 w-44 rounded-xl border border-slate-700 bg-slate-800 shadow-2xl overflow-hidden z-20">
+                {[
+                  { label: 'AuraFinance', port: 3000, path: '/dashboard' },
+                  { label: 'AuraBank', port: 3001, path: '' },
+                  { label: 'AuraWallet', port: 3003, path: '' },
+                ].map(({ label, port, path }) => (
+                  <button key={label} type="button"
+                    onClick={() => { setAppSwitcherOpen(false); window.open(buildAppUrl(port, path), '_blank', 'noopener,noreferrer'); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                  >{label}</button>
+                ))}
               </div>
             )}
           </div>
-
           <button
             type="button"
             onClick={toggleDarkMode}
-            className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-border bg-card text-foreground hover:bg-accent transition-colors"
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            title={darkMode ? 'Light mode' : 'Dark mode'}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
           >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <span className="font-medium text-sm">{darkMode ? 'Light mode' : 'Dark mode'}</span>
           </button>
         </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
 
         {activeTab === 'home' && <DashboardHome key={`home-${syncVersion}`} />}
         {activeTab === 'markets' && <MarketsPage key={`markets-${syncVersion}`} />}

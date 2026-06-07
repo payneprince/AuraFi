@@ -517,10 +517,17 @@ export const exportTransactionsCSV = () => {
   return encodeURI(csvContent);
 };
 
-// Get trade analytics
+// Get trade analytics — derives real realized P&L from the user's own buy/sell history
+// (no simulated/random figures: closed-trade stats are computed by replaying transactions
+// chronologically and tracking each symbol's running average cost basis).
 export const getTradeAnalytics = () => {
   const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
-  if (transactions.length === 0) {
+  const filled = transactions.filter((tx: any) => {
+    const status = String(tx?.status || '').toLowerCase();
+    return !status || status === 'filled' || status === 'completed';
+  });
+
+  if (filled.length === 0) {
     return {
       totalTrades: 0,
       winLossRatio: 0,
@@ -528,34 +535,51 @@ export const getTradeAnalytics = () => {
       totalPnL: 0,
       winningTrades: 0,
       losingTrades: 0,
+      closedTrades: 0,
     };
   }
 
+  const chronological = [...filled].sort((a: any, b: any) => Date.parse(a?.timestamp || 0) - Date.parse(b?.timestamp || 0));
+  const positions: Record<string, { amount: number; avgCost: number }> = {};
   let totalPnL = 0;
   let winningTrades = 0;
   let losingTrades = 0;
 
-  // Simple P&L calculation (assuming current price for unrealized, but for demo we'll use historical)
-  transactions.forEach((tx: any) => {
-    // For simplicity, assume buy trades have potential profit/loss based on current market
-    // In real app, this would track entry/exit prices
-    if (tx.type === 'buy') {
-      totalPnL += (Math.random() - 0.5) * tx.total * 0.1; // Simulate +/- 10% return
-    } else {
-      totalPnL -= tx.total;
+  chronological.forEach((tx: any) => {
+    const symbol = String(tx?.asset || '');
+    const amount = Number(tx?.amount || 0);
+    const price = Number(tx?.price || 0);
+    const gross = Number.isFinite(Number(tx?.gross)) ? Number(tx.gross) : amount * price;
+    const fee = Number.isFinite(Number(tx?.fee)) ? Number(tx.fee) : gross * 0.001;
+    const type = String(tx?.type || '').toLowerCase();
+    const pos = positions[symbol] || { amount: 0, avgCost: 0 };
+
+    if (type === 'buy') {
+      const newAmount = pos.amount + amount;
+      pos.avgCost = newAmount > 0 ? (pos.avgCost * pos.amount + price * amount) / newAmount : price;
+      pos.amount = newAmount;
+      positions[symbol] = pos;
+    } else if (type === 'sell' && pos.amount > 0) {
+      const sellAmount = Math.min(amount, pos.amount);
+      const pnl = (price - pos.avgCost) * sellAmount - fee;
+      totalPnL += pnl;
+      if (pnl > 0) winningTrades += 1;
+      else if (pnl < 0) losingTrades += 1;
+      pos.amount -= sellAmount;
+      positions[symbol] = pos;
     }
   });
 
-  winningTrades = Math.floor(transactions.length * 0.6); // Simulate 60% win rate
-  losingTrades = transactions.length - winningTrades;
+  const closedTrades = winningTrades + losingTrades;
 
   return {
-    totalTrades: transactions.length,
-    winLossRatio: winningTrades / Math.max(losingTrades, 1),
-    averageReturn: totalPnL / transactions.length,
+    totalTrades: filled.length,
+    winLossRatio: closedTrades > 0 ? winningTrades / Math.max(losingTrades, 1) : 0,
+    averageReturn: closedTrades > 0 ? totalPnL / closedTrades : 0,
     totalPnL,
     winningTrades,
     losingTrades,
+    closedTrades,
   };
 };
 

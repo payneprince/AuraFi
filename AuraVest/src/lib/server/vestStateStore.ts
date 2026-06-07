@@ -1,6 +1,31 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
+import { getUnifiedLedgerEventsForUser } from '../../../../shared/unified-ledger-server';
+
+const DEMO_USER_ID = '1';
+
+const hasLedgerActivity = async (userId: string): Promise<boolean> => {
+  if (userId === DEMO_USER_ID) return true;
+  try {
+    const events = await getUnifiedLedgerEventsForUser(userId);
+    return events.length > 0;
+  } catch { return false; }
+};
+
+const enforceEmptyForNewUser = async (userId: string, state: Record<string, string | null>): Promise<Record<string, string | null>> => {
+  if (userId === DEMO_USER_ID) return state;
+  const active = await hasLedgerActivity(userId);
+  if (active) return state;
+  // New real user — reset portfolio and holdings to empty
+  return {
+    ...state,
+    auravest_portfolio: JSON.stringify({ totalValue: 0, change24h: 0, changeAmount: 0, assets: [] }),
+    auravest_trade_holdings: JSON.stringify([]),
+    auravest_transactions: JSON.stringify([]),
+    auravest_cash_balance: '0',
+  };
+};
 
 type StoredVestState = Record<string, string | null>;
 type VestStateFileShape = Record<string, StoredVestState>;
@@ -63,18 +88,21 @@ export const getVestStateForUser = async (userId: string): Promise<StoredVestSta
 
   const stateMap = await readAllStates();
   const storedState = stateMap[normalizedUserId];
-  return storedState ? sanitizeState(storedState) : null;
+  if (!storedState) return null;
+
+  const sanitized = sanitizeState(storedState);
+  return enforceEmptyForNewUser(normalizedUserId, sanitized);
 };
 
 export const setVestStateForUser = async (userId: string, state: unknown): Promise<StoredVestState> => {
   const normalizedUserId = String(userId || '').trim();
-  if (!normalizedUserId) {
-    throw new Error('Invalid userId');
-  }
+  if (!normalizedUserId) throw new Error('Invalid userId');
 
-  const normalizedState = sanitizeState(state);
+  const normalized = sanitizeState(state);
+  const safe = await enforceEmptyForNewUser(normalizedUserId, normalized);
+
   const stateMap = await readAllStates();
-  stateMap[normalizedUserId] = normalizedState;
+  stateMap[normalizedUserId] = safe;
   await writeAllStates(stateMap);
-  return normalizedState;
+  return safe;
 };

@@ -1,8 +1,27 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { File, CheckCircle, X } from 'lucide-react';
+import {
+  CheckCircle, X, AlertCircle, Zap, Film, BookOpen, ShoppingBag,
+  HeartPulse, Utensils, Car, Plane, Music, Receipt, FileText, Repeat,
+  Wallet, Inbox,
+} from 'lucide-react';
 import { useState } from 'react';
+
+const billCategoryStyles: Record<string, { Icon: any; bg: string; text: string }> = {
+  'Utilities': { Icon: Zap, bg: 'bg-amber-100', text: 'text-amber-600' },
+  'Entertainment': { Icon: Film, bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
+  'Education': { Icon: BookOpen, bg: 'bg-mint-500/10', text: 'text-mint-600' },
+  'Shopping': { Icon: ShoppingBag, bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
+  'Healthcare': { Icon: HeartPulse, bg: 'bg-red-100', text: 'text-red-600' },
+  'Food & Dining': { Icon: Utensils, bg: 'bg-mint-500/10', text: 'text-mint-600' },
+  'Transportation': { Icon: Car, bg: 'bg-teal-100', text: 'text-teal-600' },
+  'Bills & Utilities': { Icon: Zap, bg: 'bg-amber-100', text: 'text-amber-600' },
+  'Travel': { Icon: Plane, bg: 'bg-teal-100', text: 'text-teal-600' },
+  'Music': { Icon: Music, bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
+};
+
+const getBillCategoryStyle = (category: string) => billCategoryStyles[category] || { Icon: Receipt, bg: 'bg-slate-100', text: 'text-slate-500' };
 
 export default function BillsPage() {
   const { bills, accounts, updateBills, addTransaction, updateAccounts, addRecurringTransaction, processRecurringTransactions } = useAuth();
@@ -13,27 +32,12 @@ export default function BillsPage() {
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [fromAccount, setFromAccount] = useState('');
   const [error, setError] = useState('');
+  const [payError, setPayError] = useState<string | null>(null);
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; billName: string; amount: number }>({
     isOpen: false,
     billName: '',
     amount: 0,
   });
-
-  const getCategoryIcon = (category: string) => {
-  const icons: Record<string, string> = {
-    'Utilities': '⚡',
-    'Entertainment': '🎬',
-    'Education': '📚',
-    'Shopping': '🛍️',
-    'Healthcare': '🏥',
-    'Food & Dining': '🍔',
-    'Transportation': '🚗',
-    'Bills & Utilities': '⚡', // fallback
-    'Travel': '✈️',
-    'Music': '🎧',
-  };
-  return icons[category] || '📄'; // default
-};
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -61,7 +65,8 @@ export default function BillsPage() {
 
     const primaryAccount = accounts.find(acc => acc.type === 'checking');
     if (!primaryAccount || primaryAccount.balance < bill.amount) {
-      alert('Insufficient funds');
+      setPayError('Insufficient funds in your checking account to pay this bill.');
+      setTimeout(() => setPayError(null), 4000);
       return;
     }
 
@@ -178,83 +183,111 @@ export default function BillsPage() {
       <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium rounded-lg hover:from-magenta-600 hover:to-teal-600 transition"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium rounded-lg hover:from-magenta-600 hover:to-teal-600 hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all duration-300"
         >
-          + Auto-Pay
+          <Repeat className="w-4 h-4" />
+          Auto-Pay
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-surface rounded-xl shadow-lg border border-navy-700 p-6">
-          <div className="flex items-center justify-between">
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-orange-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '0ms' }}>
+          <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-orange-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+          <div className="relative flex items-center justify-between">
             <div>
               <p className="text-sm text-text-dark/70 mb-1">Pending Bills</p>
-              <p className="text-3xl font-bold text-text-dark">{pendingBills.length}</p>
+              <p className="text-3xl font-bold text-text-dark tabular-nums">{pendingBills.length}</p>
             </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-              <File className="w-6 h-6 text-orange-600" />
+            <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ width: 48, height: 48 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-orange-400/80 border-r-orange-400/30 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-surface rounded-xl shadow-lg border border-navy-700 p-6">
-          <div className="flex items-center justify-between">
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-red-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '70ms' }}>
+          <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-red-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+          <div className="relative flex items-center justify-between">
             <div>
               <p className="text-sm text-text-dark/70 mb-1">Total Due</p>
-              <p className="text-3xl font-bold text-text-dark">
+              <p className="text-3xl font-bold text-text-dark tabular-nums">
                 {formatCurrency(pendingBills.reduce((sum, b) => sum + b.amount, 0))}
               </p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-              </svg>
+            <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ width: 48, height: 48 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-red-400/80 border-r-red-400/30 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                <Wallet className="w-5 h-5" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-surface rounded-xl shadow-lg border border-navy-700 p-6">
-          <div className="flex items-center justify-between">
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-green-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '140ms' }}>
+          <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-green-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+          <div className="relative flex items-center justify-between">
             <div>
               <p className="text-sm text-text-dark/70 mb-1">Paid This Month</p>
-              <p className="text-3xl font-bold text-text-dark">{paidBills.length}</p>
+              <p className="text-3xl font-bold text-text-dark tabular-nums">{paidBills.length}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ width: 48, height: 48 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-400/80 border-r-green-400/30 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                <CheckCircle className="w-5 h-5" />
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {payError && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-600 text-sm font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {payError}
+        </div>
+      )}
 
       {/* Pending Bills */}
       {pendingBills.length > 0 && (
         <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
           <h3 className="font-semibold text-text-dark mb-4">Pending Bills</h3>
           <div className="space-y-3">
-            {pendingBills.map((bill) => {
+            {pendingBills.map((bill, idx) => {
               const daysUntil = getDaysUntilDue(bill.dueDate);
+              const urgency = daysUntil < 0
+                ? { ring: 'border-t-red-500/80 border-r-red-500/30', bg: 'bg-red-100', text: 'text-red-600', glow: 'bg-red-400', border: 'hover:border-red-400/40' }
+                : daysUntil <= 5
+                ? { ring: 'border-t-orange-400/80 border-r-orange-400/30', bg: 'bg-orange-100', text: 'text-orange-600', glow: 'bg-orange-300', border: 'hover:border-orange-400/40' }
+                : { ring: 'border-t-teal-400/80 border-r-teal-400/30', bg: 'bg-teal-100', text: 'text-teal-600', glow: 'bg-teal-300', border: 'hover:border-teal-400/40' };
+              const { Icon: CategoryIcon } = getBillCategoryStyle(bill.category);
               return (
                 <div
                   key={bill.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-navy-50 hover:bg-navy-100 transition"
+                  className={`group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-navy-50 border border-transparent ${urgency.border} hover:bg-navy-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both`}
+                  style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-  daysUntil < 0 ? 'bg-red-100' : daysUntil <= 5 ? 'bg-orange-100' : 'bg-blue-100'
-}`}>
-  <span className="text-xl">{getCategoryIcon(bill.category)}</span>
-</div>
-                    <div>
-                      <h4 className="font-semibold text-text-dark">{bill.name}</h4>
+                  <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full ${urgency.glow} blur-3xl opacity-0 group-hover:opacity-25 transition-opacity duration-500`} />
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+
+                  <div className="relative flex items-center space-x-4 min-w-0">
+                    <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ width: 48, height: 48 }}>
+                      <div className={`absolute inset-0 rounded-full border-2 border-transparent ${urgency.ring} group-hover:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                      <div className={`absolute inset-[3px] rounded-full ${urgency.bg} ${urgency.text} flex items-center justify-center`}>
+                        <CategoryIcon className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-text-dark truncate transition-colors duration-200 group-hover:text-magenta-600">{bill.name}</h4>
                       <div className="flex items-center space-x-2 mt-1">
                         <span className="text-xs px-2 py-1 bg-slate-200 rounded-full text-slate-700">
                           {bill.category}
                         </span>
                         {bill.recurring && (
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-teal-100 text-teal-700 rounded-full">
+                            <Repeat className="w-3 h-3" />
                             Recurring
                           </span>
                         )}
@@ -262,9 +295,9 @@ export default function BillsPage() {
                     </div>
                   </div>
 
-                  <div className="text-right flex items-center space-x-4">
+                  <div className="relative text-right flex items-center space-x-4 flex-shrink-0">
                     <div>
-                      <p className="font-semibold text-text-dark">{formatCurrency(bill.amount)}</p>
+                      <p className="font-semibold text-text-dark tabular-nums">{formatCurrency(bill.amount)}</p>
                       <p className={`text-sm ${
                         daysUntil < 0 ? 'text-red-600' : daysUntil <= 5 ? 'text-orange-600' : 'text-slate-500'
                       }`}>
@@ -277,7 +310,7 @@ export default function BillsPage() {
                     </div>
                     <button
                       onClick={() => handlePayBill(bill.id)}
-                      className="px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium rounded-lg hover:from-magenta-600 hover:to-teal-600 transition"
+                      className="px-4 py-2 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium rounded-lg hover:from-magenta-600 hover:to-teal-600 hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-300"
                     >
                       Pay Now
                     </button>
@@ -294,24 +327,29 @@ export default function BillsPage() {
         <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
           <h3 className="font-semibold text-text-dark mb-4">Recently Paid</h3>
           <div className="space-y-3">
-            {paidBills.map((bill) => (
+            {paidBills.map((bill, idx) => (
               <div
                 key={bill.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-navy-50"
+                className="group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-navy-50 border border-transparent hover:border-green-400/40 hover:bg-navy-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300"
+                style={{ animationDelay: `${idx * 50}ms` }}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-100">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-green-300 blur-3xl opacity-0 group-hover:opacity-25 transition-opacity duration-500" />
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
+
+                <div className="relative flex items-center space-x-4 min-w-0">
+                  <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:scale-110" style={{ width: 48, height: 48 }}>
+                    <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-500/80 border-r-green-500/30 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
+                    <div className="absolute inset-[3px] rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-text-dark">{bill.name}</h4>
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-text-dark truncate transition-colors duration-200 group-hover:text-teal-600">{bill.name}</h4>
                     <p className="text-sm text-slate-500">Paid on {formatDate(bill.dueDate)}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-text-dark">{formatCurrency(bill.amount)}</p>
+                <div className="relative text-right flex-shrink-0">
+                  <p className="font-semibold text-text-dark tabular-nums">{formatCurrency(bill.amount)}</p>
                   <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">
                     Paid
                   </span>
@@ -323,27 +361,32 @@ export default function BillsPage() {
       )}
 
       {bills.length === 0 && (
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-12 text-center">
-          <p className="text-slate-500">No bills to display</p>
+        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-12 text-center animate-in fade-in zoom-in-95 duration-300">
+          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+            <Inbox className="w-6 h-6" />
+          </div>
+          <p className="text-slate-500 font-medium">No bills to display</p>
+          <p className="text-sm text-slate-400 mt-0.5">Set up Auto-Pay to start tracking recurring bills</p>
         </div>
       )}
 
-      {/* ✅ Recurring Modal */}
+      {/* Recurring Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-md animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-text-dark">Set Up Auto-Pay</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg p-1.5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-lg text-sm">
+              <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-600 text-sm font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
               </div>
             )}
@@ -455,38 +498,37 @@ export default function BillsPage() {
 
       {/* Success Modal */}
       {successModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xs shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="text-lg font-bold text-slate-900">Payment Successful</h3>
-              <button
-                onClick={() => setSuccessModal({ ...successModal, isOpen: false })}
-                className="text-slate-500 hover:text-slate-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-xs shadow-2xl relative animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <button
+              onClick={() => setSuccessModal({ ...successModal, isOpen: false })}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg p-1.5 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
             <div className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-7 h-7 text-green-600" />
+              <div className="relative w-14 h-14 mx-auto mb-3">
+                <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s' }} />
+                <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.35s' }} />
+                <div className="absolute inset-2 rounded-full bg-green-100 border border-green-500/25 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
               </div>
 
-              <p className="text-base font-semibold text-slate-700 mb-1">Payment Confirmed</p>
-              <p className="text-xs text-slate-600 mb-4">
+              <p className="text-base font-semibold text-slate-900 mb-1">Payment Confirmed</p>
+              <p className="text-xs text-slate-500 mb-4">
                 Your bill payment has been processed successfully.
               </p>
 
-              <div className="bg-slate-50 rounded-lg p-3 mb-4">
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-xs text-slate-600">Bill:</span>
+              <div className="bg-slate-50 rounded-lg p-3 mb-4 space-y-1.5">
+                <div className="flex justify-between animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '80ms' }}>
+                  <span className="text-xs text-slate-500">Bill</span>
                   <span className="text-sm font-semibold text-slate-900">{successModal.billName}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-xs text-slate-600">Amount Paid:</span>
-                  <span className="text-sm font-bold text-green-600">
+                <div className="flex justify-between animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '140ms' }}>
+                  <span className="text-xs text-slate-500">Amount Paid</span>
+                  <span className="text-sm font-bold text-green-600 tabular-nums">
                     ${successModal.amount.toFixed(2)}
                   </span>
                 </div>
@@ -494,7 +536,7 @@ export default function BillsPage() {
 
               <button
                 onClick={() => setSuccessModal({ ...successModal, isOpen: false })}
-                className="w-full px-3 py-2.5 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium text-sm rounded-lg hover:from-magenta-600 hover:to-teal-600 transition"
+                className="w-full px-3 py-2.5 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-medium text-sm rounded-lg hover:from-magenta-600 hover:to-teal-600 hover:-translate-y-0.5 active:scale-95 transition-all duration-300"
               >
                 Continue
               </button>

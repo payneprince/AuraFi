@@ -16,7 +16,7 @@ let cryptoCache: { data: MarketAsset[] | null; fetchedAt: number } = { data: nul
 let stocksCache: { data: MarketAsset[] | null; fetchedAt: number } = { data: null, fetchedAt: 0 };
 let goldApiCache: { data: GoldApiData | null; fetchedAt: number } = { data: null, fetchedAt: 0 };
 
-async function loadCrypto(): Promise<MarketAsset[]> {
+export async function loadCrypto(): Promise<MarketAsset[]> {
   if (cryptoCache.data && Date.now() - cryptoCache.fetchedAt < CLIENT_CACHE_TTL) {
     return cryptoCache.data;
   }
@@ -33,7 +33,29 @@ async function loadCrypto(): Promise<MarketAsset[]> {
   return mockCrypto as MarketAsset[];
 }
 
-async function loadStocks(): Promise<MarketAsset[]> {
+// Locally-downloaded brand logos (public/logos/stocks/) so every listed equity
+// (US & international) renders a real logo without depending on a remote CDN.
+export const STOCK_LOGO_FILES: Record<string, string> = {
+  AAPL: 'AAPL.png', MSFT: 'MSFT.png', GOOGL: 'GOOGL.png', TSLA: 'TSLA.png',
+  AMZN: 'AMZN.png', NVDA: 'NVDA.png', META: 'META.png', NFLX: 'NFLX.png',
+  JPM: 'JPM.png', V: 'V.svg', JNJ: 'JNJ.png', WMT: 'WMT.png',
+  PG: 'PG.png', KO: 'KO.png', DIS: 'DIS.png', BA: 'BA.svg',
+  XOM: 'XOM.png', PFE: 'PFE.png', INTC: 'INTC.png', AMD: 'AMD.svg',
+  CRM: 'CRM.png', ORCL: 'ORCL.png', IBM: 'IBM.png', CSCO: 'CSCO.svg',
+  ADBE: 'ADBE.png', NOW: 'NOW.png', UBER: 'UBER.png', SPOT: 'SPOT.png',
+  ZM: 'ZM.png', SQ: 'SQ.svg', SHOP: 'SHOP.png', PYPL: 'PYPL.png',
+  EBAY: 'EBAY.svg', TWTR: 'TWTR.svg',
+};
+
+function resolveStockLogos(list: MarketAsset[]): MarketAsset[] {
+  return list.map((asset) => {
+    if (asset.image?.startsWith('/logos/stocks/')) return asset;
+    const file = STOCK_LOGO_FILES[asset.symbol];
+    return file ? { ...asset, image: `/logos/stocks/${file}` } : asset;
+  });
+}
+
+export async function loadStocks(): Promise<MarketAsset[]> {
   if (stocksCache.data && Date.now() - stocksCache.fetchedAt < CLIENT_CACHE_TTL) {
     return stocksCache.data;
   }
@@ -41,13 +63,14 @@ async function loadStocks(): Promise<MarketAsset[]> {
     const res = await fetch('/api/market?type=stocks');
     const json = (await res.json()) as { ok: boolean; data: MarketAsset[] };
     if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-      stocksCache = { data: json.data, fetchedAt: Date.now() };
-      return json.data;
+      const resolved = resolveStockLogos(json.data);
+      stocksCache = { data: resolved, fetchedAt: Date.now() };
+      return resolved;
     }
   } catch {
     // fall through to mock
   }
-  return mockStocks as MarketAsset[];
+  return resolveStockLogos(mockStocks as MarketAsset[]);
 }
 
 async function loadGold(): Promise<GoldApiData> {

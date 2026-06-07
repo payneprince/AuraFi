@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AlertCircle, Landmark, PiggyBank, Vault, CreditCard, X } from 'lucide-react';
 import TransferForm from './TransferForm';
 import { formatCurrency as formatMoney } from '@/lib/currency';
 import type { Currency } from '@/types';
@@ -21,15 +22,20 @@ export default function AccountsPage({ userId }: { userId: number }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const getAccountIcon = (type: string, currencyCode?: string) => {
-    if (currencyCode === 'GHS') return '₵';
-    if (currencyCode === 'USD') return '$';
-    if (currencyCode === 'EUR') return '€';
+  const getCurrencyCoin = (currencyCode?: string) => {
+    switch (currencyCode) {
+      case 'GHS': return '/cedi-coin.svg';
+      case 'EUR': return '/euro-coin.svg';
+      default: return '/usd-coin.svg';
+    }
+  };
+
+  const getAccountTypeIcon = (type: string) => {
     switch (type) {
-      case 'checking': return '💳';
-      case 'savings': return '💰';
-      case 'credit': return '💳';
-      default: return '🏦';
+      case 'checking': return Landmark;
+      case 'savings': return PiggyBank;
+      case 'credit': return CreditCard;
+      default: return Vault;
     }
   };
 
@@ -46,6 +52,16 @@ export default function AccountsPage({ userId }: { userId: number }) {
     const prefix = Math.floor(100000 + Math.random() * 900000).toString();
     const suffix = Math.floor(100000 + Math.random() * 900000).toString();
     return `${prefix}${suffix}`;
+  };
+
+  // Deterministic 6-digit suffix derived from a stable seed (e.g. account id),
+  // so unmasked account numbers stay constant across renders/reloads.
+  const stableDigits = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    return (100000 + (hash % 900000)).toString();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -101,7 +117,7 @@ export default function AccountsPage({ userId }: { userId: number }) {
       if (typeof account.accountNumber === 'string' && account.accountNumber.startsWith('****')) {
         return {
           ...account,
-          accountNumber: account.accountNumber.replace(/^\*{4}/, '10') + Math.floor(100000 + Math.random() * 900000).toString(),
+          accountNumber: account.accountNumber.replace(/^\*{4}/, '10') + stableDigits(String(account.id || account.accountNumber)),
         };
       }
       return account;
@@ -129,14 +145,14 @@ export default function AccountsPage({ userId }: { userId: number }) {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-slate-900">Add New Account</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg p-1.5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -147,7 +163,8 @@ export default function AccountsPage({ userId }: { userId: number }) {
             )}
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-lg text-sm">
+              <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-600 text-sm font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
               </div>
             )}
@@ -236,7 +253,7 @@ export default function AccountsPage({ userId }: { userId: number }) {
 
       {viewDetailsAccountId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto hide-scrollbar">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto hide-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Account Details</h3>
@@ -244,9 +261,9 @@ export default function AccountsPage({ userId }: { userId: number }) {
               </div>
               <button
                 onClick={() => setViewDetailsAccountId(null)}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg p-1.5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -256,8 +273,17 @@ export default function AccountsPage({ userId }: { userId: number }) {
 
               return (
                 <div className="space-y-5">
-                  <div className={`rounded-xl p-4 text-white bg-gradient-to-br ${getAccountColor(acc.type)}`}>
-                    <div className="flex items-center justify-between">
+                  <div className={`relative overflow-hidden rounded-xl p-4 text-white bg-gradient-to-br ${getAccountColor(acc.type)}`}>
+                    {/* Watermark illustration — currency-matched coin */}
+                    <div className="absolute -bottom-6 -right-6 w-24 h-24 opacity-15 pointer-events-none">
+                      <img
+                        src={getCurrencyCoin(acc.currency)}
+                        alt=""
+                        className="w-full h-full object-contain drop-shadow-lg"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                    <div className="relative flex items-center justify-between">
                       <div>
                         <p className="text-sm opacity-90">{acc.name}</p>
                         <p className="text-xs opacity-80 font-mono mt-1">{acc.accountNumber}</p>
@@ -266,7 +292,7 @@ export default function AccountsPage({ userId }: { userId: number }) {
                         {acc.currency}
                       </span>
                     </div>
-                    <p className="text-2xl font-bold mt-3">
+                    <p className="relative text-2xl font-bold mt-3 tabular-nums">
                       {formatMoney(acc.balance, acc.currency)}
                     </p>
                   </div>
@@ -310,14 +336,14 @@ export default function AccountsPage({ userId }: { userId: number }) {
 
       {transferFromAccountId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-slate-900">Transfer Money</h3>
               <button
                 onClick={() => setTransferFromAccountId(null)}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg p-1.5 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
             <TransferForm
@@ -329,21 +355,39 @@ export default function AccountsPage({ userId }: { userId: number }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {displayAccounts.map((account: any) => (
+        {displayAccounts.map((account: any, idx: number) => {
+          const TypeIcon = getAccountTypeIcon(account.type);
+          return (
           <div
             key={account.id}
-            className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition"
+            className="group bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+            style={{ animationDelay: `${idx * 70}ms` }}
           >
-            <div className={`bg-gradient-to-br ${getAccountColor(account.type)} p-6 text-white`}>
-              <div className="flex items-center justify-between mb-8">
-                <span className="text-3xl">{getAccountIcon(account.type, account.currency)}</span>
+            <div className={`relative overflow-hidden bg-gradient-to-br ${getAccountColor(account.type)} p-6 text-white`}>
+              {/* Watermark illustration — fades up, brightens and drifts on hover */}
+              <div className="absolute -bottom-8 -right-8 w-36 h-36 opacity-10 group-hover:opacity-20 group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-500 pointer-events-none">
+                <img
+                  src={getCurrencyCoin(account.currency)}
+                  alt=""
+                  className="w-full h-full object-contain drop-shadow-lg"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+
+              <div className="relative flex items-center justify-between mb-8">
+                <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5" style={{ width: 48, height: 48 }}>
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/70 border-r-white/25 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
+                  <div className="absolute inset-[3px] rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                    <TypeIcon className="w-5 h-5 text-white" />
+                  </div>
+                </div>
                 <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-semibold backdrop-blur-sm">
                   {account.currency}
                 </span>
               </div>
-              <div>
+              <div className="relative">
                 <p className="text-sm opacity-90 mb-2">{account.name}</p>
-                <p className="text-3xl font-bold">
+                <p className="text-3xl font-bold tabular-nums transition-transform duration-300 group-hover:scale-[1.03] origin-left">
                   {formatMoney(account.balance, account.currency)}
                 </p>
               </div>
@@ -416,7 +460,8 @@ export default function AccountsPage({ userId }: { userId: number }) {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

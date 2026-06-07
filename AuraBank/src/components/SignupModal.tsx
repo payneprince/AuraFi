@@ -140,8 +140,12 @@ export default function SignupModal({ isOpen, onClose }: SignupModalProps) {
                         exit={{ opacity: 0, scale: 0.8 }}
                         className="text-center py-8"
                       >
-                        <div className="w-16 h-16 mx-auto mb-4 bg-green-500 rounded-full flex items-center justify-center">
-                          <Check size={32} className="text-white" />
+                        <div className="relative w-16 h-16 mx-auto mb-4">
+                          <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s' }} />
+                          <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.35s' }} />
+                          <div className="absolute inset-2 rounded-full bg-green-500 flex items-center justify-center">
+                            <Check size={28} className="text-white" />
+                          </div>
                         </div>
                         <h3 className="text-xl font-semibold text-white mb-2">
                           Account Created!

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { getUnifiedLedgerEventsForUser } from '../../../../../shared/unified-ledger-server';
 
 type StoredMap = Record<string, Record<string, string | null>>;
 
@@ -49,6 +50,21 @@ export async function GET(request: NextRequest) {
   const userId = String(request.nextUrl.searchParams.get('userId') || '').trim();
   if (!userId) {
     return NextResponse.json({ error: 'Missing userId' }, { status: 400, headers: corsHeaders });
+  }
+
+  // For non-demo users with no ledger events, return zeros immediately — no state file access needed
+  const isDemoUser = userId === '1';
+  if (!isDemoUser) {
+    const events = await getUnifiedLedgerEventsForUser(userId).catch(() => []);
+    if (events.length === 0) {
+      return NextResponse.json({
+        userId,
+        bankBalance: 0,
+        walletBalance: 0,
+        vestPortfolioValue: 0,
+        vestTopHoldings: [],
+      }, { headers: corsHeaders });
+    }
   }
 
   const [bankMap, walletMap, vestMap] = await Promise.all([

@@ -57,8 +57,11 @@ export function AddCardModal({ isOpen, onClose, onAddCard, accounts }: AddCardMo
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <Plus className="w-6 h-6 text-green-600" />
+            <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-400/80 border-r-green-400/30 animate-spin" style={{ animationDuration: '2.5s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-green-100 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-green-600" />
+              </div>
             </div>
             <div>
               <h3 className="text-xl font-bold text-slate-900">Add New Card</h3>

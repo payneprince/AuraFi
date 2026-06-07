@@ -23,13 +23,17 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
   if (!isOpen || !transaction) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <Check className="w-6 h-6 text-green-600" />
+            <div className="relative w-10 h-10 flex-shrink-0">
+              <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s' }} />
+              <div className="absolute inset-0 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.35s' }} />
+              <div className="absolute inset-1 rounded-full bg-green-100 border border-green-500/25 flex items-center justify-center">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
             </div>
             <div>
               <h3 className="text-xl font-bold text-slate-900">Transfer Successful</h3>
@@ -47,7 +51,7 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
         {/* Transaction Details */}
         <div className="p-6 space-y-4">
           {/* From Account */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '60ms' }}>
             <div>
               <p className="text-sm text-slate-600">From</p>
               <p className="font-semibold text-slate-900">{transaction.fromAccount}</p>
@@ -61,14 +65,14 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
           </div>
 
           {/* Arrow */}
-          <div className="flex justify-center">
+          <div className="flex justify-center animate-in fade-in zoom-in-50 fill-mode-both duration-300" style={{ animationDelay: '120ms' }}>
             <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
               <ArrowRight className="w-4 h-4 text-green-600" />
             </div>
           </div>
 
           {/* To Account */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '180ms' }}>
             <div>
               <p className="text-sm text-slate-600">To</p>
               <p className="font-semibold text-slate-900">{transaction.toAccount}</p>
@@ -86,7 +90,7 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
 
           {/* Description */}
           {transaction.description && (
-            <div className="pt-4 border-t border-slate-200">
+            <div className="pt-4 border-t border-slate-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '220ms' }}>
               <p className="text-sm text-slate-600">Description</p>
               <p className="text-slate-900">{transaction.description}</p>
             </div>
@@ -94,7 +98,7 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
 
           {/* Currency Conversion Note */}
           {transaction.fromCurrency !== transaction.toCurrency && transaction.convertedAmount && (
-            <div className="bg-slate-50 rounded-lg p-3">
+            <div className="bg-slate-50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300" style={{ animationDelay: '260ms' }}>
               <p className="text-xs text-slate-600">
                 Exchange rate applied: {formatCurrency(transaction.amount, transaction.fromCurrency)} = {formatCurrency(transaction.convertedAmount, transaction.toCurrency)}
               </p>
@@ -106,7 +110,7 @@ export function TransactionSuccessModal({ isOpen, onClose, transaction }: Transa
         <div className="p-6 border-t border-slate-200">
           <button
             onClick={onClose}
-            className="w-full bg-green-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors"
+            className="w-full bg-green-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-green-700 hover:-translate-y-0.5 active:scale-95 transition-all"
           >
             Done
           </button>

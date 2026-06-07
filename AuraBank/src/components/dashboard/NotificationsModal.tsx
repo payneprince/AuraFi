@@ -129,10 +129,11 @@ export default function NotificationsModal({ isOpen, onClose }: { isOpen: boolea
         {/* Notifications List */}
         <div className="divide-y divide-slate-200">
           {filteredNotifications.length > 0 ? (
-            filteredNotifications.map((notification) => (
+            filteredNotifications.map((notification, idx) => (
               <div
                 key={notification.id}
-                className={`p-4 ${getTypeColor(notification.type)} ${!notification.read ? 'border-l-4 border-magenta-500' : ''}`}
+                className={`p-4 transition-colors duration-200 hover:bg-slate-50 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300 ${getTypeColor(notification.type)} ${!notification.read ? 'border-l-4 border-magenta-500' : ''}`}
+                style={{ animationDelay: `${idx * 45}ms` }}
               >
                 <div className="flex items-start space-x-3">
                   <div className="flex-shrink-0">
