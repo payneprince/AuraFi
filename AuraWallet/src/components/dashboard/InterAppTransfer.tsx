@@ -1,8 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeftRight, ArrowRight, X, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { getActiveWalletUserId } from '@/lib/wallet-state';
+
+function ModalPortal({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
 
 type App = 'bank' | 'wallet' | 'vest';
 
@@ -85,20 +93,21 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
     <>
       <button
         onClick={handleOpen}
-        className="group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 text-white font-semibold text-sm transition-all duration-300"
+        className="group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-black via-white/15 to-green-500 hover:shadow-lg hover:shadow-green-500/30 text-white font-semibold text-sm transition-all duration-300"
       >
         <ArrowLeftRight className="w-4 h-4 transition-transform duration-500 group-hover:rotate-180" />
         Transfer to Aura App
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="relative bg-[#0B1E39] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-6 overflow-hidden animate-in zoom-in-95 fade-in duration-300">
-            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+        <ModalPortal>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative bg-[#0B1E39] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 animate-in zoom-in-95 fade-in duration-300">
+            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-green-500/10 blur-3xl pointer-events-none" />
 
             <div className="relative flex items-center justify-between mb-5">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-400" />
+                <Sparkles className="w-4 h-4 text-green-400" />
                 Transfer to Aura App
               </h3>
               <button
@@ -138,11 +147,11 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
                     {[0, 1, 2].map((i) => (
                       <span
                         key={i}
-                        className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]"
+                        className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]"
                         style={{ animation: `flow-right 1.8s ease-in-out infinite`, animationDelay: `${i * 0.55}s` }}
                       />
                     ))}
-                    <ArrowRight className="absolute right-0 w-4 h-4 text-blue-400/60" />
+                    <ArrowRight className="absolute right-0 w-4 h-4 text-green-400/60" />
                   </div>
 
                   <div className="flex flex-col items-center gap-1.5 transition-all duration-300">
@@ -170,7 +179,7 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
                           onClick={() => setTo(d)}
                           className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${
                             active
-                              ? 'border-blue-400/40 bg-blue-500/10 text-white shadow-sm'
+                              ? 'border-green-400/40 bg-green-500/10 text-white shadow-sm'
                               : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:-translate-y-0.5'
                           }`}
                         >
@@ -178,7 +187,7 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
                             <img src={APP_LOGOS[d]} alt={APP_LABELS[d]} className="w-full h-full object-cover" />
                           </span>
                           {APP_LABELS[d]}
-                          {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />}
+                          {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
                         </button>
                       );
                     })}
@@ -194,7 +203,7 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
 
@@ -208,7 +217,7 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
                 <button
                   onClick={handleTransfer}
                   disabled={!amount || parseFloat(amount) <= 0 || status === 'loading'}
-                  className="group relative w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm overflow-hidden hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                  className="group relative w-full py-3 rounded-xl bg-gradient-to-r from-black via-white/15 to-green-500 text-white font-semibold text-sm overflow-hidden hover:shadow-lg hover:shadow-green-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
                 >
                   <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                   <span className="relative flex items-center justify-center gap-2">
@@ -222,6 +231,7 @@ export default function InterAppTransfer({ sourceApp = 'wallet' as App }: { sour
             )}
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   );
