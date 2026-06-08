@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Eye, EyeOff, Sun, Moon, TrendingUp, TrendingDown, Star, ChevronRight, Play, BarChart3, Shield, Zap, Users, Award, ArrowRight, Menu, X, Smartphone, QrCode, Apple } from 'lucide-react';
+import { Eye, EyeOff, TrendingUp, TrendingDown, Star, ChevronRight, Play, BarChart3, Shield, Zap, Users, Award, ArrowRight, Menu, X, Smartphone, QrCode, Apple } from 'lucide-react';
 import TechnicalAnalysisChart from './TechnicalAnalysisChart';
 import MobileAppShowcase from './MobileAppShowcase';
 import { cryptoAssets, stockAssets, nftCollections } from '@/lib/mockData';
 
 export default function LandingPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -67,22 +66,6 @@ export default function LandingPage() {
       setTimeout(() => animateValue(0, 1000, 2500, (value) => setAnimatedStats(prev => ({ ...prev, assets: value }))), 600);
     }
   }, [visibleSections]);
-
-  // Dark mode setup
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedDarkMode = localStorage.getItem('auravest_dark_mode') === 'true';
-      setDarkMode(savedDarkMode);
-      if (savedDarkMode) document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const newDarkMode = !darkMode;
-    setDarkMode(newDarkMode);
-    localStorage.setItem('auravest_dark_mode', String(newDarkMode));
-    document.documentElement.classList.toggle('dark', newDarkMode);
-  };
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -209,13 +192,6 @@ export default function LandingPage() {
 
             {/* Right side buttons */}
             <div className="flex items-center gap-4">
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                {darkMode ? <Sun className="w-5 h-5 text-yellow-500" /> : <Moon className="w-5 h-5 text-gray-700" />}
-              </button>
-
               <button
                 onClick={() => setShowAuthModal(true)}
                 className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"

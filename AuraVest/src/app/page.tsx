@@ -102,12 +102,36 @@ export default function HomePage() {
         // Fallback to existing local snapshot/defaults when server state is unavailable.
       }
 
+      const defaults = buildDefaults(id, isDemoUser, unifiedSession);
+
       switchScopedAppStorage({
         appName: 'auravest',
         userId: activeUserId,
         genericKeys: [...AURAVEST_STORAGE_KEYS],
-        defaults: buildDefaults(id, isDemoUser, unifiedSession),
+        defaults,
       });
+
+      // Self-heal: a stale/corrupted server snapshot (e.g. nulls from a prior bad sync)
+      // makes switchScopedAppStorage apply blank values for the demo user instead of
+      // defaults, and that blank state then gets persisted right back to the server —
+      // a permanent zero-balance loop. Detect a blank demo portfolio and reseed
+      // localStorage with defaults BEFORE the snapshot is captured and pushed to the server.
+      if (isDemoUser) {
+        let isBlank = true;
+        try {
+          const portfolioRaw = localStorage.getItem('auravest_portfolio');
+          const portfolio = portfolioRaw ? JSON.parse(portfolioRaw) : null;
+          isBlank = !portfolio || !portfolio.totalValue;
+        } catch {
+          isBlank = true;
+        }
+
+        if (isBlank) {
+          for (const key of AURAVEST_STORAGE_KEYS) {
+            localStorage.setItem(key, defaults[key]);
+          }
+        }
+      }
 
       sessionStorage.setItem('paynesuite_userId', id.toString());
       // Write unified session AFTER state is loaded so BroadcastChannel callbacks read correct data

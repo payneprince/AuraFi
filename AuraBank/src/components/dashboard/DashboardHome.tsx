@@ -1,9 +1,11 @@
 'use client';
 
-import { Landmark, PiggyBank, Vault, ArrowDown, ArrowUp } from 'lucide-react';
+import { Landmark, PiggyBank, Vault } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import MobileAppShowcase from '../MobileAppShowcase';
 import InterAppTransfer from './InterAppTransfer';
+import { getCategoryStyle } from './TransactionsPage';
+import { getBillCategoryStyle } from './BillsPage';
 
 type NavTarget = 'accounts' | 'transactions' | 'bills';
 
@@ -196,9 +198,10 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
           <div className="space-y-3">
             {recentTransactions.map((transaction, idx) => {
               const isCredit = transaction.type === 'credit';
-              const ring = isCredit
-                ? { spin: 'border-t-green-400/80 border-r-green-400/30', bg: 'bg-green-100', text: 'text-green-600' }
-                : { spin: 'border-t-red-400/80 border-r-red-400/30', bg: 'bg-red-100', text: 'text-red-600' };
+              const { Icon: CategoryIcon, bg, text } = getCategoryStyle(transaction.category);
+              const spin = isCredit
+                ? 'border-t-green-400/80 border-r-green-400/30'
+                : 'border-t-red-400/80 border-r-red-400/30';
 
               return (
               <div
@@ -208,13 +211,9 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
               >
                 <div className="flex items-center space-x-3">
                   <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5" style={{ width: 40, height: 40 }}>
-                    <div className={`absolute inset-0 rounded-full border-2 border-transparent ${ring.spin} group-hover:animate-spin`} style={{ animationDuration: '2.5s' }} />
-                    <div className={`absolute inset-[3px] rounded-full ${ring.bg} ${ring.text} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
-                      {isCredit ? (
-                        <ArrowDown className="w-4 h-4" />
-                      ) : (
-                        <ArrowUp className="w-4 h-4" />
-                      )}
+                    <div className={`absolute inset-0 rounded-full border-2 border-transparent ${spin} group-hover:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                    <div className={`absolute inset-[3px] rounded-full ${bg} ${text} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
+                      <CategoryIcon className="w-4 h-4" />
                     </div>
                   </div>
                   <div>
@@ -247,7 +246,9 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
 
           <div className="space-y-3">
             {upcomingBills.length > 0 ? (
-              upcomingBills.map((bill, idx) => (
+              upcomingBills.map((bill, idx) => {
+                const { Icon: CategoryIcon, bg, text } = getBillCategoryStyle(bill.category);
+                return (
                 <div
                   key={bill.id}
                   className="group flex items-center justify-between p-4 rounded-lg bg-navy-50 hover:bg-navy-100 transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
@@ -256,11 +257,8 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
                   <div className="flex items-center space-x-3">
                     <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5" style={{ width: 40, height: 40 }}>
                       <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-orange-400/80 border-r-orange-400/30 group-hover:animate-spin" style={{ animationDuration: '2.5s' }} />
-                      <div className="absolute inset-[3px] rounded-full bg-orange-100 text-orange-600 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-                        {/* Inline SVG to avoid File constructor conflict */}
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                      <div className={`absolute inset-[3px] rounded-full ${bg} ${text} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
+                        <CategoryIcon className="w-4 h-4" />
                       </div>
                     </div>
                     <div>
@@ -275,7 +273,8 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
                     </button>
                   </div>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-slate-500">
                 <p>No upcoming bills</p>

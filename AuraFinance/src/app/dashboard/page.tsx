@@ -9,7 +9,7 @@ import { getUser } from 'lib/shared/mock-data';
 import Image from 'next/image';
 import AuraAIChat from '@/components/AuraAIChat';
 import UserProfileMenu from '@/components/UserProfileMenu';
-import { AlertTriangle, BellRing, Info, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight, Activity, PieChart, Receipt, Target, Sparkles } from 'lucide-react';
 import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 import { AURAFINANCE_STORAGE_KEYS } from '@/lib/financeStateKeys';
 import {
@@ -127,6 +127,7 @@ export default function DashboardPage() {
     if (!uid) return;
     try {
       const [state, evts] = await Promise.all([
+   
         replayUnifiedLedger(uid),
         getUnifiedLedgerEvents(uid),
       ]);
@@ -152,6 +153,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === 'unauthenticated') {
+      if (sessionStorage.getItem('aurafinance_logging_out') === 'true') {
+        sessionStorage.removeItem('aurafinance_logging_out');
+        return;
+      }
       router.push('/login');
     }
   }, [status, router]);
@@ -384,12 +389,37 @@ export default function DashboardPage() {
     return `${protocol}//${host}:${port}${path}`;
   };
 
-  const openAuraWalletTransfer = () => {
-    window.open(buildAppUrl(3003, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
+  const stockLogoFile: Record<string, string> = {
+    AAPL: 'AAPL.png', MSFT: 'MSFT.png', GOOGL: 'GOOGL.png', TSLA: 'TSLA.png',
+    AMZN: 'AMZN.png', NVDA: 'NVDA.png', META: 'META.png', NFLX: 'NFLX.png',
+    JPM: 'JPM.png', V: 'V.svg', JNJ: 'JNJ.png', WMT: 'WMT.png',
+    PG: 'PG.png', KO: 'KO.png', DIS: 'DIS.png', BA: 'BA.svg',
+    XOM: 'XOM.png', PFE: 'PFE.png', INTC: 'INTC.png', AMD: 'AMD.svg',
+    CRM: 'CRM.png', ORCL: 'ORCL.png', IBM: 'IBM.png', CSCO: 'CSCO.svg',
+    ADBE: 'ADBE.png', NOW: 'NOW.png', UBER: 'UBER.png', SPOT: 'SPOT.png',
+    ZM: 'ZM.png', SQ: 'SQ.svg', SHOP: 'SHOP.png', PYPL: 'PYPL.png',
+    EBAY: 'EBAY.svg', TWTR: 'TWTR.svg',
   };
 
-  const openAuraVestInvest = () => {
-    window.open(buildAppUrl(3002, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
+  const cryptoLogoSlug: Record<string, string> = {
+    BTC: 'btc', ETH: 'eth', BNB: 'bnb', SOL: 'sol', ADA: 'ada', DOT: 'dot',
+    LINK: 'link', AVAX: 'avax', MATIC: 'matic', UNI: 'uni', ALGO: 'algo',
+    VET: 'vet', ICP: 'icp', FIL: 'fil', TRX: 'trx', ETC: 'etc', XLM: 'xlm',
+    THETA: 'theta', FTM: 'ftm', HBAR: 'hbar', NEAR: 'near', FLOW: 'flow',
+    MANA: 'mana', SAND: 'sand', AXS: 'axs', CHZ: 'chz', ENJ: 'enj', BAT: 'bat',
+    ZRX: 'zrx', STORJ: 'storj', ANT: 'ant', REP: 'rep', GNT: 'gnt', ARK: 'ark',
+  };
+
+  const GOLD_LOGO_URL = 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/gold.svg';
+
+  const getHoldingLogoUrl = (symbol: string) => {
+    const upper = symbol.toUpperCase();
+    const stockFile = stockLogoFile[upper];
+    if (stockFile) return `/logos/stocks/${stockFile}`;
+    if (upper === 'GOLD' || upper === 'XAU') return GOLD_LOGO_URL;
+    const cryptoSlug = cryptoLogoSlug[upper];
+    if (cryptoSlug) return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${cryptoSlug}.svg`;
+    return null;
   };
 
   const openLauncherApp = (app: 'bank' | 'vest' | 'wallet') => {
@@ -486,156 +516,6 @@ export default function DashboardPage() {
     }
   };
 
-  const downloadUnifiedStatement = async () => {
-    const today = new Date();
-    const dateStamp = today.toISOString().slice(0, 10);
-    const monthlyExpenseValue = Number.isFinite(monthlyExpenses) ? monthlyExpenses : 0;
-
-    const statementLines = [
-      `Aura Finance Unified Statement - ${dateStamp}`,
-      '',
-      'Summary',
-      `- Net Worth: ${formatCurrency(liveNetWorth)}`,
-      `- AuraBank Balance: ${formatCurrency(effectiveBankBalance)}`,
-      `- AuraVest Portfolio: ${formatCurrency(effectiveVestValue)}`,
-      `- AuraWallet Balance: ${formatCurrency(effectiveWalletBalance)}`,
-      `- Monthly Income: ${formatCurrency(monthlyIncome)}`,
-      `- Monthly Expenses: ${formatCurrency(monthlyExpenseValue)}`,
-      `- Monthly Net Cash Flow: ${formatCurrency(cashFlow)}`,
-      '',
-      'Recent AuraBank Transactions',
-      ...recentTransactions.map((tx) => {
-        const type = tx.amount >= 0 ? 'Credit' : 'Debit';
-        return `- ${tx.date} | ${tx.description} | ${formatCurrency(tx.amount)} | ${type}`;
-      }),
-      '',
-      'Top AuraVest Holdings',
-      ...topHoldings.map((holding) => {
-        const allocation = effectiveVestValue > 0 ? (holding.value / effectiveVestValue) * 100 : 0;
-        return `- ${holding.symbol} | Qty ${holding.shares.toFixed(2)} | Value ${formatCurrency(holding.value)} | Allocation ${allocation.toFixed(2)}%`;
-      }),
-    ];
-
-    // Build a lightweight single-page PDF statement with embedded logo.
-    const escapePdfText = (value: string) => value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-    const maxLines = 44;
-    const clippedLines = statementLines.slice(0, maxLines);
-    const encoder = new TextEncoder();
-
-    let logoBytes: Uint8Array | null = null;
-    let logoWidth = 56;
-    let logoHeight = 56;
-
-    try {
-      const logoResponse = await fetch('/images/suite.jpeg', { cache: 'no-store' });
-      if (logoResponse.ok) {
-        const logoBuffer = await logoResponse.arrayBuffer();
-        logoBytes = new Uint8Array(logoBuffer);
-        const logoBlob = new Blob([logoBuffer], { type: 'image/jpeg' });
-        const logoBlobUrl = URL.createObjectURL(logoBlob);
-
-        await new Promise<void>((resolve) => {
-          const img = new window.Image();
-          img.onload = () => {
-            logoWidth = img.naturalWidth || logoWidth;
-            logoHeight = img.naturalHeight || logoHeight;
-            URL.revokeObjectURL(logoBlobUrl);
-            resolve();
-          };
-          img.onerror = () => {
-            URL.revokeObjectURL(logoBlobUrl);
-            resolve();
-          };
-          img.src = logoBlobUrl;
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load statement logo:', error);
-      logoBytes = null;
-    }
-
-    const drawLogoCommand = logoBytes
-      ? `q\n48 0 0 48 40 738 cm\n/Im1 Do\nQ\n`
-      : '';
-
-    const contentStream = `${drawLogoCommand}BT\n/F1 11 Tf\n14 TL\n${logoBytes ? '100 772 Td' : '40 790 Td'}\n${clippedLines
-      .map((line, index) => `${index > 0 ? 'T*\n' : ''}(${escapePdfText(line)}) Tj`)
-      .join('\n')}\nET`;
-
-    const pdfChunks: Uint8Array[] = [];
-    let pdfLength = 0;
-    const pushChunk = (chunk: Uint8Array) => {
-      pdfChunks.push(chunk);
-      pdfLength += chunk.length;
-    };
-
-    pushChunk(encoder.encode('%PDF-1.4\n'));
-
-    const objectOffsets: number[] = [0];
-    const writeObject = (objectNumber: number, body: Uint8Array) => {
-      objectOffsets[objectNumber] = pdfLength;
-      pushChunk(encoder.encode(`${objectNumber} 0 obj\n`));
-      pushChunk(body);
-      pushChunk(encoder.encode('\nendobj\n'));
-    };
-
-    const xObjectResource = logoBytes ? '/XObject << /Im1 6 0 R >> ' : '';
-    writeObject(1, encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'));
-    writeObject(2, encoder.encode('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
-    writeObject(
-      3,
-      encoder.encode(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> ${xObjectResource}>> /Contents 5 0 R >>`),
-    );
-    writeObject(4, encoder.encode('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'));
-
-    const contentBytes = encoder.encode(contentStream);
-    const contentStreamPrefix = encoder.encode(`<< /Length ${contentBytes.length} >>\nstream\n`);
-    const contentStreamSuffix = encoder.encode('\nendstream');
-    const contentBody = new Uint8Array(contentStreamPrefix.length + contentBytes.length + contentStreamSuffix.length);
-    contentBody.set(contentStreamPrefix, 0);
-    contentBody.set(contentBytes, contentStreamPrefix.length);
-    contentBody.set(contentStreamSuffix, contentStreamPrefix.length + contentBytes.length);
-    writeObject(5, contentBody);
-
-    if (logoBytes) {
-      const imagePrefix = encoder.encode(
-        `<< /Type /XObject /Subtype /Image /Width ${logoWidth} /Height ${logoHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoBytes.length} >>\nstream\n`,
-      );
-      const imageSuffix = encoder.encode('\nendstream');
-      const imageBody = new Uint8Array(imagePrefix.length + logoBytes.length + imageSuffix.length);
-      imageBody.set(imagePrefix, 0);
-      imageBody.set(logoBytes, imagePrefix.length);
-      imageBody.set(imageSuffix, imagePrefix.length + logoBytes.length);
-      writeObject(6, imageBody);
-    }
-
-    const objectCount = logoBytes ? 6 : 5;
-    const xrefStart = pdfLength;
-    pushChunk(encoder.encode(`xref\n0 ${objectCount + 1}\n`));
-    pushChunk(encoder.encode('0000000000 65535 f \n'));
-    for (let objectNumber = 1; objectNumber <= objectCount; objectNumber += 1) {
-      pushChunk(encoder.encode(`${String(objectOffsets[objectNumber] || 0).padStart(10, '0')} 00000 n \n`));
-    }
-    pushChunk(encoder.encode(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`));
-
-    const finalPdfBytes = new Uint8Array(pdfLength);
-    let finalOffset = 0;
-    for (const chunk of pdfChunks) {
-      finalPdfBytes.set(chunk, finalOffset);
-      finalOffset += chunk.length;
-    }
-
-    const blob = new Blob([finalPdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = `aura-finance-statement-${dateStamp}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(objectUrl);
-  };
-
   const upcomingBills = isDemoUser ? [
     { name: 'Rent', amount: 1200, dueDate: 'Mar 1', status: 'pending' },
     { name: 'Internet', amount: 60, dueDate: 'Mar 5', status: 'pending' },
@@ -684,21 +564,6 @@ export default function DashboardPage() {
   // Keep old paths as fallback
   const linePath = smoothLinePath;
   const areaPath = smoothAreaPath;
-
-  const smartAlerts = [
-    ...(bankInsights.monthlySpending > 3000
-      ? [{ level: 'warning', text: 'Monthly spending is above $3,000. Review discretionary categories.' }]
-      : []),
-    ...(walletInsights.balance < 300
-      ? [{ level: 'warning', text: 'AuraWallet balance is below $300. Consider topping up.' }]
-      : []),
-    ...(topHoldings.length > 0
-      ? [{ level: 'info', text: `Top portfolio position is ${topHoldings[0].symbol}. Consider diversification check.` }]
-      : []),
-    ...(upcomingBills.some((bill) => bill.amount >= 1000)
-      ? [{ level: 'info', text: 'High-value bill due soon. Ensure cash is reserved.' }]
-      : []),
-  ];
 
   const activityFeed = unifiedLedgerEvents.map((event) => {
     const source = event.app === 'bank' ? 'AuraBank' : event.app === 'vest' ? 'AuraVest' : 'AuraWallet';
@@ -952,35 +817,135 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 mb-10">
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 lg:col-span-2 hover:shadow-xl transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 rounded-xl bg-white dark:bg-white shadow-lg flex items-center justify-center overflow-hidden">
-                <Image src="/images/ai.jpg" alt="AuraAI" width={48} height={48} className="object-cover" />
+
+        {/* ── Quick Transfer ──────────────────────────────────────────── */}
+        <div className="mb-10 bg-gradient-to-br from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-magenta flex items-center justify-center">
+              <span className="text-white text-base">⇄</span>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Quick Transfer</h3>
+              <p className="text-xs text-muted-foreground">Move funds instantly between your Aura apps</p>
+            </div>
+          </div>
+          {(() => {
+            const transferApps = [
+              { value: 'bank' as const, label: 'AuraBank', Icon: Landmark, color: 'text-aurabank-magenta', logo: '/images/bank.jpg', ring: 'ring-pink-400/40', glow: 'bg-pink-500/20' },
+              { value: 'wallet' as const, label: 'AuraWallet', Icon: Wallet, color: 'text-emerald-600', logo: '/images/wallet.jpg', ring: 'ring-emerald-400/40', glow: 'bg-emerald-500/20' },
+              { value: 'vest' as const, label: 'AuraVest', Icon: TrendingUp, color: 'text-auravest-crimson', logo: '/images/vest.jpeg', ring: 'ring-red-400/40', glow: 'bg-red-500/20' },
+            ];
+            return (
+              <div className="space-y-4">
+                <div className="grid sm:grid-cols-3 gap-4 items-end">
+                  {/* From selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-2">From</label>
+                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                      {transferApps.map(({ value, label, color, logo, ring, glow }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTransferFrom(value)}
+                          className={`group/ta flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                            transferFrom === value
+                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <span className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white overflow-hidden ring-2 ${ring} transition-transform duration-300 group-hover/ta:-translate-y-0.5`}>
+                            <span className={`absolute inset-0 rounded-full ${glow} blur-md opacity-0 group-hover/ta:opacity-100 transition-opacity`} />
+                            <img src={logo} alt={label} className="relative w-full h-full object-cover" />
+                          </span>
+                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Arrow + To selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-2">To</label>
+                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+                      {transferApps.map(({ value, label, color, logo, ring, glow }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setTransferTo(value)}
+                          className={`group/ta flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                            transferTo === value
+                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <span className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white overflow-hidden ring-2 ${ring} transition-transform duration-300 group-hover/ta:-translate-y-0.5`}>
+                            <span className={`absolute inset-0 rounded-full ${glow} blur-md opacity-0 group-hover/ta:opacity-100 transition-opacity`} />
+                            <img src={logo} alt={label} className="relative w-full h-full object-cover" />
+                          </span>
+                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount + Submit */}
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-muted-foreground mb-2">Amount (USD)</label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={transferAmount}
+                        onChange={(e) => setTransferAmount(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="pt-5">
+                      <Button
+                        onClick={handleQuickTransfer}
+                        disabled={transferring}
+                        className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white rounded-xl h-10 px-4"
+                      >
+                        {transferring ? '…' : <ArrowRight className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Route preview */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {(() => {
+                    const from = transferApps.find(a => a.value === transferFrom)!;
+                    const to = transferApps.find(a => a.value === transferTo)!;
+                    return (
+                      <>
+                        <span className={`relative flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ${from.ring}`}>
+                          <img src={from.logo} alt={from.label} className="w-full h-full object-cover" />
+                        </span>
+                        <span className={from.color}>{from.label}</span>
+                        <ArrowRight className="w-3 h-3" />
+                        <span className={`relative flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ${to.ring}`}>
+                          <img src={to.logo} alt={to.label} className="w-full h-full object-cover" />
+                        </span>
+                        <span className={to.color}>{to.label}</span>
+                        {transferAmount && Number(transferAmount) > 0 && (
+                          <span className="ml-1 font-semibold text-foreground">· {formatCurrency(Number(transferAmount))}</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {transferMsg && (
+                  <p className={`text-sm font-semibold px-3 py-2 rounded-lg ${transferMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-destructive dark:bg-red-500/10'}`}>
+                    {transferMsg.text}
+                  </p>
+                )}
               </div>
-              <h3 className="text-xl font-bold">AuraAI Insights</h3>
-            </div>
-            <ul className="space-y-3 text-sm text-muted-foreground">
-              {[
-                `Net worth: ${formatCurrency(liveNetWorth)} across all accounts.`,
-                `Bank: ${formatCurrency(effectiveBankBalance)} · Vest: ${formatCurrency(effectiveVestValue)} · Wallet: ${formatCurrency(effectiveWalletBalance)}`,
-                'Ask AuraAI (bottom right) for personalized advice.',
-              ].map((insight, idx) => (
-                <li key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-700 hover:from-blue-50 hover:to-purple-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
-                  <span className="mt-1 h-2 w-2 rounded-full bg-gradient-to-r from-accent to-magenta flex-shrink-0" />
-                  <span>{insight}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Quick Actions</h3>
-            <div className="space-y-3">
-              <Button className="w-full bg-gradient-to-r from-accent to-teal hover:opacity-90" onClick={openAuraWalletTransfer}>Send Money with AuraWallet</Button>
-              <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={openAuraVestInvest}>Invest in AuraVest</Button>
-              <Button className="w-full" variant="outline" onClick={downloadUnifiedStatement}>Download Statements</Button>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-10">
@@ -1024,7 +989,7 @@ export default function DashboardPage() {
             <div className="bg-gradient-to-br from-emerald-400 via-green-600 to-black text-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:-translate-y-2 border border-white/20">
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-12 w-12 rounded-xl bg-white shadow-lg flex items-center justify-center overflow-hidden group-hover:scale-110 transition-transform">
-                  <Image src="/images/aurawallet-logo.jpeg" alt="AuraWallet" width={48} height={48} className="object-cover" />
+                  <Image src="/images/wallet.jpg" alt="AuraWallet" width={48} height={48} className="object-cover" />
                 </div>
                 <h3 className="text-2xl font-bold">AuraWallet</h3>
               </div>
@@ -1147,56 +1112,70 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <span className="h-8 w-8 rounded-full bg-gradient-to-r from-primary to-magenta text-white flex items-center justify-center shadow-sm">
-                  <BellRing className="w-4 h-4" />
-                </span>
-                Smart Alerts
-              </h3>
-              <span className="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-muted-foreground font-semibold">
-                {smartAlerts.length}
-              </span>
+          <div className="group relative overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+            <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-gradient-to-br from-primary/10 to-magenta/10 blur-2xl pointer-events-none" />
+            <div className="relative flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/80 border-r-magenta/40 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-white overflow-hidden ring-1 ring-primary/10">
+                  <Image src="/images/ai.jpg" alt="AuraAI" width={44} height={44} className="w-full h-full object-cover" />
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-slate-900 shadow-[0_0_6px_rgba(52,211,153,0.85)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">AuraAI Insights</h3>
+                <p className="text-xs text-muted-foreground">Personalized analysis · updated live</p>
+              </div>
             </div>
-            <div className="space-y-3">
-              {smartAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No critical alerts right now.</p>
-              ) : (
-                smartAlerts.map((alert, index) => {
-                  const isWarning = alert.level === 'warning';
-                  const Icon = isWarning ? AlertTriangle : Info;
-
-                  return (
-                    <div
-                      key={index}
-                      className={`p-3 rounded-xl border text-sm shadow-sm ${isWarning ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`mt-0.5 h-7 w-7 rounded-full flex items-center justify-center ${isWarning ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'}`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${isWarning ? 'text-red-700 dark:text-red-300' : 'text-blue-700 dark:text-blue-300'}`}>
-                            {isWarning ? 'Warning' : 'Insight'}
-                          </p>
-                          <p className={`${isWarning ? 'text-red-900 dark:text-red-200' : 'text-blue-900 dark:text-blue-200'}`}>
-                            {alert.text}
-                          </p>
-                        </div>
-                      </div>
+            <ul className="relative space-y-3 text-sm text-muted-foreground">
+              {[
+                {
+                  icon: TrendingUp,
+                  bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+                  text: `Net worth: ${formatCurrency(liveNetWorth)} across all accounts.`,
+                },
+                {
+                  icon: PieChart,
+                  bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
+                  text: `Bank: ${formatCurrency(effectiveBankBalance)} · Vest: ${formatCurrency(effectiveVestValue)} · Wallet: ${formatCurrency(effectiveWalletBalance)}`,
+                },
+                {
+                  icon: Sparkles,
+                  bg: 'bg-magenta/10 text-magenta',
+                  text: 'Ask AuraAI (bottom right) for personalized advice.',
+                },
+              ].map((insight, idx) => {
+                const Icon = insight.icon;
+                return (
+                  <li
+                    key={idx}
+                    className="group/i relative flex items-start gap-3 p-3 rounded-xl overflow-hidden bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-slate-800 dark:to-slate-700 hover:from-blue-50 hover:to-purple-50 dark:hover:from-slate-700 dark:hover:to-slate-700 border border-transparent hover:border-slate-200/60 dark:hover:border-slate-600/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                    style={{ animationDelay: `${idx * 90}ms`, animationDuration: '350ms' }}
+                  >
+                    <span className="absolute inset-0 -translate-x-full group-hover/i:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
+                    <div className={`relative mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${insight.bg}`}>
+                      <Icon className="w-4 h-4" />
                     </div>
-                  );
-                })
-              )}
-            </div>
+                    <span className="relative leading-relaxed">{insight.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
 
         <div className="mb-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold">Unified Activity Feed</h3>
-            <span className="text-xs text-muted-foreground">AuraBank • AuraVest • AuraWallet</span>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/80 border-r-magenta/40 animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-primary/15 to-magenta/15 text-primary flex items-center justify-center">
+                <Activity className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-bold">Unified Activity Feed</h3>
+              <p className="text-xs text-muted-foreground">{filteredActivityFeed.length} event{filteredActivityFeed.length === 1 ? '' : 's'} • AuraBank • AuraVest • AuraWallet</p>
+            </div>
           </div>
           <div className="space-y-3 mb-4">
             {/* App pill tabs */}
@@ -1231,51 +1210,89 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
             {filteredActivityFeed.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No activity available yet.</p>
+              <p className="text-sm text-muted-foreground py-6 text-center">No activity available yet.</p>
             ) : (
-              filteredActivityFeed.map((activity) => (
-                <div key={activity.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/70 dark:from-slate-800 dark:to-slate-700 border border-slate-100 dark:border-slate-700">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`text-[10px] px-2 py-1 rounded-full font-semibold ${activity.source === 'AuraBank' ? 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' : activity.source === 'AuraVest' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'}`}
-                      >
-                        {activity.source}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{activity.date}</span>
-                    </div>
-                    <p className="font-semibold text-sm">{activity.title}</p>
-                  </div>
-                  {typeof activity.amount === 'number' ? (
-                    <span className={`font-bold ${activity.amount >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                      {activity.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(activity.amount))}
+              filteredActivityFeed.map((activity, idx) => {
+                const appMeta = activity.app === 'bank'
+                  ? { logo: '/images/bank.jpg', ring: 'ring-pink-400/40', glow: 'bg-pink-500/20', badge: 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' }
+                  : activity.app === 'vest'
+                    ? { logo: '/images/vest.jpeg', ring: 'ring-red-400/40', glow: 'bg-red-500/20', badge: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' }
+                    : { logo: '/images/wallet.jpg', ring: 'ring-emerald-400/40', glow: 'bg-emerald-500/20', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' };
+
+                return (
+                  <div
+                    key={activity.id}
+                    className="group flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/70 dark:from-slate-800 dark:to-slate-700 border border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                    style={{ animationDelay: `${Math.min(idx, 12) * 40}ms`, animationDuration: '300ms' }}
+                  >
+                    <span className={`relative flex items-center justify-center w-11 h-11 rounded-2xl bg-white overflow-hidden ring-2 ${appMeta.ring} flex-shrink-0 transition-transform duration-300 group-hover:scale-105`}>
+                      <span className={`absolute inset-0 rounded-2xl ${appMeta.glow} blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                      <img src={appMeta.logo} alt={activity.source} className="relative w-full h-full object-cover" />
                     </span>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Insight</span>
-                  )}
-                </div>
-              ))
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${appMeta.badge}`}>
+                          {activity.source}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{activity.date}</span>
+                      </div>
+                      <p className="font-semibold text-sm truncate">{activity.title}</p>
+                    </div>
+                    {typeof activity.amount === 'number' ? (
+                      <span className={`font-bold flex-shrink-0 ${activity.amount >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                        {activity.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(activity.amount))}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground flex-shrink-0">Insight</span>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6 mb-10">
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Spending Breakdown</h3>
+          <div className="group relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow overflow-hidden">
+            <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-primary/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/80 border-r-magenta/40 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-primary/15 to-magenta/15 text-primary flex items-center justify-center">
+                  <PieChart className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">Spending Breakdown</h3>
+                <p className="text-xs text-muted-foreground">By category, this period</p>
+              </div>
+            </div>
             {spendingCategories.length === 0 ? (
               <p className="text-sm text-muted-foreground">No spending data yet. Transactions will appear here once you start using AuraBank.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="relative space-y-3">
                 {spendingCategories.map((cat, idx) => (
-                  <div key={idx} className="p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-blue-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-blue-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-all hover:-translate-y-0.5 hover:shadow-sm animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                    style={{ animationDelay: `${idx * 70}ms`, animationDuration: '350ms' }}
+                  >
                     <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="font-medium">{cat.name}</span>
+                      <span className="font-medium flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${cat.color} shadow-[0_0_6px_rgba(0,0,0,0.25)]`} />
+                        {cat.name}
+                      </span>
                       <span className="font-bold">{formatCurrency(cat.amount, 0)}</span>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                      <div className={`h-2 rounded-full ${cat.color} shadow-sm`} style={{ width: `${(cat.amount / totalSpending) * 100}%` }} />
+                    <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                      <div
+                        className={`relative h-2 rounded-full ${cat.color} shadow-sm overflow-hidden transition-all duration-700`}
+                        style={{ width: `${(cat.amount / totalSpending) * 100}%` }}
+                      >
+                        <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1288,247 +1305,228 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Cash Flow</h3>
+          <div className="group relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow overflow-hidden">
+            <div className="absolute -left-10 -bottom-10 w-32 h-32 rounded-full bg-emerald-400/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-red-400/10 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="relative flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/80 border-r-magenta/40 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-gradient-to-br from-primary/15 to-magenta/15 text-primary flex items-center justify-center">
+                  <Activity className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">Cash Flow</h3>
+                <p className="text-xs text-muted-foreground">Last 30 days</p>
+              </div>
+            </div>
             {!isDemoUser && monthlyIncome === 0 && monthlyExpenses === 0 ? (
               <p className="text-sm text-muted-foreground">No cash flow data yet. Your income and expense summary will appear here.</p>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-teal-100 dark:border-slate-700">
-                  <span className="text-sm font-semibold">Income</span>
-                  <span className="text-xl font-bold text-accent">+{formatCurrency(monthlyIncome)}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-sm border border-red-100 dark:border-slate-700">
-                  <span className="text-sm font-semibold">Expenses</span>
-                  <span className="text-xl font-bold text-destructive">-{formatCurrency(monthlyExpenses)}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 rounded-xl shadow-md border-2 border-primary">
-                  <span className="text-sm font-bold">Net Cash Flow</span>
-                  <span className={`text-2xl font-bold ${cashFlow >= 0 ? 'text-accent' : 'text-destructive'}`}>
-                    {cashFlow >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow))}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2 text-center">Last 30 days</p>
-              </div>
+              (() => {
+                const totalFlow = monthlyIncome + monthlyExpenses;
+                const inflowShare = totalFlow > 0 ? (monthlyIncome / totalFlow) * 100 : 50;
+                return (
+                  <div className="relative flex flex-col sm:flex-row items-center gap-6">
+                    <div className="relative flex-shrink-0" style={{ width: 128, height: 128 }}>
+                      <div
+                        className="absolute inset-0 rounded-full transition-all duration-700"
+                        style={{ background: `conic-gradient(#4ade80 0% ${inflowShare}%, #f87171 ${inflowShare}% 100%)` }}
+                      />
+                      <div className="absolute inset-[10px] rounded-full bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-center shadow-inner">
+                        <span className="text-[10px] text-muted-foreground font-medium">Net</span>
+                        <span className={`text-base font-bold ${cashFlow >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                          {cashFlow >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow), 0)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1 w-full space-y-2.5">
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700 border border-teal-100 dark:border-slate-700 animate-in fade-in slide-in-from-right-2 fill-mode-both" style={{ animationDelay: '60ms' }}>
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,0.7)]" />
+                        <span className="text-sm font-semibold flex-1">Income</span>
+                        <span className="text-base font-bold text-accent">+{formatCurrency(monthlyIncome)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 border border-red-100 dark:border-slate-700 animate-in fade-in slide-in-from-right-2 fill-mode-both" style={{ animationDelay: '120ms' }}>
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.7)]" />
+                        <span className="text-sm font-semibold flex-1">Expenses</span>
+                        <span className="text-base font-bold text-destructive">-{formatCurrency(monthlyExpenses)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700 border-2 border-primary animate-in fade-in slide-in-from-right-2 fill-mode-both" style={{ animationDelay: '180ms' }}>
+                        <span className={`w-2.5 h-2.5 rounded-full ${cashFlow >= 0 ? 'bg-accent shadow-[0_0_8px_rgba(16,185,129,0.7)]' : 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.7)]'}`} />
+                        <span className="text-sm font-bold flex-1">Net Cash Flow</span>
+                        <span className={`text-lg font-bold ${cashFlow >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                          {cashFlow >= 0 ? '+' : '-'}{formatCurrency(Math.abs(cashFlow))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6 mb-10">
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Upcoming Bills</h3>
+          <div className="group bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400/80 border-r-amber-400/30 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+                  <Receipt className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">Upcoming Bills</h3>
+                <p className="text-xs text-muted-foreground">{upcomingBills.length} pending payment{upcomingBills.length === 1 ? '' : 's'}</p>
+              </div>
+            </div>
             {upcomingBills.length === 0 ? (
               <p className="text-sm text-muted-foreground">No upcoming bills. Bills set in AuraBank will appear here.</p>
             ) : (
               <div className="space-y-3">
                 {upcomingBills.map((bill, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 hover:shadow-md transition-all bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-700">
-                    <div>
-                      <p className="font-semibold">{bill.name}</p>
+                  <div
+                    key={idx}
+                    className="group/bill flex items-center gap-3 p-4 rounded-xl border-2 border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-500/40 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 bg-gradient-to-r from-white to-slate-50 dark:from-slate-800 dark:to-slate-700 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                    style={{ animationDelay: `${idx * 70}ms`, animationDuration: '350ms' }}
+                  >
+                    <div className="relative flex-shrink-0 transition-transform duration-300 group-hover/bill:-translate-y-0.5" style={{ width: 38, height: 38 }}>
+                      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400/70 border-r-amber-400/20 group-hover/bill:animate-spin" style={{ animationDuration: '2.5s' }} />
+                      <div className="absolute inset-[2.5px] rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+                        <AlertTriangle className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{bill.name}</p>
                       <p className="text-xs text-muted-foreground">Due {bill.dueDate}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <p className="font-bold text-lg">{formatCurrency(bill.amount)}</p>
-                      <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-500/20 dark:to-amber-500/20 text-yellow-900 dark:text-yellow-200 font-medium">Pending</span>
+                      <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-500/20 dark:to-amber-500/20 text-yellow-900 dark:text-yellow-200 font-medium shadow-[0_0_10px_rgba(251,191,36,0.25)]">Pending</span>
                     </div>
                   </div>
                 ))}
-                <Button className="w-full mt-3 bg-gradient-to-r from-primary to-magenta hover:opacity-90" size="sm">View All Bills</Button>
+                <Button className="w-full mt-3 bg-gradient-to-r from-primary to-magenta hover:opacity-90 group/btn relative overflow-hidden" size="sm">
+                  <span className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+                  <span className="relative">View All Bills</span>
+                </Button>
               </div>
             )}
           </div>
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Recent Activity</h3>
-            <div className="space-y-3">
-              {recentTransactions.length === 0 && (
-                <p className="text-sm text-muted-foreground">No recent transactions yet.</p>
-              )}
-              {recentTransactions.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-blue-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors">
-                  <div>
-                    <p className="font-semibold">{tx.description}</p>
-                    <p className="text-xs text-muted-foreground">{tx.date}</p>
-                  </div>
-                  <p className={`font-bold text-lg ${tx.amount < 0 ? 'text-destructive' : 'text-accent'}`}>
-                    {tx.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(tx.amount))}
-                  </p>
+          <div className="group bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-emerald-400/80 border-r-emerald-400/30 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
+                  <Target className="w-5 h-5" />
                 </div>
-              ))}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">Goals</h3>
+                <p className="text-xs text-muted-foreground">Track your savings milestones</p>
+              </div>
             </div>
-          </div>
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Goals</h3>
             {!isDemoUser ? (
               <p className="text-sm text-muted-foreground">No goals set yet. Start by making your first deposit.</p>
             ) : (
               <div className="space-y-4">
-                <div className="p-3 rounded-lg bg-gradient-to-r from-teal-50 to-green-50 dark:from-slate-800 dark:to-slate-700">
-                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                    <span>Emergency Fund</span>
-                    <span className="font-bold">$3,200 / $10,000</span>
+                {([
+                  { label: 'Emergency Fund', current: '$3,200', target: '$10,000', pct: 32, from: 'from-teal-50', to: 'to-green-50', bar: 'from-accent to-teal', glow: 'rgba(45,212,191,0.6)' },
+                  { label: 'Investing Goal', current: '$6,500', target: '$15,000', pct: 43, from: 'from-purple-50', to: 'to-pink-50', bar: 'from-magenta to-purple-500', glow: 'rgba(192,38,211,0.6)' },
+                  { label: 'Vacation Fund', current: '$900', target: '$2,500', pct: 36, from: 'from-blue-50', to: 'to-indigo-50', bar: 'from-primary to-blue-500', glow: 'rgba(59,130,246,0.6)' },
+                ] as const).map((goal, idx) => (
+                  <div
+                    key={goal.label}
+                    className={`p-3 rounded-lg bg-gradient-to-r ${goal.from} ${goal.to} dark:from-slate-800 dark:to-slate-700 hover:-translate-y-0.5 hover:shadow-sm transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both`}
+                    style={{ animationDelay: `${idx * 90}ms`, animationDuration: '350ms' }}
+                  >
+                    <div className="flex items-center justify-between text-sm mb-2 font-medium">
+                      <span>{goal.label}</span>
+                      <span className="font-bold">{goal.current} / {goal.target}</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner overflow-hidden">
+                      <div
+                        className={`relative h-3 rounded-full bg-gradient-to-r ${goal.bar} shadow-sm overflow-hidden transition-all duration-700`}
+                        style={{ width: `${goal.pct}%`, boxShadow: `0 0 10px ${goal.glow}` }}
+                      >
+                        <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-accent to-teal shadow-sm" style={{ width: '32%' }} />
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-700">
-                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                    <span>Investing Goal</span>
-                    <span className="font-bold">$6,500 / $15,000</span>
-                  </div>
-                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-magenta to-purple-500 shadow-sm" style={{ width: '43%' }} />
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-700">
-                  <div className="flex items-center justify-between text-sm mb-2 font-medium">
-                    <span>Vacation Fund</span>
-                    <span className="font-bold">$900 / $2,500</span>
-                  </div>
-                  <div className="h-3 w-full rounded-full bg-white dark:bg-slate-700 shadow-inner">
-                    <div className="h-3 rounded-full bg-gradient-to-r from-primary to-blue-500 shadow-sm" style={{ width: '36%' }} />
-                  </div>
-                </div>
+                ))}
               </div>
             )}
           </div>
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-            <h3 className="text-xl font-bold mb-4">Top Holdings</h3>
+          <div className="group bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
+                <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-magenta/80 border-r-purple-400/40 group-hover:animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-[3px] rounded-full bg-magenta/10 text-magenta flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-bold">Top Holdings</h3>
+                <p className="text-xs text-muted-foreground">{topHoldings.length > 0 ? `${topHoldings.length} position${topHoldings.length === 1 ? '' : 's'} • AuraVest` : 'AuraVest portfolio'}</p>
+              </div>
+            </div>
             <div className="space-y-3">
               {topHoldings.length === 0 && (
                 <p className="text-sm text-muted-foreground">No holdings yet.</p>
               )}
-              {topHoldings.map((holding) => (
-                <div key={holding.id} className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-slate-50 to-purple-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-purple-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-colors border border-slate-100 dark:border-slate-700">
-                  <div>
-                    <p className="font-bold text-lg">{holding.symbol}</p>
-                    <p className="text-xs text-muted-foreground">{holding.shares} shares</p>
-                  </div>
-                  <p className="font-bold text-xl text-magenta">{formatCurrency(holding.value)}</p>
-                </div>
-              ))}
+              {(() => {
+                const maxValue = Math.max(...topHoldings.map((h) => h.value), 1);
+                const rankAccents = [
+                  { ring: 'border-t-magenta/80 border-r-purple-400/40', bg: 'bg-magenta/10 text-magenta', bar: 'from-magenta to-purple-500', glow: 'rgba(192,38,211,0.55)' },
+                  { ring: 'border-t-blue-400/80 border-r-indigo-400/40', bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-300', bar: 'from-primary to-blue-500', glow: 'rgba(59,130,246,0.55)' },
+                  { ring: 'border-t-emerald-400/80 border-r-teal-400/40', bg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300', bar: 'from-accent to-teal', glow: 'rgba(45,212,191,0.55)' },
+                ];
+                return topHoldings.map((holding, idx) => {
+                  const accent = rankAccents[idx % rankAccents.length];
+                  const sharePct = Math.max(8, Math.round((holding.value / maxValue) * 100));
+                  const logoUrl = getHoldingLogoUrl(holding.symbol);
+                  return (
+                    <div
+                      key={holding.id}
+                      className="group/h p-4 rounded-xl bg-gradient-to-r from-slate-50 to-purple-50/30 dark:from-slate-800 dark:to-slate-700 hover:from-slate-100 hover:to-purple-50 dark:hover:from-slate-700 dark:hover:to-slate-700 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                      style={{ animationDelay: `${idx * 80}ms`, animationDuration: '350ms' }}
+                    >
+                      <div className="flex items-center justify-between mb-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative flex-shrink-0 transition-transform duration-300 group-hover/h:-translate-y-0.5" style={{ width: 38, height: 38 }}>
+                            <div className={`absolute inset-0 rounded-full border-2 border-transparent ${accent.ring} group-hover/h:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                            <div className={`absolute inset-[2.5px] rounded-full overflow-hidden flex items-center justify-center font-bold text-sm ${logoUrl ? 'bg-white' : accent.bg}`}>
+                              {logoUrl ? (
+                                <img src={logoUrl} alt={holding.symbol} className="w-full h-full object-contain p-1.5" />
+                              ) : (
+                                holding.symbol.charAt(0)
+                              )}
+                            </div>
+                            <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full ring-2 ring-white dark:ring-slate-800 flex items-center justify-center text-[9px] font-bold ${accent.bg}`}>
+                              {idx + 1}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-lg truncate">{holding.symbol}</p>
+                            <p className="text-xs text-muted-foreground">{holding.shares} shares</p>
+                          </div>
+                        </div>
+                        <p className="font-bold text-xl text-magenta flex-shrink-0">{formatCurrency(holding.value)}</p>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-200/70 dark:bg-slate-600/50 overflow-hidden">
+                        <div
+                          className={`relative h-1.5 rounded-full bg-gradient-to-r ${accent.bar} overflow-hidden transition-all duration-700`}
+                          style={{ width: `${sharePct}%`, boxShadow: `0 0 8px ${accent.glow}` }}
+                        >
+                          <span className="absolute inset-0 -translate-x-full group-hover/h:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
-        </div>
-
-        {/* ── Quick Transfer ──────────────────────────────────────────── */}
-        <div className="mb-10 bg-gradient-to-br from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-magenta flex items-center justify-center">
-              <span className="text-white text-base">⇄</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">Quick Transfer</h3>
-              <p className="text-xs text-muted-foreground">Move funds instantly between your Aura apps</p>
-            </div>
-          </div>
-          {(() => {
-            const transferApps = [
-              { value: 'bank' as const, label: 'AuraBank', Icon: Landmark, color: 'text-aurabank-magenta' },
-              { value: 'wallet' as const, label: 'AuraWallet', Icon: Wallet, color: 'text-emerald-600' },
-              { value: 'vest' as const, label: 'AuraVest', Icon: TrendingUp, color: 'text-auravest-crimson' },
-            ];
-            return (
-              <div className="space-y-4">
-                <div className="grid sm:grid-cols-3 gap-4 items-end">
-                  {/* From selector */}
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">From</label>
-                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                      {transferApps.map(({ value, label, Icon, color }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setTransferFrom(value)}
-                          className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
-                            transferFrom === value
-                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="leading-none">{label.replace('Aura', '')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Arrow + To selector */}
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">To</label>
-                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                      {transferApps.map(({ value, label, Icon, color }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setTransferTo(value)}
-                          className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
-                            transferTo === value
-                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span className="leading-none">{label.replace('Aura', '')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Amount + Submit */}
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-2">Amount (USD)</label>
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={transferAmount}
-                        onChange={(e) => setTransferAmount(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="pt-5">
-                      <Button
-                        onClick={handleQuickTransfer}
-                        disabled={transferring}
-                        className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white rounded-xl h-10 px-4"
-                      >
-                        {transferring ? '…' : <ArrowRight className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Route preview */}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {(() => {
-                    const from = transferApps.find(a => a.value === transferFrom)!;
-                    const to = transferApps.find(a => a.value === transferTo)!;
-                    return (
-                      <>
-                        <from.Icon className={`w-3.5 h-3.5 ${from.color}`} />
-                        <span className={from.color}>{from.label}</span>
-                        <ArrowRight className="w-3 h-3" />
-                        <to.Icon className={`w-3.5 h-3.5 ${to.color}`} />
-                        <span className={to.color}>{to.label}</span>
-                        {transferAmount && Number(transferAmount) > 0 && (
-                          <span className="ml-1 font-semibold text-foreground">· {formatCurrency(Number(transferAmount))}</span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-
-                {transferMsg && (
-                  <p className={`text-sm font-semibold px-3 py-2 rounded-lg ${transferMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-destructive dark:bg-red-500/10'}`}>
-                    {transferMsg.text}
-                  </p>
-                )}
-              </div>
-            );
-          })()}
         </div>
       </div>
 

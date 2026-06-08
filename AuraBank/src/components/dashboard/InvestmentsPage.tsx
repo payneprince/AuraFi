@@ -105,8 +105,8 @@ export default function InvestmentsPage() {
                 <h2 className="text-lg font-bold text-white">Local Investments</h2>
                 <span className="px-2 py-0.5 rounded-full bg-white/10 text-white text-[11px] font-semibold border border-white/20">GHS</span>
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mint-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-mint-400" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mint-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-mint-500" />
                 </span>
               </div>
               <p className="text-sm text-white/60 mt-1 max-w-md">
@@ -126,7 +126,7 @@ export default function InvestmentsPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
           <div className="w-10 h-10 rounded-xl bg-magenta-500/10 text-magenta-600 flex items-center justify-center flex-shrink-0">
             <Landmark className="w-5 h-5" />
           </div>
@@ -135,7 +135,7 @@ export default function InvestmentsPage() {
             <p className="text-lg font-bold text-text-dark tabular-nums">14.0%</p>
           </div>
         </div>
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
           <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center flex-shrink-0">
             <Clock className="w-5 h-5" />
           </div>
@@ -144,7 +144,7 @@ export default function InvestmentsPage() {
             <p className="text-lg font-bold text-text-dark tabular-nums">{auctionCountdown}</p>
           </div>
         </div>
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
           <div className="w-10 h-10 rounded-xl bg-mint-500/10 text-mint-600 flex items-center justify-center flex-shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
@@ -156,7 +156,7 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Live T-Bill rates */}
-      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+      <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold text-text-dark">Live T-Bill Rates</h3>
@@ -176,7 +176,7 @@ export default function InvestmentsPage() {
             return (
               <div
                 key={item.tenor}
-                className="group/card relative overflow-hidden rounded-xl border border-navy-700 bg-navy-50 p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                className="group/card relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
                 style={{ animationDelay: `${idx * 70}ms` }}
               >
                 <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full ${style.bg} blur-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500`} />
@@ -208,7 +208,7 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Tax comparison callout */}
-      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-5 flex items-start gap-4">
+      <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-5 flex items-start gap-4">
         <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center flex-shrink-0">
           <Lightbulb className="w-5 h-5" />
         </div>
@@ -222,7 +222,7 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Available Products */}
-      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+      <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-6">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-text-dark">Available Products</h3>
           <p className="text-sm text-slate-500">Buy and track these in AuraVest — your bank balance stays untouched</p>
@@ -231,7 +231,7 @@ export default function InvestmentsPage() {
           {localInvestmentProducts.map((product, idx) => (
             <div
               key={product.id}
-              className="group rounded-xl border border-navy-700 bg-navy-50 p-4 space-y-3 transition-all duration-300 hover:shadow-md hover:-translate-y-1 hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+              className="group rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 transition-all duration-300 hover:shadow-md hover:-translate-y-1 hover:border-teal-500/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
               style={{ animationDelay: `${idx * 60}ms` }}
             >
               <div>
@@ -273,7 +273,7 @@ export default function InvestmentsPage() {
       </div>
 
       {/* Trusted Providers */}
-      <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+      <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-6">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-text-dark">Trusted Providers</h3>
           <p className="text-sm text-slate-500">Licensed partners available when you invest through AuraVest</p>
@@ -283,7 +283,7 @@ export default function InvestmentsPage() {
             <button
               key={provider.name}
               onClick={openAuraVest}
-              className="group bg-navy-50 border border-navy-700 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-teal-500/30 hover:shadow-sm transition-all animate-in fade-in zoom-in-95 fill-mode-both"
+              className="group bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col items-center gap-2 hover:border-teal-500/30 hover:shadow-sm transition-all animate-in fade-in zoom-in-95 fill-mode-both"
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className="w-10 h-10 rounded-full overflow-hidden bg-white flex items-center justify-center">

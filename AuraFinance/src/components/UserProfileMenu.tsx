@@ -139,6 +139,7 @@ export default function UserProfileMenu({ userName = 'User', userEmail = 'user@a
                 <button
                   onClick={async () => {
                     setIsOpen(false);
+                    sessionStorage.setItem('aurafinance_logging_out', 'true');
                     clearUnifiedAuthSession();
                     try {
                       const result = await signOut({ redirect: false, callbackUrl: '/' });

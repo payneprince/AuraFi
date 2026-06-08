@@ -21,7 +21,7 @@ const billCategoryStyles: Record<string, { Icon: any; bg: string; text: string }
   'Music': { Icon: Music, bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
 };
 
-const getBillCategoryStyle = (category: string) => billCategoryStyles[category] || { Icon: Receipt, bg: 'bg-slate-100', text: 'text-slate-500' };
+export const getBillCategoryStyle = (category: string) => billCategoryStyles[category] || { Icon: Receipt, bg: 'bg-slate-100', text: 'text-slate-500' };
 
 export default function BillsPage() {
   const { bills, accounts, updateBills, addTransaction, updateAccounts, addRecurringTransaction, processRecurringTransactions } = useAuth();
@@ -192,7 +192,7 @@ export default function BillsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-orange-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '0ms' }}>
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-slate-200 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-orange-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '0ms' }}>
           <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-orange-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
           <div className="relative flex items-center justify-between">
             <div>
@@ -208,7 +208,7 @@ export default function BillsPage() {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-red-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '70ms' }}>
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-slate-200 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-red-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '70ms' }}>
           <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-red-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
           <div className="relative flex items-center justify-between">
             <div>
@@ -226,7 +226,7 @@ export default function BillsPage() {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-navy-700 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-green-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '140ms' }}>
+        <div className="group relative overflow-hidden bg-surface rounded-xl shadow-lg border border-slate-200 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:border-green-400/40 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '140ms' }}>
           <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-green-300 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
           <div className="relative flex items-center justify-between">
             <div>
@@ -252,7 +252,7 @@ export default function BillsPage() {
 
       {/* Pending Bills */}
       {pendingBills.length > 0 && (
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-6">
           <h3 className="font-semibold text-text-dark mb-4">Pending Bills</h3>
           <div className="space-y-3">
             {pendingBills.map((bill, idx) => {
@@ -266,7 +266,7 @@ export default function BillsPage() {
               return (
                 <div
                   key={bill.id}
-                  className={`group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-navy-50 border border-transparent ${urgency.border} hover:bg-navy-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both`}
+                  className={`group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-transparent ${urgency.border} hover:bg-slate-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both`}
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
                   <div className={`absolute -right-10 -top-10 w-32 h-32 rounded-full ${urgency.glow} blur-3xl opacity-0 group-hover:opacity-25 transition-opacity duration-500`} />
@@ -324,13 +324,13 @@ export default function BillsPage() {
 
       {/* Paid Bills */}
       {paidBills.length > 0 && (
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-6">
           <h3 className="font-semibold text-text-dark mb-4">Recently Paid</h3>
           <div className="space-y-3">
             {paidBills.map((bill, idx) => (
               <div
                 key={bill.id}
-                className="group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-navy-50 border border-transparent hover:border-green-400/40 hover:bg-navy-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300"
+                className="group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-transparent hover:border-green-400/40 hover:bg-slate-100 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300"
                 style={{ animationDelay: `${idx * 50}ms` }}
               >
                 <div className="absolute -right-10 -top-10 w-32 h-32 rounded-full bg-green-300 blur-3xl opacity-0 group-hover:opacity-25 transition-opacity duration-500" />
@@ -361,7 +361,7 @@ export default function BillsPage() {
       )}
 
       {bills.length === 0 && (
-        <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-12 text-center animate-in fade-in zoom-in-95 duration-300">
+        <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-12 text-center animate-in fade-in zoom-in-95 duration-300">
           <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
             <Inbox className="w-6 h-6" />
           </div>

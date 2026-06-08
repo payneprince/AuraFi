@@ -52,8 +52,8 @@ export function AddCardModal({ isOpen, onClose, onAddCard, accounts }: AddCardMo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+    <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto hide-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center space-x-3">

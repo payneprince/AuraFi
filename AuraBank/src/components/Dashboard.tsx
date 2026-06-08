@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { getUser } from '@/lib/shared/mock-data';
 import DashboardHome from './dashboard/DashboardHome';
 import AccountsPage from './dashboard/AccountsPage';
@@ -20,9 +20,6 @@ import {
   TrendingUp,
   PiggyBank,
   User,
-  LayoutGrid,
-  Moon,
-  Sun,
 } from 'lucide-react';
 import { subscribeUnifiedAuthSession } from '../../../shared/unified-auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,12 +28,10 @@ import { TransferToastContainer } from './TransferToast';
 type PageType = 'home' | 'accounts' | 'transactions' | 'bills' | 'cards' | 'budget' | 'investments' | 'profile';
 
 export default function Dashboard() {
-  const { theme, setTheme, transferToasts, dismissTransferToast } = useAuth();
+  const { transferToasts, dismissTransferToast } = useAuth();
   const [currentPage, setCurrentPage] = useState<PageType>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userIdNum, setUserIdNum] = useState(1);
-  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
-  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const userId = parseInt(sessionStorage.getItem('userId') || '1');
@@ -60,17 +55,6 @@ export default function Dashboard() {
       localStorage.removeItem('aurabank_user');
       window.location.href = buildAppUrl(3000, '/login');
     });
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!appSwitcherRef.current) return;
-      if (appSwitcherRef.current.contains(event.target as Node)) return;
-      setAppSwitcherOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const navigation = [
@@ -165,64 +149,6 @@ export default function Dashboard() {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div ref={appSwitcherRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAppSwitcherOpen((prev) => !prev)}
-                  className="inline-flex items-center justify-center w-10 h-10 bg-navy-700 border border-navy-600 text-text-light rounded-lg hover:bg-navy-600 transition-colors"
-                  aria-label="Open app switcher"
-                  aria-expanded={appSwitcherOpen}
-                >
-                  <LayoutGrid className="w-5 h-5" />
-                </button>
-
-                {appSwitcherOpen && (
-                  <div className="absolute right-0 mt-2 w-44 rounded-lg border border-navy-600 bg-navy-800/95 backdrop-blur-sm shadow-xl overflow-hidden z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
-                    >
-                      AuraFinance
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3002), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
-                    >
-                      AuraVest
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3003), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-text-light hover:bg-navy-700"
-                    >
-                      AuraWallet
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="inline-flex items-center justify-center w-10 h-10 bg-navy-700 border border-navy-600 text-text-light rounded-lg hover:bg-navy-600 transition-colors"
-                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
-              >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-            </div>
           </div>
         </header>
 

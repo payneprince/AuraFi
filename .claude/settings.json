@@ -42,7 +42,13 @@
       "Bash(grep -v \"TransferPage.tsx$\")",
       "Bash(export CLAUDE_CODE_TMPDIR=\"/Users/PAYNE/Desktop/Aura Finance/.tmpwork\")",
       "Bash(find \"/Users/PAYNE/Desktop/Aura Finance/AuraFinance/public/images\" -maxdepth 1 -type f)",
-      "Bash(cat '/Users/PAYNE/Desktop/Aura Finance/.tmpwork/financeimgs.txt')"
+      "Bash(cat '/Users/PAYNE/Desktop/Aura Finance/.tmpwork/financeimgs.txt')",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH='/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers' NODE_PATH=/Users/PAYNE/.npm/_npx/e41f203b7505f1fb/node_modules node -e ' *)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=\"/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers\" npx -y playwright install chromium --with-deps)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=\"/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers\" npx -y playwright install chromium-headless-shell)",
+      "Bash(npx --yes playwright --version)"
     ]
   }
 }

@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { LayoutGrid } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 // @ts-ignore
 import { walletData, users } from '@/lib/shared/mock-data';
 import AuraChat from '@/components/AuraChat';
-import ThemeToggle from '@/components/ThemeToggle';
 import Sidebar from '@/components/Sidebar';
 import OverviewSection from '@/components/dashboard/OverviewSection';
 import SendSection from '@/components/dashboard/SendSection';
@@ -29,10 +27,8 @@ export default function Dashboard() {
   const [currentSection, setCurrentSection] = useState<WalletSection>('overview');
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isReady, setIsReady] = useState(false);
-  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
   const [transferToasts, setTransferToasts] = useState<TransferToastData[]>([]);
   const dismissTransferToast = (id: string) => setTransferToasts((p) => p.filter((t) => t.id !== id));
-  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   const buildAppUrl = useCallback((port: number, path = '') => {
     if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
@@ -119,6 +115,11 @@ export default function Dashboard() {
       setWalletBalance(Number(hydratedState.balance || 0));
       sessionStorage.setItem('aurasuite_userId', id.toString());
 
+      // Write the hydrated/seeded state into localStorage BEFORE syncing to the server —
+      // otherwise a fresh demo session snapshots an empty localStorage and pushes a blank
+      // record that permanently overwrites the $500 seed (the recurring "$0 balance" bug).
+      persistWalletStateForUser(normalizedUserId);
+
       // Write unified session AFTER localStorage is correct so BroadcastChannel callbacks read good data
       if (urlUserId && !unifiedSession?.userId) {
         writeUnifiedAuthSession({ userId: normalizedUserId, sourceApp: 'AuraWallet' });
@@ -155,17 +156,6 @@ export default function Dashboard() {
       setWalletBalance(Number(hydratedState.balance || 0));
     });
   }, [buildAppUrl, isReady]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!appSwitcherRef.current) return;
-      if (appSwitcherRef.current.contains(event.target as Node)) return;
-      setAppSwitcherOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
@@ -372,58 +362,6 @@ export default function Dashboard() {
 
         <div className="flex-1 flex flex-col">
           <div className="px-8 py-5 bg-white/70 backdrop-blur-sm dark:bg-[#071126]/70 dark:backdrop-blur-sm">
-            <div className="flex items-center justify-end gap-2 mb-4">
-              <div ref={appSwitcherRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAppSwitcherOpen((prev) => !prev)}
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 transition-colors dark:border-white/20 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
-                  aria-label="Open app switcher"
-                  aria-expanded={appSwitcherOpen}
-                  title="App switcher"
-                >
-                  <LayoutGrid className="w-5 h-5" />
-                </button>
-
-                {appSwitcherOpen && (
-                  <div className="absolute right-0 mt-2 w-44 rounded-lg border border-slate-200 bg-white shadow-xl overflow-hidden z-20 dark:border-white/20 dark:bg-[#0b1533]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3000, '/dashboard'), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
-                    >
-                      AuraFinance
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3001), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
-                    >
-                      AuraBank
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAppSwitcherOpen(false);
-                        window.open(buildAppUrl(3002), '_blank', 'noopener,noreferrer');
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-white/10"
-                    >
-                      AuraVest
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <ThemeToggle />
-            </div>
-
             <div>
               <h1 className="text-slate-900 dark:text-white font-extrabold text-3xl">{walletSectionTitles[currentSection]}</h1>
               {currentSection === 'overview' && (

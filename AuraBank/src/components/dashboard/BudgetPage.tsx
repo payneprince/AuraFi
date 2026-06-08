@@ -1,6 +1,8 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { Wallet, TrendingDown, PiggyBank, Info, CheckCircle2, AlertTriangle, Receipt } from 'lucide-react';
+import { getCategoryStyle } from './TransactionsPage';
 
 export default function BudgetPage() {
   const { budgets, transactions } = useAuth();
@@ -15,15 +17,15 @@ export default function BudgetPage() {
   const getProgressColor = (spent: number, limit: number) => {
     const percentage = (spent / limit) * 100;
     if (percentage >= 100) return 'from-red-500 to-red-600';
-    if (percentage >= 80) return 'from-yellow-500 to-yellow-600';
+    if (percentage >= 80) return 'from-amber-400 to-amber-500';
     return 'from-magenta-500 to-cyan-500'; // ✅ Brand gradient
   };
 
   const getProgressBgColor = (spent: number, limit: number) => {
     const percentage = (spent / limit) * 100;
     if (percentage >= 100) return 'bg-red-100';
-    if (percentage >= 80) return 'bg-yellow-100';
-    return 'bg-magenta-50'; // Soft magenta background
+    if (percentage >= 80) return 'bg-amber-100';
+    return 'bg-magenta-500/10'; // Soft magenta background
   };
 
   const totalBudget = budgets.reduce((sum, b) => sum + b.limit, 0);
@@ -47,36 +49,37 @@ export default function BudgetPage() {
     <div className="space-y-4">
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-magenta-500 to-cyan-500 rounded-2xl p-6 text-white shadow-xl">
-          <div className="flex items-center justify-between mb-4">
+        <div className="group relative overflow-hidden bg-gradient-to-br from-magenta-500 to-cyan-500 rounded-2xl p-6 text-white shadow-xl animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300">
+          <div className="absolute -top-10 -right-10 w-36 h-36 rounded-full bg-white/10 blur-2xl pointer-events-none transition-transform duration-500 group-hover:scale-110" />
+          <div className="relative flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium opacity-90">Total Budget</h3>
-            <svg className="w-8 h-8 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
+            <div className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              <Wallet className="w-5 h-5" />
+            </div>
           </div>
-          <p className="text-4xl font-bold">{formatCurrency(totalBudget)}</p>
-          <p className="text-sm opacity-80 mt-2">Monthly budget limit</p>
+          <p className="relative text-4xl font-bold">{formatCurrency(totalBudget)}</p>
+          <p className="relative text-sm opacity-80 mt-2">Monthly budget limit</p>
         </div>
 
-        <div className="bg-surface rounded-2xl p-6 shadow-lg border border-navy-700">
+        <div className="group bg-surface rounded-2xl p-6 shadow-lg border border-slate-200 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300" style={{ animationDelay: '70ms' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-text-dark">Total Spent</h3>
-            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-            </svg>
+            <div className="w-10 h-10 rounded-full bg-red-100 text-red-500 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              <TrendingDown className="w-5 h-5" />
+            </div>
           </div>
           <p className="text-3xl font-bold text-text-dark">{formatCurrency(totalSpent)}</p>
           <p className="text-sm text-slate-500 mt-2">
-            {((totalSpent / totalBudget) * 100).toFixed(0)}% of budget
+            {totalBudget > 0 ? `${((totalSpent / totalBudget) * 100).toFixed(0)}% of budget` : 'No budget set'}
           </p>
         </div>
 
-        <div className="bg-surface rounded-2xl p-6 shadow-lg border border-navy-700">
+        <div className="group bg-surface rounded-2xl p-6 shadow-lg border border-slate-200 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300" style={{ animationDelay: '140ms' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-text-dark">Remaining</h3>
-            <svg className="w-8 h-8 text-mint-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <div className="w-10 h-10 rounded-full bg-mint-500/20 text-mint-600 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              <PiggyBank className="w-5 h-5" />
+            </div>
           </div>
           <p className={`text-3xl font-bold ${totalRemaining >= 0 ? 'text-text-dark' : 'text-red-600'}`}>
             {formatCurrency(totalRemaining)}
@@ -86,25 +89,43 @@ export default function BudgetPage() {
       </div>
 
       {/* Budget Categories */}
-      <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-navy-700 p-6">
+      <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300" style={{ animationDelay: '210ms' }}>
         <h3 className="font-semibold text-text-dark mb-6">Budget by Category</h3>
+        {budgets.length === 0 ? (
+          <div className="flex flex-col items-center text-center py-10 px-6">
+            <div className="w-14 h-14 rounded-full bg-magenta-500/10 text-magenta-600 flex items-center justify-center mb-4">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <h4 className="font-medium text-text-dark mb-1">No budgets set up yet</h4>
+            <p className="text-sm text-slate-500 max-w-xs">
+              Create category budgets to track your spending and stay on top of your monthly goals.
+            </p>
+          </div>
+        ) : (
         <div className="space-y-6">
           {budgets.map((budget, idx) => {
             const percentage = Math.min((budget.spent / budget.limit) * 100, 100);
             const isOverBudget = budget.spent > budget.limit;
+            const { Icon: CategoryIcon, bg: iconBg, text: iconText } = getCategoryStyle(budget.category);
 
             return (
               <div
                 key={budget.id}
-                className="space-y-3 animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                className="group space-y-3 p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
                 style={{ animationDelay: `${idx * 70}ms` }}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium text-text-dark">{budget.category}</h4>
-                    <p className="text-sm text-slate-500">{budget.period}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`relative w-10 h-10 rounded-full ${iconBg} ${iconText} flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110`}>
+                      {isOverBudget && <span className="absolute inset-0 rounded-full bg-red-400/40 animate-ping" />}
+                      <CategoryIcon className="relative w-[18px] h-[18px]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-medium text-text-dark truncate">{budget.category}</h4>
+                      <p className="text-sm text-slate-500">{budget.period}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <p className={`font-semibold ${isOverBudget ? 'text-red-600' : 'text-text-dark'}`}>
                       {formatCurrency(budget.spent)} / {formatCurrency(budget.limit)}
                     </p>
@@ -118,11 +139,13 @@ export default function BudgetPage() {
                 <div className="relative">
                   <div className={`w-full ${getProgressBgColor(budget.spent, budget.limit)} rounded-full h-3 overflow-hidden`}>
                     <div
-                      className={`bg-gradient-to-r ${getProgressColor(budget.spent, budget.limit)} h-3 rounded-full transition-all duration-700 ease-out`}
+                      className={`relative overflow-hidden bg-gradient-to-r ${getProgressColor(budget.spent, budget.limit)} h-3 rounded-full transition-all duration-700 ease-out`}
                       style={{ width: `${percentage}%` }}
-                    ></div>
+                    >
+                      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                    </div>
                   </div>
-                  <span className="absolute right-0 -top-6 text-xs font-semibold text-slate-600">
+                  <span className="absolute right-0 -top-6 text-xs font-semibold text-slate-600 transition-colors duration-300 group-hover:text-slate-900">
                     {percentage.toFixed(0)}%
                   </span>
                 </div>
@@ -130,29 +153,49 @@ export default function BudgetPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Spending by Category */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300" style={{ animationDelay: '280ms' }}>
           <h3 className="font-semibold text-text-dark mb-6">Top Spending Categories</h3>
+          {topCategories.length === 0 ? (
+            <div className="flex flex-col items-center text-center py-10 px-6">
+              <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h4 className="font-medium text-text-dark mb-1">No spending yet</h4>
+              <p className="text-sm text-slate-500 max-w-xs">
+                Once you start spending, your top categories will show up here.
+              </p>
+            </div>
+          ) : (
           <div className="space-y-4">
             {topCategories.map(([category, amount], index) => {
               const maxAmount = topCategories[0][1];
               const percentage = (amount / maxAmount) * 100;
+              const { Icon: CategoryIcon, bg: iconBg, text: iconText } = getCategoryStyle(category);
+              const rankBg = ['bg-gradient-to-br from-magenta-500 to-cyan-500', 'bg-gradient-to-br from-cyan-500 to-mint-500', 'bg-slate-200'][Math.min(index, 2)];
+              const rankText = index < 2 ? 'text-white' : 'text-slate-600';
 
               return (
                 <div
                   key={category}
-                  className="group space-y-2 p-2 -m-2 rounded-lg hover:bg-navy-50 transition-colors duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                  className="group space-y-2 p-2 -m-2 rounded-lg hover:bg-slate-50 transition-colors duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
                   style={{ animationDelay: `${index * 70}ms` }}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl transition-transform duration-300 group-hover:scale-110">{index + 1}</span>
-                      <span className="font-medium text-text-dark">{category}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`w-6 h-6 rounded-full ${rankBg} ${rankText} text-xs font-bold flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110`}>
+                        {index + 1}
+                      </span>
+                      <div className={`w-9 h-9 rounded-full ${iconBg} ${iconText} flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110`}>
+                        <CategoryIcon className="w-4 h-4" />
+                      </div>
+                      <span className="font-medium text-text-dark truncate">{category}</span>
                     </div>
-                    <span className="font-semibold text-text-dark">{formatCurrency(amount)}</span>
+                    <span className="font-semibold text-text-dark flex-shrink-0">{formatCurrency(amount)}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                     <div
@@ -164,22 +207,32 @@ export default function BudgetPage() {
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Spending Insights */}
-        <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-navy-700 p-6">
+        <div className="bg-surface text-text-dark rounded-2xl shadow-lg border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300" style={{ animationDelay: '350ms' }}>
           <h3 className="font-semibold text-text-dark mb-6">Spending Insights</h3>
+          {budgets.length === 0 ? (
+            <div className="flex flex-col items-center text-center py-10 px-6">
+              <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
+                <Info className="w-6 h-6" />
+              </div>
+              <h4 className="font-medium text-text-dark mb-1">Nothing to analyze yet</h4>
+              <p className="text-sm text-slate-500 max-w-xs">
+                Set up budgets to get personalized insights about your spending habits.
+              </p>
+            </div>
+          ) : (
           <div className="space-y-4">
-            <div className="group p-4 bg-blue-50 border border-blue-200 rounded-lg hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '0ms' }}>
+            <div className="group p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '0ms' }}>
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
+                <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
+                  <Info className="w-[18px] h-[18px] text-white" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-blue-900 mb-1">Budget Status</h4>
-                  <p className="text-sm text-blue-800">
+                  <h4 className="font-medium text-cyan-600 mb-1">Budget Status</h4>
+                  <p className="text-sm text-slate-700">
                     {totalRemaining >= 0
                       ? `You're on track! ${formatCurrency(totalRemaining)} left to spend this month.`
                       : `You're over budget by ${formatCurrency(Math.abs(totalRemaining))}. Consider reducing spending.`}
@@ -188,17 +241,15 @@ export default function BudgetPage() {
               </div>
             </div>
 
-            <div className="group p-4 bg-mint-50 border border-mint-200 rounded-lg hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '70ms' }}>
+            <div className="group p-4 bg-mint-500/10 border border-mint-500/25 rounded-lg hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '70ms' }}>
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-mint-500 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+                <div className="w-8 h-8 bg-mint-600 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
+                  <CheckCircle2 className="w-[18px] h-[18px] text-white" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-medium text-mint-900 mb-1">Best Category</h4>
-                  <p className="text-sm text-mint-800">
-                    {budgets.sort((a, b) => (a.limit - a.spent) - (b.limit - b.spent))[budgets.length - 1]?.category} has the most budget remaining.
+                  <h4 className="font-medium text-mint-600 mb-1">Best Category</h4>
+                  <p className="text-sm text-text-dark/80">
+                    {[...budgets].sort((a, b) => (a.limit - a.spent) - (b.limit - b.spent))[budgets.length - 1]?.category} has the most budget remaining.
                   </p>
                 </div>
               </div>
@@ -208,9 +259,7 @@ export default function BudgetPage() {
               <div className="group p-4 bg-red-50 border border-red-200 rounded-lg hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '140ms' }}>
                 <div className="flex items-start space-x-3">
                   <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
+                    <AlertTriangle className="w-[18px] h-[18px] text-white" />
                   </div>
                   <div className="flex-1">
                     <h4 className="font-medium text-red-900 mb-1">Over Budget Alert</h4>
@@ -222,6 +271,7 @@ export default function BudgetPage() {
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

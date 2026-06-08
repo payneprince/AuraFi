@@ -76,6 +76,23 @@
 }
 
 /* Custom animations */
+@keyframes flow-right {
+  0% {
+    left: -4%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0px) rotate(0deg);

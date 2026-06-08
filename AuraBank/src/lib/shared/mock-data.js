@@ -19,7 +19,7 @@ export const mockUsers = {
           name: 'Primary Checking',
           type: 'checking',
           balance: 12458.50,
-          accountNumber: '****4521',
+          accountNumber: '102345678912',
           currency: 'USD',
           availableBalance: 12458.50,
           transactions: [

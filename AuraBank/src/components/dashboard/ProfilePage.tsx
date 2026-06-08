@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  User,
   Settings,
   Shield,
   Bell,
@@ -17,11 +16,13 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { UserDetailsModal } from './UserDetailsModal';
 
 export default function ProfilePage() {
   const { user, theme, setTheme, soundEnabled, toggleSound } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [twoFactor, setTwoFactor] = useState(true);
+  const [showUserDetails, setShowUserDetails] = useState(false);
 
   const sections = [
     {
@@ -72,7 +73,6 @@ export default function ProfilePage() {
       title: 'Resources',
       items: [
         { icon: FileText, label: 'Transaction Export', description: 'Download CSV summary' },
-        { icon: FileText, label: 'Sync Status', description: 'AuraBank snapshot sync active' },
       ],
     },
     {
@@ -91,27 +91,48 @@ export default function ProfilePage() {
     return `${protocol}//${host}:${port}${path}`;
   };
 
+  const sectionAccents = [
+    { bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
+    { bg: 'bg-cyan-500/10', text: 'text-cyan-600' },
+    { bg: 'bg-mint-500/15', text: 'text-mint-600' },
+    { bg: 'bg-slate-100', text: 'text-slate-600' },
+  ];
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="rounded-xl p-5 bg-gradient-to-r from-magenta-500 to-teal-500 text-white border border-white/20">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-shrink-0" style={{ width: 48, height: 48 }}>
+      <button
+        type="button"
+        onClick={() => setShowUserDetails(true)}
+        className="group relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-magenta-500 to-cyan-500 text-white shadow-xl animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300 w-full text-left transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-2xl cursor-pointer"
+      >
+        <div className="absolute -top-12 -right-12 w-44 h-44 rounded-full bg-white/10 blur-2xl pointer-events-none transition-transform duration-500 group-hover:scale-110" />
+        <div className="relative flex items-center gap-4">
+          <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
             <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80 border-r-white/30 animate-spin" style={{ animationDuration: '2.5s' }} />
-            <div className="absolute inset-[3px] rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
+            <div className="absolute inset-[3px] rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl font-bold ring-1 ring-white/25">
               {(user?.name || 'D').charAt(0).toUpperCase()}
             </div>
           </div>
-          <div>
-            <h2 className="font-bold">{user?.name || 'Demo User'}</h2>
-            <p className="text-sm opacity-90">{user?.email || 'user@aurabank.com'}</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-bold truncate">{user?.name || 'Demo User'}</h2>
+            <p className="text-sm opacity-85 truncate">{user?.email || 'demo@aurafinance.com'}</p>
           </div>
+          <ChevronRight className="w-5 h-5 text-white/70 flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5" />
         </div>
-      </div>
+      </button>
 
-      {sections.map((section, index) => (
-        <div key={index} className="rounded-lg border border-white/10 bg-[#0B1E39] overflow-hidden">
-          <div className="p-3 border-b border-white/10">
-            <h3 className="font-semibold text-sm text-white/90">{section.title}</h3>
+      <UserDetailsModal isOpen={showUserDetails} onClose={() => setShowUserDetails(false)} user={user} />
+
+      {sections.map((section, index) => {
+        const accent = sectionAccents[index % sectionAccents.length];
+        return (
+        <div
+          key={index}
+          className="rounded-2xl border border-slate-200 bg-surface shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+          style={{ animationDelay: `${(index + 1) * 80}ms` }}
+        >
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="font-semibold text-sm text-text-dark">{section.title}</h3>
           </div>
           <div>
             {section.items.map((item: any, itemIndex: number) => {
@@ -122,34 +143,36 @@ export default function ProfilePage() {
                   onClick={() => {
                     if (item.toggle && item.onChange) item.onChange(!item.value);
                   }}
-                  className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors border-b border-white/10 last:border-b-0 text-left"
+                  className="group/item w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors duration-200 border-b border-slate-100 last:border-b-0 text-left"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                      <Icon className="w-4 h-4 text-green-300" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-lg ${accent.bg} ${accent.text} flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover/item:scale-110`}>
+                      <Icon className="w-4 h-4" />
                     </div>
-                    <div>
-                      <p className="font-medium text-sm text-white">{item.label}</p>
-                      <p className="text-xs text-white/70">{item.description}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-text-dark truncate">{item.label}</p>
+                      <p className="text-xs text-slate-500 truncate">{item.description}</p>
                     </div>
                   </div>
 
                   {item.toggle ? (
-                    <div className={`w-8 h-4 rounded-full transition-colors ${item.value ? 'bg-green-500' : 'bg-white/20'}`}>
-                      <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${item.value ? 'ml-4' : 'ml-0.5'}`} />
+                    <div className={`relative w-10 h-6 rounded-full transition-colors duration-300 flex-shrink-0 ${item.value ? 'bg-mint-500' : 'bg-slate-200'}`}>
+                      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300 ${item.value ? 'left-[1.125rem]' : 'left-0.5'}`} />
                     </div>
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-white/50" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-300 group-hover/item:translate-x-0.5" />
                   )}
                 </button>
               );
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <button
-        className="w-full flex items-center justify-center gap-2 p-4 rounded-lg border border-red-400/30 text-red-300 hover:bg-red-500/10 transition-colors"
+        className="group w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-red-200 bg-red-50/60 text-red-600 font-medium hover:bg-red-100/70 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+        style={{ animationDelay: `${(sections.length + 1) * 80}ms` }}
         onClick={() => {
           clearUnifiedAuthSession();
           localStorage.removeItem('aurasuite_userId');
@@ -157,8 +180,8 @@ export default function ProfilePage() {
           window.location.href = buildAppUrl(3000, '/login');
         }}
       >
-        <LogOut className="w-4 h-4" />
-        <span className="font-semibold">Logout</span>
+        <LogOut className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+        <span>Logout</span>
       </button>
     </div>
   );

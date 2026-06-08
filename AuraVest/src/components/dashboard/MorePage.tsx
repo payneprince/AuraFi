@@ -1,9 +1,8 @@
 // src/components/dashboard/MorePage.tsx
 'use client';
 
-import { 
-  User, 
-  Settings, 
+import {
+  Settings,
   Shield, 
   Wallet, 
   Bell, 
@@ -12,33 +11,41 @@ import {
   BookOpen, 
   Gift, 
   LogOut, 
-  Smartphone, 
-  Moon, 
-  Sun,
+  Smartphone,
   ChevronRight,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { exportTransactionsCSV } from '@/lib/mockAPI';
-import { clearUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { clearUnifiedAuthSession, readUnifiedAuthSession } from '../../../../shared/unified-auth';
+import { getUser as getDemoUser } from '../../../../shared/mock-data';
+import { UserDetailsModal } from './UserDetailsModal';
 
 export default function MorePage() {
-  const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [twoFactor, setTwoFactor] = useState(true);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [profile, setProfile] = useState<{ id: string; name: string; email: string; phone?: string; address?: string }>({
+    id: '1',
+    name: 'Demo User',
+    email: 'demo@aurafinance.com',
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedDarkMode = localStorage.getItem('auravest_dark_mode') === 'true';
-      setDarkMode(savedDarkMode);
+      const session = readUnifiedAuthSession();
+      const userId = sessionStorage.getItem('paynesuite_userId') || session?.userId;
+      const name = session?.name || 'Demo User';
+      const email = session?.email || 'demo@aurafinance.com';
+      const isDemoUser = String(userId || '1') === '1' || email.toLowerCase() === 'demo@aurafinance.com';
+
+      if (isDemoUser) {
+        const demoProfile = getDemoUser('user_123');
+        setProfile({ id: userId || '1', name, email, phone: demoProfile?.phone, address: demoProfile?.address });
+      } else {
+        setProfile({ id: userId || '1', name, email });
+      }
     }
   }, []);
-
-  const toggleDarkMode = () => {
-    const newDarkMode = !darkMode;
-    setDarkMode(newDarkMode);
-    localStorage.setItem('auravest_dark_mode', String(newDarkMode));
-    document.documentElement.classList.toggle('dark', newDarkMode);
-  };
 
   const buildAppUrl = (port: number, path = '') => {
     if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
@@ -48,12 +55,6 @@ export default function MorePage() {
   };
 
   const menuSections = [
-    {
-      title: 'Account',
-      items: [
-        { icon: User, label: 'Profile', description: 'Manage your profile' },
-      ]
-    },
     {
       title: 'Security',
       items: [
@@ -66,7 +67,6 @@ export default function MorePage() {
       title: 'Preferences',
       items: [
         { icon: Bell, label: 'Notifications', description: notifications ? 'Enabled' : 'Disabled', toggle: true, value: notifications, onChange: setNotifications },
-        { icon: darkMode ? Sun : Moon, label: 'Dark Mode', description: darkMode ? 'On' : 'Off', toggle: true, value: darkMode, onChange: toggleDarkMode },
       ]
     },
     {
@@ -107,21 +107,35 @@ export default function MorePage() {
       </div>
 
       {/* User Profile Card */}
-      <div className="gradient-primary rounded-xl p-5 text-white">
+      <button
+        type="button"
+        onClick={() => setShowUserDetails(true)}
+        className="group w-full text-left gradient-primary rounded-xl p-5 text-white transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl cursor-pointer animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+      >
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
-            D
+          <div className="relative flex-shrink-0" style={{ width: 48, height: 48 }}>
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80 border-r-white/30 animate-spin" style={{ animationDuration: '2.5s' }} />
+            <div className="absolute inset-[3px] rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-lg font-bold ring-1 ring-white/25">
+              {profile.name.charAt(0).toUpperCase()}
+            </div>
           </div>
-          <div>
-            <h2 className="font-bold">Demo User</h2>
-            <p className="text-sm opacity-90">test@auravest.com</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-bold truncate">{profile.name}</h2>
+            <p className="text-sm opacity-90 truncate">{profile.email}</p>
           </div>
+          <ChevronRight className="w-5 h-5 text-white/70 flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5" />
         </div>
-      </div>
+      </button>
+
+      <UserDetailsModal isOpen={showUserDetails} onClose={() => setShowUserDetails(false)} user={profile} />
 
       {/* Menu Sections */}
       {menuSections.map((section, idx) => (
-        <div key={idx} className="bg-card border border-border rounded-lg overflow-hidden">
+        <div
+          key={idx}
+          className="bg-card border border-border rounded-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+          style={{ animationDelay: `${(idx + 1) * 80}ms` }}
+        >
           <div className="p-3 border-b border-border">
             <h3 className="font-semibold text-sm">{section.title}</h3>
           </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Home,
@@ -8,10 +8,7 @@ import {
   Wallet,
   ArrowLeftRight,
   Menu,
-  Sun,
-  Moon,
   BookOpen,
-  LayoutGrid,
 } from 'lucide-react';
 import DashboardHome from './DashboardHome';
 import MarketsPage from './MarketsPage';
@@ -28,12 +25,9 @@ import { TransferToastContainer, TransferToastData } from '@/components/Transfer
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'markets' | 'portfolio' | 'trade' | 'more' | 'learn'>('home');
-  const [darkMode, setDarkMode] = useState(false);
   const [syncVersion, setSyncVersion] = useState(0);
-  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
   const [transferToasts, setTransferToasts] = useState<TransferToastData[]>([]);
   const dismissTransferToast = (id: string) => setTransferToasts((p) => p.filter((t) => t.id !== id));
-  const appSwitcherRef = useRef<HTMLDivElement | null>(null);
 
   // Redirect to login if no session exists on first load
   useEffect(() => {
@@ -59,15 +53,6 @@ export default function DashboardClient() {
     };
     window.addEventListener('auravest:navigate', handleNavigate);
     return () => window.removeEventListener('auravest:navigate', handleNavigate);
-  }, []);
-
-  // Dark mode setup
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedDarkMode = localStorage.getItem('auravest_dark_mode') === 'true';
-      setDarkMode(savedDarkMode);
-      if (savedDarkMode) document.documentElement.classList.add('dark');
-    }
   }, []);
 
   useEffect(() => {
@@ -204,13 +189,6 @@ export default function DashboardClient() {
     };
   }, []);
 
-  const toggleDarkMode = () => {
-    const newDarkMode = !darkMode;
-    setDarkMode(newDarkMode);
-    localStorage.setItem('auravest_dark_mode', String(newDarkMode));
-    document.documentElement.classList.toggle('dark', newDarkMode);
-  };
-
   const buildAppUrl = (port: number, path = '') => {
     if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
     const host = window.location.hostname || 'localhost';
@@ -227,19 +205,8 @@ export default function DashboardClient() {
     });
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!appSwitcherRef.current) return;
-      if (appSwitcherRef.current.contains(event.target as Node)) return;
-      setAppSwitcherOpen(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col">
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-40">
         <div className="grid grid-cols-5 gap-1 p-2">
@@ -266,23 +233,21 @@ export default function DashboardClient() {
         </div>
       </div>
 
-      {/* Sidebar - Hidden on mobile */}
-      <aside className="hidden md:flex w-60 bg-black flex-col border-r border-slate-800/40">
+      {/* Top Navigation Bar - Hidden on mobile */}
+      <header className="hidden md:flex items-center justify-between px-6 py-3 bg-black border-b border-slate-800/40 sticky top-0 z-30">
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-slate-800/60">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
-              <Image src="/logo.jpeg" alt="AuraVest" width={36} height={36} className="object-contain" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-white leading-tight">AuraVest</h1>
-              <p className="text-[10px] text-slate-400 leading-tight">Invest Smarter</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
+            <Image src="/logo.jpeg" alt="AuraVest" width={36} height={36} className="object-contain" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-white leading-tight">AuraVest</h1>
+            <p className="text-[10px] text-slate-400 leading-tight">Invest Smarter</p>
           </div>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex items-center gap-1.5">
           {[
             { id: 'home',      label: 'Home',      icon: Home },
             { id: 'markets',   label: 'Markets',   icon: TrendingUp },
@@ -296,7 +261,7 @@ export default function DashboardClient() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as any)}
-                className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all ${
+                className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-left transition-all ${
                   active
                     ? 'bg-gradient-to-r from-red-700 to-red-900 text-white shadow-lg shadow-red-900/30'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -304,48 +269,12 @@ export default function DashboardClient() {
               >
                 <item.icon className={`w-4.5 h-4.5 flex-shrink-0 ${active ? 'text-white' : ''}`} />
                 <span className="font-medium text-sm">{item.label}</span>
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white/70" />}
+                {active && <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-1.5 h-1.5 rounded-full bg-white/70" />}
               </button>
             );
           })}
         </nav>
-
-        {/* Bottom: app switcher + dark mode */}
-        <div className="px-3 py-4 border-t border-slate-800/60 space-y-1">
-          <div ref={appSwitcherRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setAppSwitcherOpen((prev) => !prev)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-            >
-              <LayoutGrid className="w-4 h-4 flex-shrink-0" />
-              <span className="font-medium text-sm">Switch App</span>
-            </button>
-            {appSwitcherOpen && (
-              <div className="absolute bottom-full left-0 mb-2 w-44 rounded-xl border border-slate-700 bg-slate-800 shadow-2xl overflow-hidden z-20">
-                {[
-                  { label: 'AuraFinance', port: 3000, path: '/dashboard' },
-                  { label: 'AuraBank', port: 3001, path: '' },
-                  { label: 'AuraWallet', port: 3003, path: '' },
-                ].map(({ label, port, path }) => (
-                  <button key={label} type="button"
-                    onClick={() => { setAppSwitcherOpen(false); window.open(buildAppUrl(port, path), '_blank', 'noopener,noreferrer'); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                  >{label}</button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all"
-          >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="font-medium text-sm">{darkMode ? 'Light mode' : 'Dark mode'}</span>
-          </button>
-        </div>
-      </aside>
+      </header>
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
@@ -354,7 +283,7 @@ export default function DashboardClient() {
         {activeTab === 'markets' && <MarketsPage key={`markets-${syncVersion}`} />}
         {activeTab === 'portfolio' && <PortfolioPage key={`portfolio-${syncVersion}`} />}
         {activeTab === 'trade' && <TradePage key={`trade-${syncVersion}`} />}
-        
+
         {activeTab === 'more' && <MorePage key={`more-${syncVersion}`} />}
         {activeTab === 'learn' && <LearnPage key={`learn-${syncVersion}`} />}
       </main>

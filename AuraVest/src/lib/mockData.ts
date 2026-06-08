@@ -8,7 +8,7 @@ export const cryptoAssets = [
     change24h: 2.34,
     marketCap: 845000000000,
     volume24h: 28000000000,
-    image: '₿'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/btc.svg'
   },
   {
     id: 'ETH',
@@ -18,7 +18,7 @@ export const cryptoAssets = [
     change24h: -1.23,
     marketCap: 274000000000,
     volume24h: 15000000000,
-    image: 'Ξ'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/eth.svg'
   },
   {
     id: 'BNB',
@@ -28,7 +28,7 @@ export const cryptoAssets = [
     change24h: 3.45,
     marketCap: 48000000000,
     volume24h: 1200000000,
-    image: 'BNB'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/bnb.svg'
   },
   {
     id: 'SOL',
@@ -38,7 +38,7 @@ export const cryptoAssets = [
     change24h: 5.67,
     marketCap: 42000000000,
     volume24h: 2100000000,
-    image: 'SOL'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/sol.svg'
   },
   {
     id: 'ADA',
@@ -48,7 +48,7 @@ export const cryptoAssets = [
     change24h: 1.89,
     marketCap: 16000000000,
     volume24h: 450000000,
-    image: 'ADA'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/ada.svg'
   },
   {
     id: 'DOT',
@@ -58,7 +58,7 @@ export const cryptoAssets = [
     change24h: -0.95,
     marketCap: 9500000000,
     volume24h: 320000000,
-    image: 'DOT'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/dot.svg'
   },
   {
     id: 'LINK',
@@ -68,7 +68,7 @@ export const cryptoAssets = [
     change24h: 2.67,
     marketCap: 7800000000,
     volume24h: 280000000,
-    image: 'LINK'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/link.svg'
   },
   {
     id: 'AVAX',
@@ -78,7 +78,7 @@ export const cryptoAssets = [
     change24h: 4.12,
     marketCap: 11000000000,
     volume24h: 580000000,
-    image: 'AVAX'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/avax.svg'
   },
   {
     id: 'MATIC',
@@ -88,7 +88,7 @@ export const cryptoAssets = [
     change24h: -1.45,
     marketCap: 7800000000,
     volume24h: 210000000,
-    image: 'MATIC'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/matic.svg'
   },
   {
     id: 'UNI',
@@ -98,7 +98,7 @@ export const cryptoAssets = [
     change24h: 3.21,
     marketCap: 4800000000,
     volume24h: 180000000,
-    image: 'UNI'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/uni.svg'
   },
   {
     id: 'ALGO',
@@ -108,7 +108,7 @@ export const cryptoAssets = [
     change24h: 0.87,
     marketCap: 1300000000,
     volume24h: 45000000,
-    image: 'ALGO'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/algo.svg'
   },
   {
     id: 'VET',
@@ -118,7 +118,7 @@ export const cryptoAssets = [
     change24h: -2.34,
     marketCap: 1800000000,
     volume24h: 65000000,
-    image: 'VET'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/vet.svg'
   },
   {
     id: 'ICP',
@@ -128,7 +128,7 @@ export const cryptoAssets = [
     change24h: 6.78,
     marketCap: 4100000000,
     volume24h: 190000000,
-    image: 'ICP'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/icp.svg'
   },
   {
     id: 'FIL',
@@ -138,7 +138,7 @@ export const cryptoAssets = [
     change24h: 1.23,
     marketCap: 2400000000,
     volume24h: 120000000,
-    image: 'FIL'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/fil.svg'
   },
   {
     id: 'TRX',
@@ -148,7 +148,7 @@ export const cryptoAssets = [
     change24h: -0.67,
     marketCap: 9500000000,
     volume24h: 280000000,
-    image: 'TRX'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/trx.svg'
   },
   {
     id: 'ETC',
@@ -158,7 +158,7 @@ export const cryptoAssets = [
     change24h: 2.15,
     marketCap: 3300000000,
     volume24h: 140000000,
-    image: 'ETC'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/etc.svg'
   },
   {
     id: 'XLM',
@@ -168,7 +168,7 @@ export const cryptoAssets = [
     change24h: -0.45,
     marketCap: 3200000000,
     volume24h: 95000000,
-    image: 'XLM'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/xlm.svg'
   },
   {
     id: 'THETA',
@@ -178,7 +178,7 @@ export const cryptoAssets = [
     change24h: 3.89,
     marketCap: 1450000000,
     volume24h: 78000000,
-    image: 'THETA'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/theta.svg'
   },
   {
     id: 'FTM',
@@ -188,7 +188,7 @@ export const cryptoAssets = [
     change24h: 1.67,
     marketCap: 1150000000,
     volume24h: 125000000,
-    image: 'FTM'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/ftm.svg'
   },
   {
     id: 'HBAR',
@@ -198,7 +198,7 @@ export const cryptoAssets = [
     change24h: -1.23,
     marketCap: 2100000000,
     volume24h: 45000000,
-    image: 'HBAR'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/hbar.svg'
   },
   {
     id: 'NEAR',
@@ -208,7 +208,7 @@ export const cryptoAssets = [
     change24h: 4.56,
     marketCap: 2800000000,
     volume24h: 145000000,
-    image: 'NEAR'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/near.svg'
   },
   {
     id: 'FLOW',
@@ -218,7 +218,7 @@ export const cryptoAssets = [
     change24h: 2.34,
     marketCap: 1100000000,
     volume24h: 52000000,
-    image: 'FLOW'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/flow.svg'
   },
   {
     id: 'MANA',
@@ -228,7 +228,7 @@ export const cryptoAssets = [
     change24h: -0.89,
     marketCap: 750000000,
     volume24h: 38000000,
-    image: 'MANA'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/mana.svg'
   },
   {
     id: 'SAND',
@@ -238,7 +238,7 @@ export const cryptoAssets = [
     change24h: 1.67,
     marketCap: 850000000,
     volume24h: 42000000,
-    image: 'SAND'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/sand.svg'
   },
   {
     id: 'AXS',
@@ -248,7 +248,7 @@ export const cryptoAssets = [
     change24h: 3.21,
     marketCap: 950000000,
     volume24h: 78000000,
-    image: 'AXS'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/axs.svg'
   },
   {
     id: 'CHZ',
@@ -258,7 +258,7 @@ export const cryptoAssets = [
     change24h: -2.45,
     marketCap: 650000000,
     volume24h: 25000000,
-    image: 'CHZ'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/chz.svg'
   },
   {
     id: 'ENJ',
@@ -268,7 +268,7 @@ export const cryptoAssets = [
     change24h: 0.78,
     marketCap: 320000000,
     volume24h: 18000000,
-    image: 'ENJ'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/enj.svg'
   },
   {
     id: 'BAT',
@@ -278,7 +278,7 @@ export const cryptoAssets = [
     change24h: -1.12,
     marketCap: 330000000,
     volume24h: 15000000,
-    image: 'BAT'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/bat.svg'
   },
   {
     id: 'ZRX',
@@ -288,7 +288,7 @@ export const cryptoAssets = [
     change24h: 2.89,
     marketCap: 270000000,
     volume24h: 12000000,
-    image: 'ZRX'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/zrx.svg'
   },
   {
     id: 'STORJ',
@@ -298,7 +298,7 @@ export const cryptoAssets = [
     change24h: 1.45,
     marketCap: 180000000,
     volume24h: 8500000,
-    image: 'STORJ'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/storj.svg'
   },
   {
     id: 'ANT',
@@ -308,7 +308,7 @@ export const cryptoAssets = [
     change24h: -0.67,
     marketCap: 140000000,
     volume24h: 5200000,
-    image: 'ANT'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/ant.svg'
   },
   {
     id: 'REP',
@@ -318,7 +318,7 @@ export const cryptoAssets = [
     change24h: 3.45,
     marketCap: 98000000,
     volume24h: 3200000,
-    image: 'REP'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/rep.svg'
   },
   {
     id: 'GNT',
@@ -328,7 +328,7 @@ export const cryptoAssets = [
     change24h: -1.89,
     marketCap: 180000000,
     volume24h: 6500000,
-    image: 'GNT'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/gnt.svg'
   },
   {
     id: 'ARK',
@@ -338,7 +338,7 @@ export const cryptoAssets = [
     change24h: 0.23,
     marketCap: 45000000,
     volume24h: 1800000,
-    image: 'ARK'
+    image: 'https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/ark.svg'
   }
 ];
 
@@ -355,7 +355,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 28.5,
     dividend: 0.57,
-    image: 'AAPL'
+    image: 'https://www.google.com/s2/favicons?domain=apple.com&sz=128'
   },
   {
     id: 'MSFT',
@@ -368,7 +368,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 35.2,
     dividend: 0.68,
-    image: 'MSFT'
+    image: 'https://www.google.com/s2/favicons?domain=microsoft.com&sz=128'
   },
   {
     id: 'GOOGL',
@@ -381,7 +381,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 25.8,
     dividend: 0,
-    image: 'GOOGL'
+    image: 'https://www.google.com/s2/favicons?domain=google.com&sz=128'
   },
   {
     id: 'TSLA',
@@ -394,7 +394,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 68.4,
     dividend: 0,
-    image: 'TSLA'
+    image: 'https://www.google.com/s2/favicons?domain=tesla.com&sz=128'
   },
   {
     id: 'AMZN',
@@ -407,7 +407,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 42.1,
     dividend: 0,
-    image: 'AMZN'
+    image: 'https://www.google.com/s2/favicons?domain=amazon.com&sz=128'
   },
   {
     id: 'NVDA',
@@ -420,7 +420,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 65.8,
     dividend: 0.16,
-    image: 'NVDA'
+    image: 'https://www.google.com/s2/favicons?domain=nvidia.com&sz=128'
   },
   {
     id: 'META',
@@ -433,7 +433,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 24.7,
     dividend: 0,
-    image: 'META'
+    image: 'https://www.google.com/s2/favicons?domain=meta.com&sz=128'
   },
   {
     id: 'NFLX',
@@ -446,7 +446,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 38.9,
     dividend: 0,
-    image: 'NFLX'
+    image: 'https://www.google.com/s2/favicons?domain=netflix.com&sz=128'
   },
   {
     id: 'JPM',
@@ -459,7 +459,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 11.2,
     dividend: 4.60,
-    image: 'JPM'
+    image: 'https://www.google.com/s2/favicons?domain=jpmorganchase.com&sz=128'
   },
   {
     id: 'V',
@@ -472,7 +472,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 31.5,
     dividend: 1.80,
-    image: 'V'
+    image: 'https://www.google.com/s2/favicons?domain=visa.com&sz=128'
   },
   {
     id: 'JNJ',
@@ -485,7 +485,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 18.3,
     dividend: 4.96,
-    image: 'JNJ'
+    image: 'https://www.google.com/s2/favicons?domain=jnj.com&sz=128'
   },
   {
     id: 'WMT',
@@ -498,7 +498,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 22.8,
     dividend: 2.28,
-    image: 'WMT'
+    image: 'https://www.google.com/s2/favicons?domain=walmart.com&sz=128'
   },
   {
     id: 'PG',
@@ -511,7 +511,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 24.1,
     dividend: 3.76,
-    image: 'PG'
+    image: 'https://www.google.com/s2/favicons?domain=pg.com&sz=128'
   },
   {
     id: 'KO',
@@ -524,7 +524,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 25.6,
     dividend: 1.84,
-    image: 'KO'
+    image: 'https://www.google.com/s2/favicons?domain=coca-colacompany.com&sz=128'
   },
   {
     id: 'DIS',
@@ -537,7 +537,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 28.9,
     dividend: 0,
-    image: 'DIS'
+    image: 'https://www.google.com/s2/favicons?domain=disney.com&sz=128'
   },
   {
     id: 'BA',
@@ -550,7 +550,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 45.2,
     dividend: 0,
-    image: 'BA'
+    image: 'https://www.google.com/s2/favicons?domain=boeing.com&sz=128'
   },
   {
     id: 'XOM',
@@ -563,7 +563,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 14.8,
     dividend: 3.80,
-    image: 'XOM'
+    image: 'https://www.google.com/s2/favicons?domain=exxonmobil.com&sz=128'
   },
   {
     id: 'PFE',
@@ -576,7 +576,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 15.6,
     dividend: 1.68,
-    image: 'PFE'
+    image: 'https://www.google.com/s2/favicons?domain=pfizer.com&sz=128'
   },
   {
     id: 'INTC',
@@ -589,7 +589,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 18.9,
     dividend: 0.50,
-    image: 'INTC'
+    image: 'https://www.google.com/s2/favicons?domain=intel.com&sz=128'
   },
   {
     id: 'AMD',
@@ -602,7 +602,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 185.4,
     dividend: 0,
-    image: 'AMD'
+    image: 'https://www.google.com/s2/favicons?domain=amd.com&sz=128'
   },
   {
     id: 'CRM',
@@ -615,7 +615,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 45.2,
     dividend: 0,
-    image: 'CRM'
+    image: 'https://www.google.com/s2/favicons?domain=salesforce.com&sz=128'
   },
   {
     id: 'ORCL',
@@ -628,7 +628,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 23.8,
     dividend: 1.20,
-    image: 'ORCL'
+    image: 'https://www.google.com/s2/favicons?domain=oracle.com&sz=128'
   },
   {
     id: 'IBM',
@@ -641,7 +641,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 19.6,
     dividend: 6.64,
-    image: 'IBM'
+    image: 'https://www.google.com/s2/favicons?domain=ibm.com&sz=128'
   },
   {
     id: 'CSCO',
@@ -654,7 +654,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 16.8,
     dividend: 1.56,
-    image: 'CSCO'
+    image: 'https://www.google.com/s2/favicons?domain=cisco.com&sz=128'
   },
   {
     id: 'ADBE',
@@ -667,7 +667,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 38.9,
     dividend: 0,
-    image: 'ADBE'
+    image: 'https://www.google.com/s2/favicons?domain=adobe.com&sz=128'
   },
   {
     id: 'NOW',
@@ -680,7 +680,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 85.4,
     dividend: 0,
-    image: 'NOW'
+    image: 'https://www.google.com/s2/favicons?domain=servicenow.com&sz=128'
   },
   {
     id: 'UBER',
@@ -693,7 +693,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 28.7,
     dividend: 0,
-    image: 'UBER'
+    image: 'https://www.google.com/s2/favicons?domain=uber.com&sz=128'
   },
   {
     id: 'SPOT',
@@ -706,7 +706,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 0, // Negative P/E
     dividend: 0,
-    image: 'SPOT'
+    image: 'https://www.google.com/s2/favicons?domain=spotify.com&sz=128'
   },
   {
     id: 'ZM',
@@ -719,7 +719,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 22.3,
     dividend: 0,
-    image: 'ZM'
+    image: 'https://www.google.com/s2/favicons?domain=zoom.us&sz=128'
   },
   {
     id: 'SQ',
@@ -732,7 +732,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 0, // Negative P/E
     dividend: 0,
-    image: 'SQ'
+    image: 'https://www.google.com/s2/favicons?domain=block.xyz&sz=128'
   },
   {
     id: 'SHOP',
@@ -745,7 +745,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 0, // Negative P/E
     dividend: 0,
-    image: 'SHOP'
+    image: 'https://www.google.com/s2/favicons?domain=shopify.com&sz=128'
   },
   {
     id: 'PYPL',
@@ -758,7 +758,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 15.8,
     dividend: 0,
-    image: 'PYPL'
+    image: 'https://www.google.com/s2/favicons?domain=paypal.com&sz=128'
   },
   {
     id: 'EBAY',
@@ -771,7 +771,7 @@ export const stockAssets = [
     exchange: 'NASDAQ',
     pe: 12.4,
     dividend: 1.08,
-    image: 'EBAY'
+    image: 'https://www.google.com/s2/favicons?domain=ebay.com&sz=128'
   },
   {
     id: 'TWTR',
@@ -784,7 +784,7 @@ export const stockAssets = [
     exchange: 'NYSE',
     pe: 25.6,
     dividend: 0,
-    image: 'TWTR'
+    image: 'https://www.google.com/s2/favicons?domain=x.com&sz=128'
   }
 ];
 

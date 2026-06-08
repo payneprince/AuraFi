@@ -34,7 +34,7 @@ const categoryStyles: Record<string, { Icon: any; bg: string; text: string }> = 
   'Music': { Icon: Music, bg: 'bg-magenta-500/10', text: 'text-magenta-600' },
 };
 
-const getCategoryStyle = (category: string) => categoryStyles[category] || { Icon: Receipt, bg: 'bg-slate-100', text: 'text-slate-500' };
+export const getCategoryStyle = (category: string) => categoryStyles[category] || { Icon: Receipt, bg: 'bg-slate-100', text: 'text-slate-500' };
 
 export default function TransactionsPage({ userId }: { userId: number }) {
   const { accounts, transactions: allTransactions } = useAuth();

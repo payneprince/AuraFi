@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from 'react';
-import { CircleCheckBig } from 'lucide-react';
+import { CircleCheckBig, Smartphone } from 'lucide-react';
 import WalletModal from '@/components/WalletModal';
 import { auraBankCards } from '@/components/CardManager';
 // @ts-ignore
@@ -93,9 +93,14 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
   }, [auraBankSnapshot]);
 
   const mobileNetworks = [
-    { id: 'mtn', name: 'MTN Mobile Money' },
-    { id: 'telecel', name: 'Telecel Cash' },
-    { id: 'airteltigo', name: 'AirtelTigo Money' },
+    { id: 'mtn', name: 'MTN Mobile Money', logo: '/app-logos/mtnmomo.png', ring: 'ring-yellow-400/40', glow: 'bg-yellow-400/30' },
+    { id: 'telecel', name: 'Telecel Cash', logo: '/app-logos/telecelcash.jpg', ring: 'ring-red-400/40', glow: 'bg-red-500/30' },
+    { id: 'airteltigo', name: 'AirtelTigo Money', logo: '/app-logos/atmoney.jpg', ring: 'ring-blue-400/40', glow: 'bg-blue-500/30' },
+  ];
+
+  const methodOptions: Array<{ id: 'mobile' | 'card'; label: string; logo?: string; icon?: typeof Smartphone; ring: string; glow: string }> = [
+    { id: 'mobile', label: 'Mobile Money', logo: '/app-logos/mobilemoney.jpg', ring: 'ring-emerald-400/40', glow: 'bg-emerald-500/30' },
+    { id: 'card', label: 'AuraBank Card', logo: '/app-logos/bank.jpg', ring: 'ring-indigo-400/40', glow: 'bg-indigo-500/30' },
   ];
 
   const [amount, setAmount] = useState('');
@@ -369,16 +374,46 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
 
   return (
     <form onSubmit={submit} className="rounded-xl">
-      <div className="mb-2">
+      <div className="mb-3">
         <label className="text-white/80 text-base font-semibold">Amount</label>
-        <input value={amount} onChange={(e)=>setAmount(e.target.value)} placeholder="0.00" className="w-full mt-1 px-3 py-2 rounded-lg bg-transparent border border-white/15 text-white" />
+        <input
+          value={amount}
+          onChange={(e)=>setAmount(e.target.value)}
+          placeholder="0.00"
+          className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
+        />
       </div>
 
-      <div className="mb-2">
+      <div className="mb-3">
         <label className="text-white/80 text-base font-semibold">Method</label>
-        <div className="flex gap-2 mt-1">
-          <button type="button" onClick={()=>setMethod('mobile')} className={`px-3 py-1.5 rounded-lg text-base font-semibold ${method==='mobile' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}>Mobile Money</button>
-          <button type="button" onClick={()=>setMethod('card')} className={`px-3 py-1.5 rounded-lg text-base font-semibold ${method==='card' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}>AuraBank Card</button>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {methodOptions.map((option) => {
+            const active = method === option.id;
+            const Icon = option.icon;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setMethod(option.id)}
+                className={`group relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all duration-200 ${
+                  active
+                    ? 'border-green-400/40 bg-green-500/10 text-white shadow-sm'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:-translate-y-0.5'
+                }`}
+              >
+                <span className={`relative flex items-center justify-center w-9 h-9 rounded-full bg-white overflow-hidden ring-2 ${option.ring} flex-shrink-0 transition-transform duration-300 ${active ? 'scale-110' : ''}`}>
+                  {active && <span className={`absolute inset-0 ${option.glow} blur-lg animate-pulse`} />}
+                  {option.logo ? (
+                    <img src={option.logo} alt={option.label} className="relative w-full h-full object-cover" />
+                  ) : Icon ? (
+                    <Icon className="relative w-4 h-4 text-emerald-600" />
+                  ) : null}
+                </span>
+                {option.label}
+                {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -388,14 +423,14 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
           <button
             type="button"
             onClick={() => setScheduleMode('now')}
-            className={`px-3 py-1.5 rounded-lg text-base font-semibold ${scheduleMode === 'now' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}
+            className={`px-3 py-1.5 rounded-lg text-base font-semibold transition-all duration-200 ${scheduleMode === 'now' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}
           >
             Now
           </button>
           <button
             type="button"
             onClick={() => setScheduleMode('later')}
-            className={`px-3 py-1.5 rounded-lg text-base font-semibold ${scheduleMode === 'later' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}
+            className={`px-3 py-1.5 rounded-lg text-base font-semibold transition-all duration-200 ${scheduleMode === 'later' ? 'bg-gradient-to-r from-black via-white/15 to-green-500 text-white' : 'bg-white/5 text-white/80 hover:bg-white/10'}`}
           >
             Later
           </button>
@@ -403,32 +438,45 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       </div>
 
       {scheduleMode === 'later' && (
-        <div className="mb-3">
+        <div className="mb-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
           <label className="text-white/80 text-base font-semibold">Schedule For</label>
           <input
             type="datetime-local"
             value={scheduledFor}
             onChange={(e) => setScheduledFor(e.target.value)}
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-transparent border border-white/15 text-white"
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
           />
         </div>
       )}
 
       {method === 'mobile' ? (
-        <>
+        <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
           <div className="mb-3">
             <label className="text-white/80 text-base font-semibold">Mobile Money Network</label>
-            <select
-              value={selectedNetworkId}
-              onChange={(e) => setSelectedNetworkId(e.target.value)}
-              className="w-full mt-1 px-3 py-2 rounded-lg bg-transparent border border-white/15 text-white"
-            >
-              {mobileNetworks.map((network) => (
-                <option key={network.id} value={network.id} className="text-black">
-                  {network.name}
-                </option>
-              ))}
-            </select>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {mobileNetworks.map((network) => {
+                const active = selectedNetworkId === network.id;
+                return (
+                  <button
+                    key={network.id}
+                    type="button"
+                    onClick={() => setSelectedNetworkId(network.id)}
+                    className={`group relative flex flex-col items-center gap-2 px-2 py-3 rounded-xl border text-xs font-semibold transition-all duration-200 ${
+                      active
+                        ? 'border-green-400/40 bg-green-500/10 text-white shadow-sm'
+                        : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:-translate-y-0.5'
+                    }`}
+                  >
+                    <span className={`relative flex items-center justify-center w-10 h-10 rounded-2xl bg-white overflow-hidden ring-2 ${network.ring} transition-transform duration-300 ${active ? 'scale-110' : ''}`}>
+                      {active && <span className={`absolute inset-0 ${network.glow} blur-lg animate-pulse`} />}
+                      <img src={network.logo} alt={network.name} className="relative w-full h-full object-cover" />
+                    </span>
+                    <span className="text-center leading-tight">{network.name}</span>
+                    {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="mb-3">
@@ -437,17 +485,22 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
               value={mobileRecipient}
               onChange={(e)=>setMobileRecipient(e.target.value)}
               placeholder="+233..."
-              className="w-full mt-1 px-3 py-2 rounded-lg bg-transparent border border-white/15 text-white"
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
             />
           </div>
-        </>
+        </div>
       ) : (
-        <div className="mb-3">
-          <label className="text-white/80 text-base font-semibold">AuraBank Card Recipient</label>
+        <div className="mb-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+          <label className="text-white/80 text-base font-semibold flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-indigo-400/40">
+              <img src="/app-logos/bank.jpg" alt="AuraBank" className="w-full h-full object-cover" />
+            </span>
+            AuraBank Card Recipient
+          </label>
           <select
             value={selectedCardId}
             onChange={(e) => setSelectedCardId(e.target.value)}
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-transparent border border-white/15 text-white"
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
           >
             {bankCards.map((card) => (
               <option key={card.id} value={String(card.id)} className="text-black">
@@ -517,7 +570,10 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       )}
 
       <div className="flex items-center justify-between">
-        <button type="submit" className="bg-gradient-to-r from-black via-white/15 to-green-500 text-white px-4 py-2 rounded-lg text-base font-bold hover:opacity-90">Send</button>
+        <button type="submit" className="group relative overflow-hidden bg-gradient-to-r from-black via-white/15 to-green-500 text-white px-4 py-2 rounded-lg text-base font-bold hover:opacity-90 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-green-500/20">
+          <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <span className="relative">Send</span>
+        </button>
         <div className="text-white/80 text-base font-medium">{status}</div>
       </div>
 
@@ -537,7 +593,18 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
             <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5 text-sm">
               <div className="flex items-center justify-between text-white/80">
                 <span>Method</span>
-                <span className="text-white font-semibold">{successModal.method === 'mobile' ? 'Mobile Money' : 'AuraBank Card'}</span>
+                <span className="flex items-center gap-2 text-white font-semibold">
+                  {successModal.method === 'mobile' ? (
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-emerald-400/40">
+                      <img src="/app-logos/mobilemoney.jpg" alt="Mobile Money" className="w-full h-full object-cover" />
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-indigo-400/40">
+                      <img src="/app-logos/bank.jpg" alt="AuraBank" className="w-full h-full object-cover" />
+                    </span>
+                  )}
+                  {successModal.method === 'mobile' ? 'Mobile Money' : 'AuraBank Card'}
+                </span>
               </div>
               <div className="flex items-center justify-between text-white/80">
                 <span>Recipient</span>
