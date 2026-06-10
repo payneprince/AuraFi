@@ -1968,161 +1968,289 @@ export default function PortfolioPage() {
 
       {/* Performance Chart + Risk Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card border border-border rounded-lg p-6">
+        <div className="bg-card border border-border rounded-2xl p-6">
           <h3 className="font-semibold mb-4">Portfolio Performance</h3>
           <PortfolioChart data={equityCurve} />
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-orange-500" />
-              <h3 className="font-semibold">Risk Analysis</h3>
-            </div>
-            <button onClick={() => setShowRiskDetails(true)} className="text-sm text-primary hover:underline transition-colors">View Details</button>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <div className="flex items-end gap-2 mb-2">
-                <span className="text-2xl font-bold">{riskMetrics.score}/100</span>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  riskMetrics.level === 'High' ? 'bg-red-500/20 text-red-500' :
-                  riskMetrics.level === 'Moderate' ? 'bg-yellow-500/20 text-yellow-500' :
-                  'bg-green-500/20 text-green-500'
-                }`}>
-                  {riskMetrics.level}
-                </span>
+        {/* Risk Analysis */}
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-orange-400" />
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all duration-700 ${
-                    riskMetrics.score > 70 ? 'bg-red-500' :
-                    riskMetrics.score > 40 ? 'bg-yellow-500' : 'bg-green-500'
-                  }`}
-                  style={{ width: `${riskMetrics.score}%` }}
+              <div>
+                <h3 className="font-semibold text-sm">Risk Analysis</h3>
+                <p className="text-[10px] text-muted-foreground">Portfolio risk profile</p>
+              </div>
+            </div>
+            <button onClick={() => setShowRiskDetails(true)} className="text-xs text-primary hover:underline transition-colors">View Details</button>
+          </div>
+
+          {/* Score gauge + summary */}
+          <div className="flex items-center gap-4 mb-5">
+            <div className="relative w-20 h-20 flex-shrink-0">
+              <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
+                <circle cx="40" cy="40" r="32" fill="none"
+                  stroke={riskMetrics.score > 70 ? '#ef4444' : riskMetrics.score > 40 ? '#eab308' : '#22c55e'}
+                  strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={`${(riskMetrics.score / 100) * 201} 201`}
+                  className="transition-all duration-1000"
                 />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-xl font-black leading-none">{riskMetrics.score}</span>
+                <span className="text-[9px] text-muted-foreground">/ 100</span>
               </div>
             </div>
-            <div className="text-right text-sm space-y-1">
-              <div className="text-muted-foreground">Diversification</div>
-              <div className="text-lg font-semibold">{riskMetrics.diversification}%</div>
+            <div className="flex-1 space-y-1.5">
+              <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                riskMetrics.level === 'High' ? 'bg-red-500/20 text-red-400' :
+                riskMetrics.level === 'Moderate' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-green-500/20 text-green-400'
+              }`}>{riskMetrics.level} Risk</span>
+              <p className="text-xs text-muted-foreground">Diversification: <span className="font-semibold text-foreground">{riskMetrics.diversification}%</span></p>
+              <p className="text-xs text-muted-foreground">Beta vs market: <span className="font-semibold text-foreground">{advancedRiskMetrics.volatility.beta.toFixed(2)}</span></p>
             </div>
           </div>
-          <div className="border-t border-border pt-4">
-            <h4 className="font-medium mb-3">Advanced Metrics</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-muted-foreground">VaR (95%)</div>
-                <div className="font-semibold text-red-500">-${advancedRiskMetrics.valueAtRisk.daily.toFixed(2)} daily</div>
-                <div className="text-xs text-muted-foreground">-${advancedRiskMetrics.valueAtRisk.weekly.toFixed(2)} weekly</div>
+
+          {/* 4 metric tiles */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              { label: 'Daily VaR (95%)', value: `-$${Math.abs(advancedRiskMetrics.valueAtRisk.daily).toFixed(2)}`, sub: `Weekly: -$${Math.abs(advancedRiskMetrics.valueAtRisk.weekly).toFixed(2)}`, color: 'text-red-400', bg: 'bg-red-500/8' },
+              { label: 'Volatility', value: `${advancedRiskMetrics.volatility.portfolio.toFixed(1)}%`, sub: `Benchmark: ${advancedRiskMetrics.volatility.benchmark.toFixed(1)}%`, color: 'text-orange-400', bg: 'bg-orange-500/8' },
+              { label: 'Sharpe Ratio', value: advancedRiskMetrics.sharpeRatio.toFixed(2), sub: advancedRiskMetrics.sharpeRatio >= 1 ? 'Good risk-adj. return' : 'Below 1 — monitor', color: advancedRiskMetrics.sharpeRatio >= 1 ? 'text-green-400' : 'text-yellow-400', bg: advancedRiskMetrics.sharpeRatio >= 1 ? 'bg-green-500/8' : 'bg-yellow-500/8' },
+              { label: 'Max Drawdown', value: `-${Math.abs(advancedRiskMetrics.maxDrawdown).toFixed(1)}%`, sub: 'Peak to trough', color: 'text-red-400', bg: 'bg-red-500/8' },
+            ].map((m) => (
+              <div key={m.label} className={`${m.bg} rounded-xl p-2.5`}>
+                <div className="text-[10px] text-muted-foreground mb-0.5">{m.label}</div>
+                <div className={`text-sm font-bold ${m.color}`}>{m.value}</div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">{m.sub}</div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Volatility</div>
-                <div className="font-semibold">{advancedRiskMetrics.volatility.portfolio.toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground">Beta: {advancedRiskMetrics.volatility.beta.toFixed(2)}</div>
+            ))}
+          </div>
+
+          {/* Recommendations */}
+          <div className="space-y-1.5">
+            {riskMetrics.recommendations.slice(0, 2).map((rec, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <span className="text-orange-400 mt-0.5 flex-shrink-0">›</span>
+                <span>{rec}</span>
               </div>
-              <div>
-                <div className="text-muted-foreground">Sharpe Ratio</div>
-                <div className="font-semibold">{advancedRiskMetrics.sharpeRatio.toFixed(2)}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Max Drawdown</div>
-                <div className="font-semibold text-red-500">-{advancedRiskMetrics.maxDrawdown.toFixed(1)}%</div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Performance Attribution & Goals Planning */}
+      {/* Performance Attribution · Goals Planning · Tax Optimization */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
         {/* Performance Attribution */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Performance Attribution</h3>
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Performance Attribution</h3>
+              <p className="text-[10px] text-muted-foreground">vs. benchmark</p>
+            </div>
           </div>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span>Total Return</span>
-              <span className="font-semibold text-green-500">+{performanceAttribution.totalReturn}%</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Benchmark Return</span>
-              <span className="text-muted-foreground">+{performanceAttribution.benchmarkReturn}%</span>
-            </div>
-            <div className="flex justify-between text-sm border-t border-border pt-2">
-              <span>Excess Return</span>
-              <span className="font-semibold text-green-500">+{performanceAttribution.excessReturn}%</span>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Asset Alloc: +{performanceAttribution.attribution.assetAllocation}% |
-              Security Sel: +{performanceAttribution.attribution.securitySelection}%
-            </div>
+
+          {/* Return summary chips */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label: 'Portfolio',  value: `+${performanceAttribution.totalReturn}%`,   color: 'text-green-400' },
+              { label: 'Benchmark', value: `+${performanceAttribution.benchmarkReturn}%`, color: 'text-muted-foreground' },
+              { label: 'Alpha',     value: `+${performanceAttribution.excessReturn}%`,    color: 'text-blue-400' },
+            ].map((s) => (
+              <div key={s.label} className="text-center rounded-xl bg-white/[0.04] py-2.5 px-1">
+                <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Attribution factor bars */}
+          <div className="space-y-2.5 mb-4">
+            {[
+              { label: 'Asset Allocation',   value: performanceAttribution.attribution.assetAllocation },
+              { label: 'Security Selection', value: performanceAttribution.attribution.securitySelection },
+              { label: 'Interaction Effect', value: performanceAttribution.attribution.interaction },
+            ].map((a) => (
+              <div key={a.label}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">{a.label}</span>
+                  <span className="font-semibold text-green-400">+{a.value}%</span>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-green-400 rounded-full transition-all duration-700" style={{ width: `${(a.value / 5) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sector contributions */}
+          <div className="border-t border-border/50 pt-3 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Sector Contributions</p>
+            {performanceAttribution.sectorBreakdown.slice(0, 4).map((s) => (
+              <div key={s.sector} className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-[72px] truncate flex-shrink-0">{s.sector}</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary/60 rounded-full transition-all duration-700" style={{ width: `${(s.contribution / 15) * 100}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-green-400 w-10 text-right">+{s.contribution}%</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Goals Planning */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Target className="w-5 h-5 text-purple-500" />
-            <h3 className="font-semibold">Goals Planning</h3>
-          </div>
-          <div className="space-y-3">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-500">{monteCarloData.results.successRate}%</div>
-              <div className="text-xs text-muted-foreground">Chance of reaching ${monteCarloData.targetAmount.toLocaleString()}</div>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Median</span>
-                <span>${monteCarloData.results.median.toLocaleString()}</span>
+        <div className="bg-card border border-border rounded-2xl p-5 flex flex-col gap-4">
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/12 flex items-center justify-center">
+                <Target className="w-3.5 h-3.5 text-purple-400" />
               </div>
-              <div className="flex justify-between">
-                <span>10th Percentile</span>
-                <span>${monteCarloData.results.percentile10.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>90th Percentile</span>
-                <span>${monteCarloData.results.percentile90.toLocaleString()}</span>
+              <div>
+                <h3 className="text-sm font-semibold leading-tight">Goals Planning</h3>
+                <p className="text-[10px] text-muted-foreground">Retirement · {monteCarloData.timeHorizon} yr horizon</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowGoalsPlanning(true)}
-              className="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-500 rounded-lg text-sm font-medium"
-            >
-              View Monte Carlo Analysis
-            </button>
           </div>
+
+          {/* Success rate + target side by side */}
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20 flex-shrink-0">
+              <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="hsl(var(--muted))" strokeWidth="7" />
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#a855f7" strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(monteCarloData.results.successRate / 100) * 201} 201`}
+                  className="transition-all duration-1000"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-sm font-black text-purple-400 leading-none">{monteCarloData.results.successRate}%</span>
+                <span className="text-[9px] text-muted-foreground mt-0.5">success</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-1">
+              <p className="text-xl font-black leading-none">${monteCarloData.targetAmount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">target amount</p>
+              <p className="text-[11px] text-muted-foreground">+${monteCarloData.monthlyContribution.toLocaleString()}/mo · {monteCarloData.simulations.toLocaleString()} simulations</p>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div>
+            <div className="flex justify-between text-xs mb-1.5">
+              <span className="text-muted-foreground">Funded so far</span>
+              <span className="font-semibold">{((monteCarloData.currentSavings / monteCarloData.targetAmount) * 100).toFixed(1)}%</span>
+            </div>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-purple-500 transition-all duration-1000"
+                style={{ width: `${(monteCarloData.currentSavings / monteCarloData.targetAmount) * 100}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+              <span>${monteCarloData.currentSavings.toLocaleString()}</span>
+              <span>${monteCarloData.targetAmount.toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Outcome range */}
+          <div className="border-t border-border/50 pt-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2.5">Projected range in {monteCarloData.timeHorizon} years</p>
+            <div className="flex items-end justify-between">
+              <div className="text-center">
+                <p className="text-xs font-bold text-red-400">${(monteCarloData.results.percentile10 / 1000).toFixed(0)}K</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Bear</p>
+              </div>
+              <div className="flex-1 mx-3 flex items-center gap-1">
+                <div className="flex-1 h-px bg-border" />
+                <div className="text-center px-1">
+                  <p className="text-sm font-black">${(monteCarloData.results.median / 1000).toFixed(0)}K</p>
+                  <p className="text-[9px] text-muted-foreground">Median</p>
+                </div>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-bold text-green-400">${(monteCarloData.results.percentile90 / 1000).toFixed(0)}K</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Bull</p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={() => setShowGoalsPlanning(true)}
+            className="w-full py-2 rounded-xl bg-muted hover:bg-accent border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-all active:scale-[0.98]"
+          >
+            Full Monte Carlo Analysis →
+          </button>
         </div>
 
         {/* Tax Optimization */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <DollarSign className="w-5 h-5 text-green-500" />
-            <h3 className="font-semibold">Tax Optimization</h3>
-          </div>
-          <div className="space-y-3">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-500">${taxOptimization.potentialSavings.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">Potential tax savings</div>
+        <div className="bg-card border border-border rounded-2xl p-6">
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-green-500/15 flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-green-400" />
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Harvestable Losses</span>
-                <span className="text-red-500">-${taxOptimization.harvestableLosses.toLocaleString()}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {taxOptimization.opportunities.length} tax-loss harvesting opportunities available
-              </div>
+            <div>
+              <h3 className="font-semibold text-sm">Tax Optimization</h3>
+              <p className="text-[10px] text-muted-foreground">Tax-loss harvesting</p>
             </div>
-            <button
-              onClick={() => setShowTaxOptimization(true)}
-              className="w-full py-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 rounded-lg text-sm font-medium"
-            >
-              Optimize Taxes
-            </button>
           </div>
+
+          {/* Savings highlight */}
+          <div className="rounded-xl bg-green-500/10 border border-green-500/20 p-3 mb-4 text-center">
+            <div className="text-2xl font-black text-green-400">${taxOptimization.potentialSavings.toLocaleString()}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">estimated tax savings available</div>
+          </div>
+
+          {/* Harvestable losses */}
+          <div className="flex justify-between text-xs rounded-xl bg-red-500/8 px-3 py-2.5 mb-4">
+            <span className="text-muted-foreground">Harvestable losses</span>
+            <span className="font-bold text-red-400">-${taxOptimization.harvestableLosses.toLocaleString()}</span>
+          </div>
+
+          {/* Opportunities list */}
+          <div className="space-y-2 mb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Opportunities ({taxOptimization.opportunities.length})</p>
+            {taxOptimization.opportunities.map((opp, i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl bg-white/[0.03] border border-white/5 px-3 py-2 text-xs">
+                <div>
+                  <span className="font-semibold">{opp.asset}</span>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Loss: <span className="text-red-400">${Math.abs(opp.currentLoss).toFixed(2)}</span></div>
+                </div>
+                <div className="text-right">
+                  <div className="font-semibold text-green-400">Save ${opp.potentialTaxSavings.toFixed(2)}</div>
+                  <div className="text-[10px] text-muted-foreground">{opp.harvestAmount} units</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Wash-sale warning */}
+          {taxOptimization.washSaleRisk.length > 0 && (
+            <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/20 px-3 py-2 text-xs flex items-start gap-2 mb-4">
+              <AlertTriangle className="w-3 h-3 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <span className="text-muted-foreground">Wash-sale risk on <span className="font-semibold text-foreground">{taxOptimization.washSaleRisk[0].asset}</span> — restriction ends {taxOptimization.washSaleRisk[0].restrictionEnds}</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowTaxOptimization(true)}
+            className="w-full py-2 rounded-xl bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-semibold transition-colors"
+          >
+            Optimize Now →
+          </button>
         </div>
       </div>
 
