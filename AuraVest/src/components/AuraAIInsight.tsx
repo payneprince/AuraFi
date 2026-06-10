@@ -88,9 +88,10 @@ export default function AuraAIInsight() {
           <div className="flex items-center gap-2.5">
             <div className="relative flex-shrink-0" style={{ width: 36, height: 36 }}>
               <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-purple-400 border-r-blue-400 animate-spin [animation-duration:3s]" />
-              <div className="absolute inset-[3px] rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+              <div className="absolute inset-[3px] rounded-full bg-white overflow-hidden ring-1 ring-primary/10">
+                <img src="/images/ai.jpg" alt="AuraAI" className="w-full h-full object-cover" />
               </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-background shadow-[0_0_6px_rgba(52,211,153,0.85)]" />
             </div>
             <div>
               <h3 className="font-bold text-sm">AuraAI Insights</h3>

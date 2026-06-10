@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { cryptoAssets, stockAssets } from '@/lib/mockData';
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle, Landmark, Flame, Activity, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle, Landmark, Flame, Activity, Zap, BarChart2 } from 'lucide-react';
 import { readUnifiedAuthSession } from '../../../../shared/unified-auth';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
@@ -482,9 +482,12 @@ export default function DashboardHome() {
 
         <div className="relative bg-card rounded-lg border border-border p-6 overflow-hidden group/panel">
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-blue-500/5 blur-3xl pointer-events-none transition-transform duration-700 group-hover/panel:scale-125" />
-          <div className="relative flex items-center gap-2 mb-4">
-            <div className="relative w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-blue-500" />
+          <div className="relative flex items-center gap-3 mb-4">
+            <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-400/80 border-r-indigo-400/40 group-hover/panel:animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                <BarChart2 className="w-4 h-4" />
+              </div>
             </div>
             <h3 className="text-lg font-semibold">Top Stocks</h3>
             <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-green-500 bg-green-500/10 px-2 py-1 rounded-full">
