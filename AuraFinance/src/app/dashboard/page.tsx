@@ -9,7 +9,7 @@ import { getUser } from 'lib/shared/mock-data';
 import Image from 'next/image';
 import AuraAIChat from '@/components/AuraAIChat';
 import UserProfileMenu from '@/components/UserProfileMenu';
-import { AlertTriangle, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight, Activity, PieChart, Receipt, Target, Sparkles } from 'lucide-react';
+import { AlertTriangle, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight, ArrowLeftRight, Activity, PieChart, Receipt, Target, Sparkles } from 'lucide-react';
 import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 import { AURAFINANCE_STORAGE_KEYS } from '@/lib/financeStateKeys';
 import {
@@ -819,79 +819,85 @@ export default function DashboardPage() {
 
 
         {/* ── Quick Transfer ──────────────────────────────────────────── */}
-        <div className="mb-10 bg-gradient-to-br from-white to-blue-50/30 dark:from-slate-900 dark:to-slate-800 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/60 dark:border-slate-700/60 hover:shadow-xl transition-shadow">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-magenta flex items-center justify-center">
-              <span className="text-white text-base">⇄</span>
+        <div className="group/qt mb-10 relative overflow-hidden bg-gradient-to-br from-slate-900 via-[#0f172a] to-indigo-950/80 rounded-2xl shadow-2xl border border-white/10 p-6">
+          <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-magenta/15 blur-3xl pointer-events-none" />
+
+          <div className="relative flex items-center gap-3 mb-6">
+            <div className="relative flex-shrink-0" style={{ width: 42, height: 42 }}>
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/80 border-r-magenta/40 group-hover/qt:animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-[3px] rounded-full bg-primary/10 flex items-center justify-center">
+                <ArrowLeftRight className="w-4 h-4 text-primary" />
+              </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold">Quick Transfer</h3>
-              <p className="text-xs text-muted-foreground">Move funds instantly between your Aura apps</p>
+              <h3 className="text-xl font-bold text-white">Quick Transfer</h3>
+              <p className="text-xs text-white/50">Move funds instantly between your Aura apps</p>
             </div>
           </div>
+
           {(() => {
             const transferApps = [
-              { value: 'bank' as const, label: 'AuraBank', Icon: Landmark, color: 'text-aurabank-magenta', logo: '/images/bank.jpg', ring: 'ring-pink-400/40', glow: 'bg-pink-500/20' },
-              { value: 'wallet' as const, label: 'AuraWallet', Icon: Wallet, color: 'text-emerald-600', logo: '/images/wallet.jpg', ring: 'ring-emerald-400/40', glow: 'bg-emerald-500/20' },
-              { value: 'vest' as const, label: 'AuraVest', Icon: TrendingUp, color: 'text-auravest-crimson', logo: '/images/vest.jpeg', ring: 'ring-red-400/40', glow: 'bg-red-500/20' },
+              { value: 'bank' as const, label: 'AuraBank', color: 'text-pink-400', ring: 'border-pink-400/60', glow: 'shadow-pink-500/30', logo: '/images/bank.jpg', accent: 'from-pink-500/20 to-rose-500/10' },
+              { value: 'wallet' as const, label: 'AuraWallet', color: 'text-emerald-400', ring: 'border-emerald-400/60', glow: 'shadow-emerald-500/30', logo: '/images/wallet.jpg', accent: 'from-emerald-500/20 to-green-500/10' },
+              { value: 'vest' as const, label: 'AuraVest', color: 'text-red-400', ring: 'border-red-400/60', glow: 'shadow-red-500/30', logo: '/images/vest.jpeg', accent: 'from-red-500/20 to-orange-500/10' },
             ];
             return (
-              <div className="space-y-4">
+              <div className="relative space-y-5">
                 <div className="grid sm:grid-cols-3 gap-4 items-end">
-                  {/* From selector */}
+                  {/* From */}
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">From</label>
-                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                      {transferApps.map(({ value, label, color, logo, ring, glow }) => (
+                    <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">From</label>
+                    <div className="flex gap-1.5 bg-white/5 border border-white/8 rounded-2xl p-1.5">
+                      {transferApps.map(({ value, label, color, ring, glow, logo, accent }) => (
                         <button
                           key={value}
                           type="button"
                           onClick={() => setTransferFrom(value)}
-                          className={`group/ta flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`group/ta relative flex-1 flex flex-col items-center gap-2 py-3 px-1 rounded-xl text-xs font-semibold transition-all duration-200 overflow-hidden ${
                             transferFrom === value
-                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
-                              : 'text-muted-foreground hover:text-foreground'
+                              ? `bg-gradient-to-b ${accent} border border-white/15 shadow-lg ${color}`
+                              : 'text-white/40 hover:text-white/70 hover:bg-white/5'
                           }`}
                         >
-                          <span className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white overflow-hidden ring-2 ${ring} transition-transform duration-300 group-hover/ta:-translate-y-0.5`}>
-                            <span className={`absolute inset-0 rounded-full ${glow} blur-md opacity-0 group-hover/ta:opacity-100 transition-opacity`} />
-                            <img src={logo} alt={label} className="relative w-full h-full object-cover" />
+                          <span className={`relative flex items-center justify-center w-9 h-9 rounded-full bg-white overflow-hidden border-2 transition-all duration-300 ${transferFrom === value ? `${ring} shadow-lg ${glow} scale-110` : 'border-white/20'}`}>
+                            <img src={logo} alt={label} className="w-full h-full object-cover" />
                           </span>
-                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                          <span className="relative leading-none">{label.replace('Aura', '')}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Arrow + To selector */}
+                  {/* To */}
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-2">To</label>
-                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                      {transferApps.map(({ value, label, color, logo, ring, glow }) => (
+                    <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">To</label>
+                    <div className="flex gap-1.5 bg-white/5 border border-white/8 rounded-2xl p-1.5">
+                      {transferApps.map(({ value, label, color, ring, glow, logo, accent }) => (
                         <button
                           key={value}
                           type="button"
                           onClick={() => setTransferTo(value)}
-                          className={`group/ta flex-1 flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-lg text-xs font-medium transition-all ${
+                          className={`group/ta relative flex-1 flex flex-col items-center gap-2 py-3 px-1 rounded-xl text-xs font-semibold transition-all duration-200 overflow-hidden ${
                             transferTo === value
-                              ? 'bg-white dark:bg-slate-700 shadow-sm ' + color
-                              : 'text-muted-foreground hover:text-foreground'
+                              ? `bg-gradient-to-b ${accent} border border-white/15 shadow-lg ${color}`
+                              : 'text-white/40 hover:text-white/70 hover:bg-white/5'
                           }`}
                         >
-                          <span className={`relative flex items-center justify-center w-7 h-7 rounded-full bg-white overflow-hidden ring-2 ${ring} transition-transform duration-300 group-hover/ta:-translate-y-0.5`}>
-                            <span className={`absolute inset-0 rounded-full ${glow} blur-md opacity-0 group-hover/ta:opacity-100 transition-opacity`} />
-                            <img src={logo} alt={label} className="relative w-full h-full object-cover" />
+                          <span className={`relative flex items-center justify-center w-9 h-9 rounded-full bg-white overflow-hidden border-2 transition-all duration-300 ${transferTo === value ? `${ring} shadow-lg ${glow} scale-110` : 'border-white/20'}`}>
+                            <img src={logo} alt={label} className="w-full h-full object-cover" />
                           </span>
-                          <span className="leading-none">{label.replace('Aura', '')}</span>
+                          <span className="relative leading-none">{label.replace('Aura', '')}</span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Amount + Submit */}
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-2">Amount (USD)</label>
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-2.5">Amount (USD)</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 font-bold text-sm pointer-events-none">$</span>
                       <input
                         type="number"
                         min="0.01"
@@ -899,47 +905,67 @@ export default function DashboardPage() {
                         placeholder="0.00"
                         value={transferAmount}
                         onChange={(e) => setTransferAmount(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full pl-7 pr-3 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white caret-white placeholder-white/20 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/60 focus:border-primary/40 transition-all"
+                        style={{ colorScheme: 'dark' }}
                       />
-                    </div>
-                    <div className="pt-5">
-                      <Button
-                        onClick={handleQuickTransfer}
-                        disabled={transferring}
-                        className="bg-gradient-to-r from-primary to-magenta hover:opacity-90 text-white rounded-xl h-10 px-4"
-                      >
-                        {transferring ? '…' : <ArrowRight className="w-4 h-4" />}
-                      </Button>
                     </div>
                   </div>
                 </div>
 
                 {/* Route preview */}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {(() => {
-                    const from = transferApps.find(a => a.value === transferFrom)!;
-                    const to = transferApps.find(a => a.value === transferTo)!;
-                    return (
-                      <>
-                        <span className={`relative flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ${from.ring}`}>
-                          <img src={from.logo} alt={from.label} className="w-full h-full object-cover" />
+                {(() => {
+                  const from = transferApps.find(a => a.value === transferFrom)!;
+                  const to = transferApps.find(a => a.value === transferTo)!;
+                  return (
+                    <div className="flex items-center gap-3 px-1">
+                      <span className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-white overflow-hidden border-2 ${from.ring}`}>
+                        <img src={from.logo} alt={from.label} className="w-full h-full object-cover" />
+                      </span>
+                      <span className={`text-xs font-semibold ${from.color}`}>{from.label}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-8 h-px bg-gradient-to-r from-white/10 to-primary/50" />
+                        <ArrowRight className="w-3 h-3 text-primary animate-pulse flex-shrink-0" />
+                        <span className="w-8 h-px bg-gradient-to-r from-primary/50 to-white/10" />
+                      </div>
+                      <span className={`flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-white overflow-hidden border-2 ${to.ring}`}>
+                        <img src={to.logo} alt={to.label} className="w-full h-full object-cover" />
+                      </span>
+                      <span className={`text-xs font-semibold ${to.color}`}>{to.label}</span>
+                      {transferAmount && Number(transferAmount) > 0 && (
+                        <span className="ml-auto text-xs font-bold text-white/80 bg-white/8 px-2.5 py-1 rounded-full border border-white/10 flex-shrink-0">
+                          {formatCurrency(Number(transferAmount))}
                         </span>
-                        <span className={from.color}>{from.label}</span>
-                        <ArrowRight className="w-3 h-3" />
-                        <span className={`relative flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ${to.ring}`}>
-                          <img src={to.logo} alt={to.label} className="w-full h-full object-cover" />
-                        </span>
-                        <span className={to.color}>{to.label}</span>
-                        {transferAmount && Number(transferAmount) > 0 && (
-                          <span className="ml-1 font-semibold text-foreground">· {formatCurrency(Number(transferAmount))}</span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
-                {transferMsg && (
-                  <p className={`text-sm font-semibold px-3 py-2 rounded-lg ${transferMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-50 text-destructive dark:bg-red-500/10'}`}>
+                {/* Send button */}
+                <button
+                  type="button"
+                  onClick={handleQuickTransfer}
+                  disabled={transferring}
+                  className="group/send relative w-full overflow-hidden rounded-xl py-3.5 font-bold text-sm text-white bg-gradient-to-r from-primary via-violet-500 to-magenta hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <span className="absolute inset-0 -translate-x-full group-hover/send:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                  {transferring ? (
+                    <span className="relative flex items-center justify-center gap-2">
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                        <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Sending…
+                    </span>
+                  ) : (
+                    <span className="relative flex items-center justify-center gap-2">
+                      <ArrowRight className="w-4 h-4" />
+                      Send Transfer
+                    </span>
+                  )}
+                </button>
+
+                {transferMsg && transferMsg.type === 'err' && (
+                  <p className="text-sm font-semibold px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
                     {transferMsg.text}
                   </p>
                 )}
@@ -1533,67 +1559,157 @@ export default function DashboardPage() {
       <AuraAIChat />
 
       {transferSuccessModal && (
-        <div
-          className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm"
-          onClick={() => setTransferSuccessModal(null)}
-        >
+        <>
+          <style>{`
+            @keyframes confettiPop {
+              0%   { transform: translate(0,0) scale(0); opacity: 1; }
+              60%  { opacity: 1; }
+              100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; }
+            }
+            @keyframes checkDraw {
+              from { stroke-dashoffset: 48; }
+              to   { stroke-dashoffset: 0; }
+            }
+            @keyframes circleDraw {
+              from { stroke-dashoffset: 166; }
+              to   { stroke-dashoffset: 0; }
+            }
+            @keyframes modalPop {
+              from { opacity: 0; transform: scale(0.82) translateY(24px); }
+              to   { opacity: 1; transform: scale(1) translateY(0); }
+            }
+          `}</style>
           <div
-            className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/30 bg-white/95 p-6 shadow-2xl dark:border-slate-700/80 dark:bg-slate-900/95"
-            onClick={(event) => event.stopPropagation()}
+            className="fixed inset-0 z-[1200] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-md"
+            onClick={() => setTransferSuccessModal(null)}
           >
-            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-primary/15 blur-2xl" />
-            <div className="pointer-events-none absolute -left-14 -bottom-20 h-40 w-40 rounded-full bg-magenta/20 blur-2xl" />
+            <div
+              className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-[#080d1a] border border-white/12 p-6 shadow-2xl"
+              style={{ animation: 'modalPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Glow blobs */}
+              <div className="pointer-events-none absolute -top-24 -right-24 w-56 h-56 rounded-full bg-primary/20 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-24 -left-24 w-56 h-56 rounded-full bg-magenta/20 blur-3xl" />
 
-            <div className="relative">
-              <div className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
-                Transfer Completed
+              {/* Confetti burst */}
+              <div className="absolute inset-0 flex items-start justify-center pt-14 pointer-events-none overflow-hidden">
+                {([
+                  { dx: '0px',   dy: '-90px', color: '#a78bfa', delay: '0s'    },
+                  { dx: '63px',  dy: '-63px', color: '#34d399', delay: '0.05s' },
+                  { dx: '90px',  dy: '0px',   color: '#f472b6', delay: '0.1s'  },
+                  { dx: '63px',  dy: '63px',  color: '#60a5fa', delay: '0.05s' },
+                  { dx: '0px',   dy: '90px',  color: '#fbbf24', delay: '0s'    },
+                  { dx: '-63px', dy: '63px',  color: '#a78bfa', delay: '0.1s'  },
+                  { dx: '-90px', dy: '0px',   color: '#34d399', delay: '0.05s' },
+                  { dx: '-63px', dy: '-63px', color: '#f472b6', delay: '0s'    },
+                  { dx: '42px',  dy: '-78px', color: '#fbbf24', delay: '0.12s' },
+                  { dx: '-42px', dy: '-78px', color: '#60a5fa', delay: '0.08s' },
+                  { dx: '78px',  dy: '-32px', color: '#34d399', delay: '0.15s' },
+                  { dx: '-78px', dy: '32px',  color: '#f472b6', delay: '0.03s' },
+                ] as { dx: string; dy: string; color: string; delay: string }[]).map((c, i) => (
+                  <span
+                    key={i}
+                    className="absolute w-3 h-3 rounded-full"
+                    style={{
+                      backgroundColor: c.color,
+                      '--dx': c.dx,
+                      '--dy': c.dy,
+                      animation: `confettiPop 0.75s ease-out ${c.delay} forwards`,
+                    } as React.CSSProperties}
+                  />
+                ))}
               </div>
 
-              <div className="mt-4 flex items-start gap-4">
-                <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-primary text-2xl font-bold text-white shadow-lg shadow-accent/30">
-                  ✓
-                </div>
-                <div>
-                  <h4 className="text-2xl font-extrabold text-foreground">Success</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Your transfer has been processed and synced across the suite.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-200/80 bg-gradient-to-r from-slate-50 to-purple-50/40 p-4 dark:border-slate-700 dark:from-slate-800 dark:to-slate-800/80">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount Sent</p>
-                <p className="mt-1 text-3xl font-black text-foreground">{formatCurrency(transferSuccessModal.amount)}</p>
-              </div>
-
-              <div className="mt-4 space-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/70">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Route</span>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-foreground dark:bg-slate-900">
-                    {appLabel(transferSuccessModal.from)} {' -> '} {appLabel(transferSuccessModal.to)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Time</span>
-                  <span className="font-semibold text-foreground">{new Date(transferSuccessModal.timestamp).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Reference</span>
-                  <span className="font-mono text-xs text-foreground">{transferSuccessModal.reference}</span>
+              {/* Animated SVG checkmark */}
+              <div className="relative flex justify-center mb-5">
+                <div className="relative w-20 h-20">
+                  <div className="absolute inset-0 rounded-full bg-emerald-500/10 animate-ping" style={{ animationDuration: '1.6s', animationDelay: '0.5s' }} />
+                  <svg viewBox="0 0 52 52" className="w-20 h-20" fill="none">
+                    <defs>
+                      <linearGradient id="ckGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#a78bfa" />
+                        <stop offset="1" stopColor="#34d399" />
+                      </linearGradient>
+                    </defs>
+                    <circle
+                      cx="26" cy="26" r="24"
+                      stroke="url(#ckGrad)" strokeWidth="2"
+                      style={{ strokeDasharray: 166, animation: 'circleDraw 0.5s ease-out forwards' }}
+                    />
+                    <path
+                      d="M14 27l8 8 16-16"
+                      stroke="#34d399" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ strokeDasharray: 48, strokeDashoffset: 48, animation: 'checkDraw 0.4s ease-out 0.45s forwards' }}
+                    />
+                  </svg>
                 </div>
               </div>
 
-              <div className="mt-6">
-                <Button
-                  onClick={() => setTransferSuccessModal(null)}
-                  className="w-full bg-gradient-to-r from-primary to-magenta py-2.5 text-white shadow-lg shadow-primary/30 hover:opacity-95"
-                >
-                  Done
-                </Button>
+              {/* Amount + badge */}
+              <div className="relative text-center mb-5">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 mb-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Transfer Complete
+                </div>
+                <p className="text-4xl font-black text-white mt-1">{formatCurrency(transferSuccessModal.amount)}</p>
+                <p className="text-white/40 text-xs mt-1">synced across the Aura suite</p>
               </div>
+
+              {/* Route with logos */}
+              {(() => {
+                const apps = {
+                  bank:   { label: 'AuraBank',   logo: '/images/bank.jpg',   ring: 'border-pink-400/50'    },
+                  wallet: { label: 'AuraWallet',  logo: '/images/wallet.jpg', ring: 'border-emerald-400/50' },
+                  vest:   { label: 'AuraVest',    logo: '/images/vest.jpeg',  ring: 'border-red-400/50'     },
+                };
+                const from = apps[transferSuccessModal.from];
+                const to   = apps[transferSuccessModal.to];
+                return (
+                  <div className="flex items-center justify-center gap-4 mb-5 bg-white/5 border border-white/8 rounded-2xl py-3.5 px-5">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className={`w-10 h-10 rounded-full bg-white overflow-hidden border-2 ${from.ring} block`}>
+                        <img src={from.logo} alt={from.label} className="w-full h-full object-cover" />
+                      </span>
+                      <span className="text-[10px] text-white/50 font-medium">{from.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-1 justify-center">
+                      <span className="flex-1 h-px bg-gradient-to-r from-transparent to-primary/60" />
+                      <ArrowRight className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
+                      <span className="flex-1 h-px bg-gradient-to-r from-primary/60 to-transparent" />
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className={`w-10 h-10 rounded-full bg-white overflow-hidden border-2 ${to.ring} block`}>
+                        <img src={to.logo} alt={to.label} className="w-full h-full object-cover" />
+                      </span>
+                      <span className="text-[10px] text-white/50 font-medium">{to.label}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Details */}
+              <div className="relative space-y-2 rounded-2xl bg-white/5 border border-white/8 p-4 mb-5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-white/40">Time</span>
+                  <span className="text-white/70 font-medium">{new Date(transferSuccessModal.timestamp).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/40">Reference</span>
+                  <span className="text-white/50 font-mono">{transferSuccessModal.reference}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setTransferSuccessModal(null)}
+                className="group/done relative w-full overflow-hidden rounded-xl py-3 font-bold text-sm text-white bg-gradient-to-r from-primary to-magenta hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-0.5 transition-all duration-200"
+              >
+                <span className="absolute inset-0 -translate-x-full group-hover/done:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <span className="relative">Done</span>
+              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
