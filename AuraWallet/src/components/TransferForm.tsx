@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from 'react';
-import { CircleCheckBig, Smartphone } from 'lucide-react';
-import WalletModal from '@/components/WalletModal';
+import { ArrowRight, Clock, Smartphone } from 'lucide-react';
 import { auraBankCards } from '@/components/CardManager';
 // @ts-ignore
 import { walletData } from '@/lib/shared/mock-data';
@@ -103,6 +102,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
     { id: 'card', label: 'AuraBank Card', logo: '/app-logos/bank.jpg', ring: 'ring-indigo-400/40', glow: 'bg-indigo-500/30' },
   ];
 
+  const [submitting, setSubmitting] = useState(false);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<'mobile'|'card'>('mobile');
   const [mobileRecipient, setMobileRecipient] = useState('');
@@ -276,6 +276,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       setStatus('Please resolve the highlighted issues.');
       return;
     }
+    setSubmitting(true);
 
     const val = numericAmount;
     const selectedNetwork = mobileNetworks.find((network) => network.id === selectedNetworkId);
@@ -370,6 +371,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       onComplete();
     }
     setTimeout(() => setStatus(''), 2500);
+    setSubmitting(false);
   }
 
   return (
@@ -380,7 +382,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
           value={amount}
           onChange={(e)=>setAmount(e.target.value)}
           placeholder="0.00"
-          className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
+          className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white caret-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent" style={{ colorScheme: 'dark' }}
         />
       </div>
 
@@ -444,7 +446,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
             type="datetime-local"
             value={scheduledFor}
             onChange={(e) => setScheduledFor(e.target.value)}
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white caret-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent" style={{ colorScheme: 'dark' }}
           />
         </div>
       )}
@@ -485,7 +487,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
               value={mobileRecipient}
               onChange={(e)=>setMobileRecipient(e.target.value)}
               placeholder="+233..."
-              className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
+              className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white caret-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent" style={{ colorScheme: 'dark' }}
             />
           </div>
         </div>
@@ -500,7 +502,7 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
           <select
             value={selectedCardId}
             onChange={(e) => setSelectedCardId(e.target.value)}
-            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-white caret-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent" style={{ colorScheme: 'dark' }}
           >
             {bankCards.map((card) => (
               <option key={card.id} value={String(card.id)} className="text-black">
@@ -570,76 +572,170 @@ export default function TransferForm({ onComplete }: { onComplete?: () => void }
       )}
 
       <div className="flex items-center justify-between">
-        <button type="submit" className="group relative overflow-hidden bg-gradient-to-r from-black via-white/15 to-green-500 text-white px-4 py-2 rounded-lg text-base font-bold hover:opacity-90 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-green-500/20">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="group relative overflow-hidden bg-gradient-to-r from-black via-white/15 to-green-500 text-white px-5 py-2.5 rounded-xl text-base font-bold hover:opacity-90 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-green-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+        >
           <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-          <span className="relative">Send</span>
+          {submitting ? (
+            <span className="relative flex items-center gap-2">
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Sending…
+            </span>
+          ) : (
+            <span className="relative flex items-center gap-2">
+              <ArrowRight className="w-4 h-4" />
+              Send
+            </span>
+          )}
         </button>
         <div className="text-white/80 text-base font-medium">{status}</div>
       </div>
 
-      {successModal && (
-        <WalletModal
-          title={successModal.status === 'queued' ? 'Transfer Queued' : 'Transaction Successful'}
-          onClose={() => setSuccessModal(null)}
-        >
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 rounded-lg border border-green-400/30 bg-green-500/10 p-3 text-green-200">
-              <CircleCheckBig className="w-5 h-5" />
-              <span className="font-semibold">
-                {successModal.status === 'queued' ? 'Your transfer is scheduled.' : 'Your transfer was completed.'}
-              </span>
-            </div>
-
-            <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1.5 text-sm">
-              <div className="flex items-center justify-between text-white/80">
-                <span>Method</span>
-                <span className="flex items-center gap-2 text-white font-semibold">
-                  {successModal.method === 'mobile' ? (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-emerald-400/40">
-                      <img src="/app-logos/mobilemoney.jpg" alt="Mobile Money" className="w-full h-full object-cover" />
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-indigo-400/40">
-                      <img src="/app-logos/bank.jpg" alt="AuraBank" className="w-full h-full object-cover" />
-                    </span>
-                  )}
-                  {successModal.method === 'mobile' ? 'Mobile Money' : 'AuraBank Card'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-white/80">
-                <span>Recipient</span>
-                <span className="text-white font-semibold">{successModal.recipient}</span>
-              </div>
-              <div className="flex items-center justify-between text-white/80">
-                <span>Amount</span>
-                <span className="text-white font-semibold">${successModal.amount.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between text-white/80">
-                <span>Fee</span>
-                <span className="text-white font-semibold">${successModal.fee.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center justify-between text-white border-t border-white/10 pt-2 mt-2">
-                <span className="font-semibold">Recipient Gets</span>
-                <span className="font-bold">${successModal.netAmount.toFixed(2)}</span>
-              </div>
-              {successModal.scheduledFor && (
-                <div className="flex items-center justify-between text-white/80 border-t border-white/10 pt-2 mt-2">
-                  <span>Scheduled For</span>
-                  <span className="text-white font-semibold">{new Date(successModal.scheduledFor).toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
+      {successModal && (() => {
+        const isQueued = successModal.status === 'queued';
+        const confettiColors = isQueued
+          ? ['#fbbf24','#f59e0b','#fcd34d','#fb923c','#fdba74','#fef08a']
+          : ['#34d399','#4ade80','#a3e635','#86efac','#6ee7b7','#d9f99d'];
+        const svgStroke = isQueued ? '#fbbf24' : '#34d399';
+        const pingBg   = isQueued ? 'bg-yellow-500/10' : 'bg-emerald-500/10';
+        const badge    = isQueued ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+        const dot      = isQueued ? 'bg-yellow-400' : 'bg-emerald-400';
+        const glow1    = isQueued ? 'bg-yellow-500/20' : 'bg-emerald-500/20';
+        const glow2    = isQueued ? 'bg-amber-500/15' : 'bg-green-500/15';
+        const btnGrad  = isQueued ? 'from-yellow-500 to-amber-400 shadow-yellow-500/20' : 'from-emerald-600 to-green-500 shadow-emerald-500/20';
+        const angles   = [0,45,90,135,180,225,270,315,22,67,112,247];
+        return (
+          <>
+            <style>{`
+              @keyframes wSendConfetti { 0%{transform:translate(0,0) scale(0);opacity:1} 60%{opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(0.25);opacity:0} }
+              @keyframes wSendCheck   { from{stroke-dashoffset:48}  to{stroke-dashoffset:0}   }
+              @keyframes wSendCircle  { from{stroke-dashoffset:166} to{stroke-dashoffset:0}   }
+              @keyframes wSendPop     { from{opacity:0;transform:scale(0.82) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+            `}</style>
+            <div
+              className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-md p-4"
               onClick={() => setSuccessModal(null)}
-              className="w-full rounded-lg px-4 py-2 bg-gradient-to-r from-black via-white/15 to-green-500 text-white font-bold"
             >
-              Done
-            </button>
-          </div>
-        </WalletModal>
-      )}
+              <div
+                className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-[#080d1a] border border-white/12 shadow-2xl"
+                style={{ animation: 'wSendPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className={`pointer-events-none absolute -top-20 -right-20 w-48 h-48 rounded-full blur-3xl opacity-25 ${glow1}`} />
+                <div className={`pointer-events-none absolute -bottom-20 -left-20 w-48 h-48 rounded-full blur-3xl opacity-15 ${glow2}`} />
+
+                {/* Confetti */}
+                <div className="absolute inset-0 flex items-start justify-center pt-12 pointer-events-none overflow-hidden">
+                  {angles.map((angle, i) => {
+                    const rad = (angle * Math.PI) / 180;
+                    const dist = 72 + (i % 3) * 12;
+                    return (
+                      <span
+                        key={i}
+                        className="absolute w-2.5 h-2.5 rounded-full"
+                        style={{
+                          backgroundColor: confettiColors[i % confettiColors.length],
+                          '--dx': `${Math.round(Math.sin(rad) * dist)}px`,
+                          '--dy': `${Math.round(-Math.cos(rad) * dist)}px`,
+                          animation: `wSendConfetti 0.75s ease-out ${(i * 0.03).toFixed(2)}s forwards`,
+                        } as React.CSSProperties}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="p-6">
+                  {/* Close */}
+                  <div className="flex justify-end mb-1">
+                    <button onClick={() => setSuccessModal(null)} className="w-7 h-7 rounded-full bg-white/8 hover:bg-white/15 flex items-center justify-center hover:rotate-90 transition-all duration-200">
+                      <svg className="w-3.5 h-3.5 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+
+                  {/* Animated checkmark */}
+                  <div className="flex justify-center mb-5">
+                    <div className="relative w-20 h-20">
+                      <div className={`absolute inset-0 rounded-full ${pingBg} animate-ping`} style={{ animationDuration: '1.6s', animationDelay: '0.5s' }} />
+                      <svg viewBox="0 0 52 52" className="relative w-20 h-20" fill="none">
+                        <defs>
+                          <linearGradient id="wSendGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+                            <stop stopColor={svgStroke} /><stop offset="1" stopColor={isQueued ? '#fb923c' : '#a3e635'} />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="26" cy="26" r="24" stroke="url(#wSendGrad)" strokeWidth="2"
+                          style={{ strokeDasharray: 166, animation: 'wSendCircle 0.5s ease-out forwards' }} />
+                        {isQueued ? (
+                          <text x="26" y="31" textAnchor="middle" fontSize="16" fill={svgStroke}>⏱</text>
+                        ) : (
+                          <path d="M14 27l8 8 16-16" stroke={svgStroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                            style={{ strokeDasharray: 48, strokeDashoffset: 48, animation: 'wSendCheck 0.4s ease-out 0.45s forwards' }} />
+                        )}
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Amount + badge */}
+                  <div className="text-center mb-5">
+                    <div className={`inline-flex items-center gap-1.5 rounded-full border ${badge} px-3 py-1 text-xs font-semibold mb-2`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${dot} animate-pulse`} />
+                      {isQueued ? 'Transfer Queued' : 'Transfer Successful'}
+                    </div>
+                    <p className="text-4xl font-black text-white mt-1">${successModal.amount.toFixed(2)}</p>
+                    <p className="text-white/40 text-xs mt-1">{isQueued ? 'scheduled to send' : 'sent successfully'}</p>
+                  </div>
+
+                  {/* Method + recipient row */}
+                  <div className="flex items-center justify-center gap-4 mb-5 bg-white/5 border border-white/8 rounded-2xl py-3.5 px-5">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className="w-10 h-10 rounded-full bg-white overflow-hidden border-2 border-emerald-400/40 block">
+                        <img src={successModal.method === 'mobile' ? '/app-logos/mobilemoney.jpg' : '/app-logos/bank.jpg'} alt="method" className="w-full h-full object-cover" />
+                      </span>
+                      <span className="text-[10px] text-white/50">{successModal.method === 'mobile' ? 'Mobile Money' : 'AuraBank Card'}</span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-1 justify-center">
+                      <span className="flex-1 h-px bg-gradient-to-r from-transparent to-emerald-500/50" />
+                      <ArrowRight className="w-4 h-4 text-emerald-400 animate-pulse flex-shrink-0" />
+                      <span className="flex-1 h-px bg-gradient-to-r from-emerald-500/50 to-transparent" />
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="w-10 h-10 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">{successModal.recipient.slice(0, 4)}</span>
+                      </div>
+                      <span className="text-[10px] text-white/50 max-w-[70px] truncate text-center">{successModal.recipient}</span>
+                    </div>
+                  </div>
+
+                  {/* Receipt */}
+                  <div className="space-y-1.5 rounded-2xl bg-white/5 border border-white/8 p-4 mb-5 text-xs">
+                    <div className="flex justify-between"><span className="text-white/40">Fee</span><span className="text-white/70 font-medium">${successModal.fee.toFixed(2)}</span></div>
+                    <div className="flex justify-between border-t border-white/8 pt-1.5 mt-1"><span className="text-white/40">Recipient gets</span><span className="text-white font-bold">${successModal.netAmount.toFixed(2)}</span></div>
+                    {successModal.scheduledFor && (
+                      <div className="flex justify-between border-t border-white/8 pt-1.5 mt-1">
+                        <span className="text-white/40 flex items-center gap-1"><Clock className="w-3 h-3" /> Scheduled</span>
+                        <span className="text-white/70 font-medium">{new Date(successModal.scheduledFor).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSuccessModal(null)}
+                    className={`group/done relative w-full overflow-hidden rounded-xl py-3 font-bold text-sm text-white bg-gradient-to-r ${btnGrad} hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200`}
+                  >
+                    <span className="absolute inset-0 -translate-x-full group-hover/done:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                    <span className="relative">Done</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </form>
   );
 }

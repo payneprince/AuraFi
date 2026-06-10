@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { loadCrypto, getStocksPage, getGoldList } from '@/lib/marketData';
-import { executeBasketTrade, addNotification } from '@/lib/mockAPI';
+import { executeBasketTrade, addNotification, getPortfolio } from '@/lib/mockAPI';
 import { Plus, Minus, ShoppingCart, Percent, AlertTriangle, CheckCircle, Search, ShoppingBasket, Sparkles, ChevronDown } from 'lucide-react';
 
 type AssetCategory = 'crypto' | 'stocks' | 'gold';
@@ -63,6 +63,7 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
   const [pickerCategory, setPickerCategory] = useState<AssetCategory>('crypto');
   const [search, setSearch] = useState('');
   const [bounce, setBounce] = useState(0);
+  const [cashBalance, setCashBalance] = useState(0);
 
   useEffect(() => {
     // Load the same live asset lists (with real logos) that the Markets tab uses
@@ -70,6 +71,11 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
       setCryptoAssets(crypto);
       setStockAssets(stocks);
       setGoldAssets(buildGoldBodOptions(goldSpot));
+    });
+    // Load cash balance (triggers portfolio rebuild so the value is reconciled)
+    getPortfolio().then(() => {
+      const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
+      setCashBalance(Number.isFinite(cash) ? cash : 0);
     });
   }, []);
 
@@ -124,14 +130,18 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
     }
   };
 
-  const calculateTotalValue = () => {
-    return basket.reduce((total, item) => {
-      const amount = allocationMode === 'custom' && item.percentage > 0 && totalAmount
-        ? (parseFloat(totalAmount) * item.percentage / 100) / item.asset.price
-        : item.amount;
-      return total + (amount * item.asset.price);
-    }, 0);
+  const resolveItemAmount = (item: any) => {
+    if (allocationMode === 'custom' && item.percentage > 0 && totalAmount) {
+      return (parseFloat(totalAmount) * item.percentage / 100) / item.asset.price;
+    }
+    if (allocationMode === 'equal' && totalAmount && basket.length > 0) {
+      return (parseFloat(totalAmount) / basket.length) / item.asset.price;
+    }
+    return item.amount;
   };
+
+  const calculateTotalValue = () =>
+    basket.reduce((total, item) => total + resolveItemAmount(item) * item.asset.price, 0);
 
   const handleExecuteBasket = async () => {
     if (basket.length === 0) {
@@ -139,20 +149,24 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
       return;
     }
 
-    if (allocationMode === 'custom' && !totalAmount) {
-      showError('Enter total investment amount');
+    if ((allocationMode === 'custom' || allocationMode === 'equal') && !totalAmount) {
+      const needsTotal = allocationMode === 'custom' || basket.some(item => item.amount <= 0);
+      if (needsTotal) {
+        showError('Enter a total investment amount');
+        return;
+      }
+    }
+
+    const totalCost = calculateTotalValue() * 1.001;
+    if (totalCost > cashBalance) {
+      showError(`Insufficient cash — need $${totalCost.toFixed(2)}, available $${cashBalance.toFixed(2)}`);
       return;
     }
 
     setIsProcessing(true);
 
     const basketData = {
-      assets: basket.map(item => ({
-        asset: item.asset,
-        amount: allocationMode === 'custom' && item.percentage > 0 && totalAmount
-          ? (parseFloat(totalAmount) * item.percentage / 100) / item.asset.price
-          : item.amount,
-      })),
+      assets: basket.map(item => ({ asset: item.asset, amount: resolveItemAmount(item) })),
       totalAmount: parseFloat(totalAmount) || calculateTotalValue(),
     };
 
@@ -166,13 +180,19 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
         timestamp: new Date().toISOString(),
       });
 
+      // Rebuild portfolio and refresh cash after execution
+      getPortfolio().then(() => {
+        const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
+        setCashBalance(Number.isFinite(cash) ? cash : 0);
+      });
+
       if (onBasketSuccess) {
         onBasketSuccess(results);
       }
 
       setBasket([]);
       setTotalAmount('');
-    } catch (error) {
+    } catch {
       showError('Failed to execute basket trade');
     }
 
@@ -392,27 +412,26 @@ export default function BasketTrading({ onBasketSuccess }: { onBasketSuccess?: (
                   </div>
                 )}
 
-                {allocationMode === 'custom' && (
-                  <div className="animate-in fade-in slide-in-from-top-1 duration-200 mt-2">
-                    <label className="text-xs font-medium mb-2 block">Total Investment Amount (USD)</label>
-                    <input
-                      type="number"
-                      value={totalAmount}
-                      onChange={(e) => setTotalAmount(e.target.value)}
-                      placeholder="1000"
-                      className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-shadow focus:shadow-md"
-                    />
-                  </div>
-                )}
-
-                {allocationMode === 'equal' && (
-                  <button
-                    onClick={applyAllocation}
-                    className="w-full mt-2 py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-semibold hover:bg-primary/20 transition-colors"
-                  >
-                    Apply Equal Allocation ({(100 / basket.length).toFixed(1)}% each)
-                  </button>
-                )}
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200 mt-2">
+                  <label className="text-xs font-medium mb-2 block">Total Investment Amount (USD)</label>
+                  <input
+                    type="number"
+                    value={totalAmount}
+                    onChange={(e) => setTotalAmount(e.target.value)}
+                    placeholder="1000"
+                    className="w-full p-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary transition-shadow focus:shadow-md"
+                  />
+                  {allocationMode === 'equal' && totalAmount && basket.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      ~${(parseFloat(totalAmount) / basket.length).toFixed(2)} per asset
+                    </p>
+                  )}
+                  {cashBalance > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Available cash: <span className="font-semibold text-foreground">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Summary + Execute */}

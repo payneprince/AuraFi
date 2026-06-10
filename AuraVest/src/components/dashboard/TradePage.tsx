@@ -1,7 +1,7 @@
 // src/components/dashboard/TradePage.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { loadCrypto, getStocksPage, getGoldList, subscribeToCrypto } from '@/lib/marketData';
 import {
   ArrowUpRight,
@@ -19,7 +19,7 @@ import {
   TrendingDown,
   CheckCircle
 } from 'lucide-react';
-import { getWatchlist, addToWatchlist, removeFromWatchlist, exportTransactionsCSV, getNotifications, addNotification, clearNotification, getPortfolio } from '@/lib/mockAPI';
+import { getWatchlist, addToWatchlist, removeFromWatchlist, exportTransactionsCSV, getNotifications, addNotification, clearNotification, getPortfolio, createDCAPlan } from '@/lib/mockAPI';
 import TradeHistoryAnalytics from './TradeHistoryAnalytics';
 import BasketTrading from './BasketTrading';
 import TransactionSuccessModal from '@/components/TransactionSuccessModal';
@@ -101,6 +101,8 @@ export default function TradePage() {
   const [cashBalance, setCashBalance] = useState(0);
   const [holdingsValue, setHoldingsValue] = useState(0);
   const [holdingAmount, setHoldingAmount] = useState(0);
+  const [priceFlash, setPriceFlash] = useState<Record<string, 'up' | 'down'>>({});
+  const prevPricesRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     setNotifications(getNotifications());
@@ -116,6 +118,14 @@ export default function TradePage() {
   // Keep crypto prices ticking live, same as the Markets tab
   useEffect(() => {
     const unsub = subscribeToCrypto((livePrices) => {
+      const flashes: Record<string, 'up' | 'down'> = {};
+      Object.entries(livePrices).forEach(([symbol, data]) => {
+        const prev = prevPricesRef.current[symbol];
+        if (prev !== undefined && data.price !== prev) {
+          flashes[symbol] = data.price > prev ? 'up' : 'down';
+        }
+        prevPricesRef.current[symbol] = data.price;
+      });
       setCryptoAssets((prev) =>
         prev.map((asset) => ({
           ...asset,
@@ -123,6 +133,14 @@ export default function TradePage() {
           change24h: livePrices[asset.symbol]?.change24h ?? asset.change24h,
         }))
       );
+      if (Object.keys(flashes).length > 0) {
+        setPriceFlash((p) => ({ ...p, ...flashes }));
+        setTimeout(() => setPriceFlash((p) => {
+          const cleared = { ...p };
+          Object.keys(flashes).forEach((k) => { delete cleared[k]; });
+          return cleared;
+        }), 600);
+      }
       setSelectedAsset((prev: any) =>
         prev?.symbol && livePrices[prev.symbol]
           ? { ...prev, price: livePrices[prev.symbol].price, change24h: livePrices[prev.symbol].change24h }
@@ -132,15 +150,15 @@ export default function TradePage() {
     return unsub;
   }, []);
 
-  const refreshBalances = () => {
-    const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
-    const safeCash = Number.isFinite(cash) ? cash : 0;
-    setCashBalance(safeCash);
+  const refreshBalances = () =>
     getPortfolio().then((p: any) => {
+      // Read cash AFTER getPortfolio triggers reconcile so the value is accurate
+      const cash = Number(localStorage.getItem('auravest_cash_balance') || '0');
+      const safeCash = Number.isFinite(cash) ? cash : 0;
+      setCashBalance(safeCash);
       const total = Number(p?.totalValue || 0);
       setHoldingsValue(Number(Math.max(total - safeCash, 0).toFixed(2)));
     });
-  };
 
   useEffect(() => {
     refreshBalances();
@@ -188,6 +206,10 @@ export default function TradePage() {
 
   const currentPrice = selectedAsset.price;
   const estimatedTotal = amount && !isNaN(Number(amount)) ? Number(amount) * currentPrice : 0;
+  const estimatedCost = estimatedTotal * 1.001; // includes 0.1% fee
+  const buyOverdraft = tradeType === 'buy' && estimatedTotal > 0 && estimatedCost > cashBalance;
+  const sellOvershoot = tradeType === 'sell' && Number(amount) > 0 && Number(amount) > holdingAmount;
+  const tradeInvalid = !amount || Number(amount) <= 0 || buyOverdraft || sellOvershoot;
 
   const toggleWatchlist = (id: string) => {
     const exists = watchlist.some(item => item.id === id);
@@ -231,7 +253,6 @@ export default function TradePage() {
     });
     setNotifications(getNotifications());
 
-    // Show success modal instead of alert
     setSuccessTransaction({
       type: tradeType,
       asset: selectedAsset.symbol,
@@ -241,7 +262,13 @@ export default function TradePage() {
       total: estimatedTotal,
     });
     setShowSuccessModal(true);
-    refreshBalances();
+
+    const symbol = selectedAsset.symbol;
+    refreshBalances().then(() => {
+      // Re-read holding amount after portfolio rebuild has written fresh holdings
+      const holdings = JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]');
+      setHoldingAmount(Number(holdings.find((h: any) => h?.symbol === symbol)?.amount || 0));
+    });
 
     setAmount('');
     setPrice('');
@@ -407,7 +434,10 @@ export default function TradePage() {
                         </span>
                       </div>
                       <div className="flex items-end justify-between mt-2">
-                        <p className="font-bold text-lg">{fmtAssetPrice(asset.price)}</p>
+                        <p className={`font-bold text-lg transition-colors duration-300 ${
+                          priceFlash[asset.symbol] === 'up' ? 'text-green-400' :
+                          priceFlash[asset.symbol] === 'down' ? 'text-red-400' : ''
+                        }`}>{fmtAssetPrice(asset.price)}</p>
                         <p className={`flex items-center gap-0.5 text-xs font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                           {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                           {isPositive ? '+' : ''}{Number((asset as any).change24h ?? 0).toFixed(2)}%
@@ -479,7 +509,7 @@ export default function TradePage() {
 
           {/* Sidebar: Order Ticket (sticky) */}
           <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-6 self-start">
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="bg-[#080d1a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl shadow-black/40 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className={`h-1 w-full bg-gradient-to-r ${tradeType === 'buy' ? 'from-green-600 via-green-400 to-emerald-400' : 'from-red-600 via-red-400 to-rose-400'} transition-all duration-300`} />
               <div className="p-4 space-y-4">
                 {/* Selected asset summary */}
@@ -504,26 +534,32 @@ export default function TradePage() {
                 </div>
 
                 {/* Buy/Sell toggle */}
-                <div className="grid grid-cols-2 gap-2 bg-muted/40 rounded-xl p-1.5">
+                <div className="grid grid-cols-2 gap-2 bg-black/30 rounded-xl p-1.5 border border-white/8">
                   <button
                     onClick={() => setTradeType('buy')}
-                    className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                    className={`relative overflow-hidden py-2.5 rounded-lg font-bold text-sm transition-all duration-200 ${
                       tradeType === 'buy'
-                        ? 'bg-green-500 text-white shadow-lg shadow-green-500/30 scale-[1.02]'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-lg shadow-green-500/40 scale-[1.02]'
+                        : 'text-white/40 hover:text-white/70 hover:bg-green-500/10'
                     }`}
                   >
-                    Buy
+                    {tradeType === 'buy' && <span className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />}
+                    <span className="relative flex items-center justify-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5" />Buy
+                    </span>
                   </button>
                   <button
                     onClick={() => setTradeType('sell')}
-                    className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                    className={`relative overflow-hidden py-2.5 rounded-lg font-bold text-sm transition-all duration-200 ${
                       tradeType === 'sell'
-                        ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 scale-[1.02]'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-lg shadow-red-500/40 scale-[1.02]'
+                        : 'text-white/40 hover:text-white/70 hover:bg-red-500/10'
                     }`}
                   >
-                    Sell
+                    {tradeType === 'sell' && <span className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />}
+                    <span className="relative flex items-center justify-center gap-1.5">
+                      <TrendingDown className="w-3.5 h-3.5" />Sell
+                    </span>
                   </button>
                 </div>
 
@@ -567,10 +603,12 @@ export default function TradePage() {
                           key={label}
                           onClick={() => setAmount(value > 0 ? String(value) : '')}
                           disabled={base <= 0}
-                          className={`flex-1 py-1 text-[10px] rounded-lg border font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                          className={`flex-1 py-1.5 text-[10px] rounded-lg border font-bold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
                             amount && Number(amount) === value
-                              ? (tradeType === 'buy' ? 'bg-green-500/20 border-green-400/50 text-green-400' : 'bg-red-500/20 border-red-400/50 text-red-400')
-                              : 'border-border bg-background hover:bg-accent'
+                              ? (tradeType === 'buy'
+                                  ? 'bg-green-500/20 border-green-400/60 text-green-400 shadow-sm shadow-green-500/20 scale-[1.06]'
+                                  : 'bg-red-500/20 border-red-400/60 text-red-400 shadow-sm shadow-red-500/20 scale-[1.06]')
+                              : 'border-white/10 bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 hover:-translate-y-0.5'
                           }`}
                         >
                           {label}
@@ -638,16 +676,32 @@ export default function TradePage() {
                   </div>
                 )}
 
+                {buyOverdraft && (
+                  <p className="text-[11px] text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    Insufficient cash — available: ${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+                {sellOvershoot && (
+                  <p className="text-[11px] text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                    Exceeds holding — available: {holdingAmount.toLocaleString('en-US', { maximumFractionDigits: 6 })} {selectedAsset.symbol}
+                  </p>
+                )}
                 <button
-                  onClick={() => { if (amount && Number(amount) > 0) setShowConfirmModal(true); }}
-                  disabled={!amount || Number(amount) <= 0}
-                  className={`w-full py-3 rounded-xl font-bold text-sm text-white transition-all hover:shadow-lg active:scale-[0.98] ${
+                  onClick={() => { if (!tradeInvalid) setShowConfirmModal(true); }}
+                  disabled={tradeInvalid}
+                  className={`group/rev relative w-full overflow-hidden py-3 rounded-xl font-bold text-sm text-white transition-all hover:shadow-lg active:scale-[0.98] hover:-translate-y-0.5 ${
                     tradeType === 'buy'
-                      ? 'bg-green-500 hover:bg-green-600 disabled:bg-green-500/50 hover:shadow-green-500/30'
-                      : 'bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 hover:shadow-red-500/30'
-                  } disabled:cursor-not-allowed disabled:hover:shadow-none`}
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-500 hover:shadow-green-500/35 disabled:from-green-600/50 disabled:to-emerald-500/50'
+                      : 'bg-gradient-to-r from-red-600 to-rose-500 hover:shadow-red-500/35 disabled:from-red-600/50 disabled:to-rose-500/50'
+                  } disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:translate-y-0`}
                 >
-                  Review {tradeType === 'buy' ? 'Buy' : 'Sell'} Order
+                  <span className="absolute inset-0 -translate-x-full group-hover/rev:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                  <span className="relative flex items-center justify-center gap-2">
+                    {tradeType === 'buy' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    Review {tradeType === 'buy' ? 'Buy' : 'Sell'} Order
+                  </span>
                 </button>
               </div>
             </div>
@@ -695,28 +749,36 @@ export default function TradePage() {
 
       {/* Trade Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowConfirmModal(false)}>
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl shadow-black/40 overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setShowConfirmModal(false)}>
+          <style>{`
+            @keyframes tradeModalPop { from{opacity:0;transform:scale(0.82) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+          `}</style>
+          <div
+            className="bg-[#080d1a] border border-white/12 rounded-2xl w-full max-w-sm shadow-2xl shadow-black/60 overflow-hidden"
+            style={{ animation: 'tradeModalPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Top accent */}
             <div className={`h-1 w-full ${tradeType === 'buy' ? 'bg-gradient-to-r from-green-600 via-green-400 to-emerald-400' : 'bg-gradient-to-r from-red-600 via-red-400 to-rose-400'}`} />
 
             {/* Header */}
-            <div className="relative flex items-center gap-3 px-5 pt-5 pb-4 border-b border-border/60">
+            <div className="relative flex items-center gap-3 px-5 pt-5 pb-4 border-b border-white/8">
+              <div className="pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full blur-2xl opacity-20" style={{ background: tradeType === 'buy' ? '#22c55e' : '#ef4444' }} />
               <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
                 <div className={`absolute inset-0 rounded-full border-2 border-transparent animate-spin ${tradeType === 'buy' ? 'border-t-green-400/80 border-r-emerald-400/30' : 'border-t-red-400/80 border-r-rose-400/30'}`} style={{ animationDuration: '2.5s' }} />
                 <div className={`absolute inset-[3px] rounded-full flex items-center justify-center ${tradeType === 'buy' ? 'bg-green-500/15 border border-green-500/25' : 'bg-red-500/15 border border-red-500/25'}`}>
-                  {tradeType === 'buy' ? <TrendingUp className="w-4.5 h-4.5 text-green-400" /> : <TrendingDown className="w-4.5 h-4.5 text-red-400" />}
+                  {tradeType === 'buy' ? <TrendingUp className="w-4 h-4 text-green-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
                 </div>
               </div>
-              <div>
-                <h3 className="font-bold text-base leading-tight">Confirm {tradeType === 'buy' ? 'Buy' : 'Sell'} Order</h3>
-                <p className="text-[11px] text-muted-foreground">Review details before submitting</p>
+              <div className="relative">
+                <h3 className="font-bold text-base leading-tight text-white">Confirm {tradeType === 'buy' ? 'Buy' : 'Sell'} Order</h3>
+                <p className="text-[11px] text-white/40">Review details before submitting</p>
               </div>
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="absolute top-4 right-4 w-7 h-7 rounded-full bg-muted hover:bg-accent flex items-center justify-center transition-colors"
+                className="absolute top-4 right-4 w-7 h-7 rounded-full bg-white/8 hover:bg-white/15 flex items-center justify-center transition-all hover:rotate-90 duration-200"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5 text-white/50" />
               </button>
             </div>
 
@@ -727,35 +789,35 @@ export default function TradePage() {
                 <div className="flex items-center gap-3 mb-3">
                   <AssetLogo asset={selectedAsset} size={36} />
                   <div>
-                    <p className="font-bold text-sm">{selectedAsset.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{selectedAsset.symbol} · {orderType === 'market' ? 'Market' : 'Limit'} order</p>
+                    <p className="font-bold text-sm text-white">{selectedAsset.name}</p>
+                    <p className="text-[11px] text-white/40">{selectedAsset.symbol} · {orderType === 'market' ? 'Market' : 'Limit'} order</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-background/60 rounded-lg py-2">
-                    <p className="text-[10px] text-muted-foreground mb-0.5">Amount</p>
-                    <p className="text-sm font-black">{Number(amount).toLocaleString()} {selectedAsset.symbol}</p>
+                  <div className="bg-white/5 rounded-lg py-2">
+                    <p className="text-[10px] text-white/30 mb-0.5">Amount</p>
+                    <p className="text-sm font-black text-white">{Number(amount).toLocaleString()} {selectedAsset.symbol}</p>
                   </div>
-                  <div className="bg-background/60 rounded-lg py-2">
-                    <p className="text-[10px] text-muted-foreground mb-0.5">Price</p>
-                    <p className="text-sm font-bold">${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                  <div className="bg-white/5 rounded-lg py-2">
+                    <p className="text-[10px] text-white/30 mb-0.5">Price</p>
+                    <p className="text-sm font-bold text-white">${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                   </div>
                 </div>
               </div>
 
               {/* Order breakdown */}
-              <div className="space-y-2 bg-muted/50 rounded-xl p-4 text-sm">
+              <div className="space-y-2 bg-white/5 border border-white/8 rounded-xl p-4 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Est. Total</span>
-                  <span className="font-semibold">${estimatedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-white/40">Est. Total</span>
+                  <span className="font-semibold text-white/80">${estimatedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fee (0.1%)</span>
-                  <span className="font-semibold">${(estimatedTotal * 0.001).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-white/40">Fee (0.1%)</span>
+                  <span className="font-semibold text-white/80">${(estimatedTotal * 0.001).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-border font-bold">
-                  <span>You {tradeType === 'buy' ? 'Pay' : 'Receive'}</span>
-                  <span className={tradeType === 'buy' ? 'text-red-500' : 'text-green-500'}>
+                <div className="flex justify-between pt-2 border-t border-white/8 font-bold">
+                  <span className="text-white">You {tradeType === 'buy' ? 'Pay' : 'Receive'}</span>
+                  <span className={tradeType === 'buy' ? 'text-red-400' : 'text-green-400'}>
                     {tradeType === 'buy' ? '-' : '+'}${(estimatedTotal + estimatedTotal * 0.001).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
@@ -765,18 +827,22 @@ export default function TradePage() {
               <div className="flex gap-2.5 pt-1">
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-border bg-background hover:bg-accent text-sm font-medium transition-colors"
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm font-medium transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={executeTrade}
-                  className={`flex-1 py-2.5 rounded-xl text-white text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 ${
-                    tradeType === 'buy' ? 'bg-green-500 hover:bg-green-400 shadow-green-500/25' : 'bg-red-500 hover:bg-red-400 shadow-red-500/25'
+                  disabled={tradeInvalid}
+                  className={`group/confirm relative flex-1 overflow-hidden py-2.5 rounded-xl text-white text-sm font-bold transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
+                    tradeType === 'buy'
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-500 shadow-green-500/30'
+                      : 'bg-gradient-to-r from-red-600 to-rose-500 shadow-red-500/30'
                   }`}
                 >
-                  <CheckCircle className="w-4 h-4" />
-                  Confirm {tradeType === 'buy' ? 'Buy' : 'Sell'}
+                  <span className="absolute inset-0 -translate-x-full group-hover/confirm:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                  <CheckCircle className="relative w-4 h-4" />
+                  <span className="relative">Confirm {tradeType === 'buy' ? 'Buy' : 'Sell'}</span>
                 </button>
               </div>
             </div>
@@ -909,7 +975,17 @@ export default function TradePage() {
                       Cancel
                     </button>
                     <button
-                      onClick={() => setDcaSuccess(true)}
+                      onClick={() => {
+                        createDCAPlan({
+                          asset: selectedAsset.symbol,
+                          assetName: selectedAsset.name,
+                          amount: Number(dcaAmount),
+                          frequency: dcaFrequency,
+                          startDate: new Date().toISOString(),
+                          active: true,
+                        });
+                        setDcaSuccess(true);
+                      }}
                       className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:opacity-90 active:scale-95 text-white text-sm font-bold transition-all shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2"
                     >
                       <CheckCircle className="w-4 h-4" />

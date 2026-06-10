@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   Star,
@@ -109,6 +109,8 @@ export default function MarketsPage() {
     name: string;
     amount: number;
   }>({ isOpen: false, name: '', amount: 0 });
+  const [priceFlash, setPriceFlash] = useState<Record<string, 'up' | 'down'>>({});
+  const prevPricesRef = useRef<Record<string, number>>({});
 
   // Pagination
   const [cryptoPage, setCryptoPage] = useState(1);
@@ -394,9 +396,17 @@ export default function MarketsPage() {
     localStorage.setItem('auravest_local_positions', JSON.stringify(localPositions));
   }, [localPositions]);
 
-  // Subscribe to live crypto
+  // Subscribe to live crypto with price-tick flash
   useEffect(() => {
     const unsub = subscribeToCrypto((livePrices) => {
+      const flashes: Record<string, 'up' | 'down'> = {};
+      Object.entries(livePrices).forEach(([symbol, data]) => {
+        const prev = prevPricesRef.current[symbol];
+        if (prev !== undefined && data.price !== prev) {
+          flashes[symbol] = data.price > prev ? 'up' : 'down';
+        }
+        prevPricesRef.current[symbol] = data.price;
+      });
       setCryptoAssets((prev) =>
         prev.map((asset) => ({
           ...asset,
@@ -404,6 +414,14 @@ export default function MarketsPage() {
           change24h: livePrices[asset.symbol]?.change24h ?? asset.change24h,
         }))
       );
+      if (Object.keys(flashes).length > 0) {
+        setPriceFlash((p) => ({ ...p, ...flashes }));
+        setTimeout(() => setPriceFlash((p) => {
+          const cleared = { ...p };
+          Object.keys(flashes).forEach((k) => { delete cleared[k]; });
+          return cleared;
+        }), 600);
+      }
     });
     return unsub;
   }, []);
@@ -769,7 +787,10 @@ export default function MarketsPage() {
                           <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-current' : ''}`} />
                         </span>
                         <div className="text-right">
-                          <p className="font-semibold">${(crypto.price ?? 0).toLocaleString()}</p>
+                          <p className={`font-semibold transition-colors duration-300 ${
+                            priceFlash[crypto.symbol] === 'up' ? 'text-green-400' :
+                            priceFlash[crypto.symbol] === 'down' ? 'text-red-400' : ''
+                          }`}>${(crypto.price ?? 0).toLocaleString()}</p>
                           <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                             {formatPercent(crypto.change24h)}%
                           </p>
@@ -1916,56 +1937,118 @@ export default function MarketsPage() {
       })()}
 
       {localSuccessModal.isOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-green-500/25 rounded-2xl w-full max-w-sm shadow-2xl shadow-black/40 overflow-hidden animate-in zoom-in-90 slide-in-from-bottom-4 duration-300">
+        <>
+          <style>{`
+            @keyframes lsmPop { from{opacity:0;transform:scale(0.82) translateY(20px)} to{opacity:1;transform:scale(1) translateY(0)} }
+            @keyframes lsmConfetti {
+              0%   { transform:translate(0,0) scale(0); opacity:1; }
+              60%  { opacity:1; }
+              100% { transform:translate(var(--dx),var(--dy)) scale(0.25); opacity:0; }
+            }
+            @keyframes lsmCircleDraw { from{stroke-dashoffset:166} to{stroke-dashoffset:0} }
+            @keyframes lsmCheckDraw  { from{stroke-dashoffset:48}  to{stroke-dashoffset:0}  }
+          `}</style>
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"
+            onClick={() => setLocalSuccessModal({ isOpen: false, name: '', amount: 0 })}
+          >
+            <div
+              className="relative bg-[#080d1a] border border-white/12 rounded-2xl w-full max-w-sm shadow-2xl shadow-black/60 overflow-hidden"
+              style={{ animation: 'lsmPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Glow blobs */}
+              <div className="pointer-events-none absolute -top-16 -right-16 w-44 h-44 rounded-full bg-green-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-16 -left-16 w-44 h-44 rounded-full bg-teal-500/15 blur-3xl" />
 
-            {/* Green top accent */}
-            <div className="h-1.5 bg-gradient-to-r from-teal-500 via-green-400 to-emerald-500" />
-
-            <div className="px-6 pt-6 pb-5 text-center">
-              {/* Pulsing ring stack */}
-              <div className="relative w-20 h-20 mx-auto mb-5">
-                <span className="absolute inset-0 rounded-full bg-green-500/10 animate-ping" style={{ animationDuration: '1.8s' }} />
-                <span className="absolute inset-2 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.3s' }} />
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-green-500/20 to-teal-500/20 border border-green-500/30 flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center shadow-lg shadow-green-500/30">
-                    <CheckCircle className="w-6 h-6 text-white" />
+              {/* Confetti burst */}
+              {(() => {
+                const ANGLES = [0,45,90,135,180,225,270,315,22,67,112,247];
+                const COLORS = ['#34d399','#2dd4bf','#4ade80','#86efac','#6ee7b7','#a3e635'];
+                return (
+                  <div className="absolute inset-0 flex items-start justify-center pt-10 pointer-events-none overflow-hidden">
+                    {ANGLES.map((angle, i) => {
+                      const rad = (angle * Math.PI) / 180;
+                      const dist = 72 + (i % 3) * 12;
+                      return (
+                        <span
+                          key={i}
+                          className="absolute w-2.5 h-2.5 rounded-full"
+                          style={{
+                            backgroundColor: COLORS[i % COLORS.length],
+                            '--dx': `${Math.round(Math.sin(rad) * dist)}px`,
+                            '--dy': `${Math.round(-Math.cos(rad) * dist)}px`,
+                            animation: `lsmConfetti 0.7s ease-out ${(i * 0.03).toFixed(2)}s forwards`,
+                          } as React.CSSProperties}
+                        />
+                      );
+                    })}
                   </div>
+                );
+              })()}
+
+              {/* Green top accent */}
+              <div className="h-1.5 bg-gradient-to-r from-teal-500 via-green-400 to-emerald-500" />
+
+              <div className="px-6 pt-6 pb-5 text-center">
+                {/* Animated SVG checkmark */}
+                <div className="relative w-20 h-20 mx-auto mb-5">
+                  <span className="absolute inset-0 rounded-full bg-green-500/10 animate-ping" style={{ animationDuration: '1.8s' }} />
+                  <span className="absolute inset-2 rounded-full bg-green-500/15 animate-ping" style={{ animationDuration: '1.8s', animationDelay: '0.3s' }} />
+                  <svg viewBox="0 0 52 52" className="relative w-20 h-20" fill="none">
+                    <defs>
+                      <linearGradient id="lsmGrad" x1="0" y1="0" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#34d399" />
+                        <stop offset="1" stopColor="#2dd4bf" />
+                      </linearGradient>
+                    </defs>
+                    <circle
+                      cx="26" cy="26" r="24"
+                      stroke="url(#lsmGrad)" strokeWidth="2"
+                      style={{ strokeDasharray: 166, animation: 'lsmCircleDraw 0.5s ease-out forwards' }}
+                    />
+                    <path
+                      d="M14 27l8 8 16-16"
+                      stroke="#34d399" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ strokeDasharray: 48, strokeDashoffset: 48, animation: 'lsmCheckDraw 0.4s ease-out 0.45s forwards' }}
+                    />
+                  </svg>
                 </div>
+
+                <h3 className="text-xl font-black mb-1 text-white">Investment Placed!</h3>
+                <p className="text-white/40 text-sm mb-4">{localSuccessModal.name}</p>
+
+                {/* Amount highlight */}
+                <div className="bg-gradient-to-br from-green-500/10 to-teal-500/5 border border-green-500/20 rounded-xl px-5 py-3.5 mb-4">
+                  <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Amount Invested</p>
+                  <p className="text-3xl font-black text-green-400">GH¢ {localSuccessModal.amount.toLocaleString()}</p>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-2 mb-5 text-center">
+                  {[
+                    { label: 'Status', value: 'Active', color: 'text-green-400' },
+                    { label: 'Tax', value: '0%', color: 'text-teal-400' },
+                    { label: 'Portfolio', value: 'Updated', color: 'text-blue-400' },
+                  ].map((s) => (
+                    <div key={s.label} className="bg-white/5 border border-white/8 rounded-lg py-2">
+                      <p className="text-[10px] text-white/30">{s.label}</p>
+                      <p className={`text-xs font-bold ${s.color}`}>{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setLocalSuccessModal({ isOpen: false, name: '', amount: 0 })}
+                  className="group/cont relative w-full overflow-hidden py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-green-500 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-teal-500/20 hover:-translate-y-0.5 hover:shadow-teal-500/30"
+                >
+                  <span className="absolute inset-0 -translate-x-full group-hover/cont:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                  <span className="relative">Continue</span>
+                </button>
               </div>
-
-              <h3 className="text-xl font-black mb-1">Investment Placed!</h3>
-              <p className="text-muted-foreground text-sm mb-4">{localSuccessModal.name}</p>
-
-              {/* Amount highlight */}
-              <div className="bg-gradient-to-br from-green-500/10 to-teal-500/5 border border-green-500/20 rounded-xl px-5 py-3.5 mb-4">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Amount Invested</p>
-                <p className="text-3xl font-black text-green-400">GH¢ {localSuccessModal.amount.toLocaleString()}</p>
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-2 mb-5 text-center">
-                {[
-                  { label: 'Status', value: 'Active', color: 'text-green-400' },
-                  { label: 'Tax', value: '0%', color: 'text-teal-400' },
-                  { label: 'Portfolio', value: 'Updated', color: 'text-blue-400' },
-                ].map((s) => (
-                  <div key={s.label} className="bg-muted/40 rounded-lg py-2">
-                    <p className="text-[10px] text-muted-foreground">{s.label}</p>
-                    <p className={`text-xs font-bold ${s.color}`}>{s.value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setLocalSuccessModal({ isOpen: false, name: '', amount: 0 })}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-400 hover:to-green-400 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-teal-500/20"
-              >
-                Continue
-              </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {activeTab === 'analysis' && (

@@ -589,53 +589,35 @@ export const executeBasketTrade = async (basket: { assets: any[], totalAmount: n
 
   const results = [];
   for (const item of basket.assets) {
-    const tradeData = {
-      type: 'buy', // Assume basket is for buying
+    if (!item.amount || item.amount <= 0) continue;
+
+    const newTx = {
+      id: `tx-${Date.now()}-${Math.random()}`,
+      type: 'buy',
       asset: item.asset.symbol,
       assetName: item.asset.name,
       amount: item.amount,
       price: item.asset.price,
       total: item.amount * item.asset.price,
       currency: String(item.asset.currency || 'USD'),
-    };
-
-    const newTx = {
-      id: `tx-${Date.now()}-${Math.random()}`,
-      ...tradeData,
       timestamp: new Date().toISOString(),
-      status: 'completed'
+      status: 'completed',
     };
 
     results.push(newTx);
 
-    // Update transactions
     const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
     transactions.unshift(newTx);
     localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
     await syncAuraVestTransactionsToUnifiedLedger(transactions);
-
-    // Update portfolio for basket trades
-    const portfolio = JSON.parse(localStorage.getItem('auravest_portfolio') || '{}');
-
-    // Initialize portfolio if it doesn't exist
-    if (!portfolio.totalValue) {
-      portfolio.totalValue = 125847.32;
-      portfolio.change24h = 3.45;
-      portfolio.changeAmount = 4201.23;
-      portfolio.assets = [
-        { type: 'Crypto', value: 45230.50, allocation: 35.9 },
-        { type: 'Stocks', value: 52180.20, allocation: 41.4 },
-        { type: 'Gold', value: 18436.62, allocation: 14.6 },
-        { type: 'NFTs', value: 10000.00, allocation: 7.9 },
-      ];
-    }
-
-    // For basket trades, assume all are buys and subtract total
-    const totalBasketValue = results.reduce((sum, tx) => sum + tx.total, 0);
-    portfolio.totalValue -= totalBasketValue;
-    localStorage.setItem('auravest_portfolio', JSON.stringify(portfolio));
-    syncPortfolioSnapshotCookie(portfolio);
+    syncVestActivitySnapshotCookie(transactions);
   }
+
+  // Rebuild holdings and cash balance from the full transaction history
+  rebuildTradeHoldingsFromTransactions(
+    JSON.parse(localStorage.getItem('auravest_transactions') || '[]')
+  );
+  reconcileCashBalanceFromTransactions();
 
   return results;
 };
