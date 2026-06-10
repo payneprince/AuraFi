@@ -40,7 +40,8 @@ import { getWatchlist, addToWatchlist, removeFromWatchlist } from '@/lib/mockAPI
 import TradeModal from '@/components/TradeModal';
 import AssetDetailsModal from '@/components/AssetDetailsModal';
 import PriceAlertModal from '@/components/PriceAlertModal';
-import TechnicalAnalysisChart from '@/components/TechnicalAnalysisChart';
+import { lazy, Suspense } from 'react';
+const TradingChart = lazy(() => import('./TradingChart'));
 import TransactionSuccessModal from '@/components/TransactionSuccessModal';
 
 type AssetTab = 'crypto' | 'stocks' | 'gold' | 'nfts' | 'local' | 'analysis';
@@ -618,6 +619,7 @@ export default function MarketsPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -2052,105 +2054,106 @@ export default function MarketsPage() {
       )}
 
       {activeTab === 'analysis' && (
-        <div className="space-y-4">
-          {selectedAsset ? (
-            <TechnicalAnalysisChart asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
-          ) : (
-            <>
-              {/* ── Technical Analysis Banner ──────────────────────── */}
-              <div className="group relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#00080f] via-[#000f1f] to-[#000408] border border-cyan-500/25 hover:border-cyan-400/55 transition-all duration-500 cursor-default hover:shadow-xl hover:shadow-cyan-500/10 hover:scale-[1.004]">
+        <div className="flex flex-col gap-3">
 
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_60%)] group-hover:opacity-0 transition-opacity duration-500" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.28),transparent_55%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.07),transparent_60%)] group-hover:opacity-0 transition-opacity duration-500" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.18),transparent_55%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/4 to-transparent pointer-events-none" />
-
-                <div className="relative flex items-center justify-between gap-4 p-4 md:p-5">
-                  <div className="flex items-center gap-3.5">
-                    <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
-                      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400/70 border-r-indigo-400/30 group-hover:animate-spin" />
-                      <div className="absolute inset-1 rounded-full ring-1 ring-cyan-500/20 group-hover:ring-cyan-400/50 transition-all duration-300" />
-                      <div className="absolute inset-1 rounded-full overflow-hidden bg-cyan-950/60 group-hover:scale-105 transition-transform duration-300 flex items-center justify-center">
-                        <TrendingUp className="w-6 h-6 text-cyan-400 group-hover:text-cyan-300 transition-colors duration-300" />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-black text-base text-cyan-400 tracking-tight group-hover:text-cyan-300 transition-colors duration-300">Technical Analysis</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold group-hover:bg-cyan-500/35 transition-all duration-300">Charts · Indicators</span>
-                      </div>
-                      <p className="text-xs text-cyan-200/50 group-hover:text-cyan-200/80 transition-colors duration-300">
-                        Select any asset below to view RSI, MACD, moving averages & more
-                      </p>
-                    </div>
+          {/* ── Live Market Analysis banner ─────────────────────────────────── */}
+          <div className="group relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#00080f] via-[#000f1f] to-[#000408] border border-cyan-500/25 hover:border-cyan-400/50 transition-all duration-500 hover:shadow-xl hover:shadow-cyan-500/10">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.14),transparent_60%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.08),transparent_60%)]" />
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/4 to-transparent pointer-events-none" />
+            <div className="relative flex items-center justify-between gap-4 p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-shrink-0 w-10 h-10">
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-cyan-400/70 border-r-indigo-400/30 animate-spin" style={{ animationDuration: '3s' }} />
+                  <div className="absolute inset-[3px] rounded-full bg-cyan-950/70 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-cyan-400" />
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
-                    </span>
-                    <span className="text-xs font-semibold text-cyan-400/80">Interactive</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-cyan-400 tracking-tight">Live Market Analysis</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 font-semibold">Real-time · Charts · Indicators</span>
+                  </div>
+                  <p className="text-xs text-cyan-200/45 mt-0.5">Click any asset in the ticker below to switch the chart instantly</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                </span>
+                <span className="text-xs font-semibold text-cyan-400/70 hidden sm:inline">Live</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Live chart ─────────────────────────────────────────────────── */}
+          <div style={{ height: 580 }}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full bg-[#080d1a] rounded-2xl border border-white/8">
+                <div className="w-10 h-10 rounded-full border-2 border-transparent border-t-primary animate-spin" />
+              </div>
+            }>
+              <TradingChart initialSymbol={selectedAsset?.symbol} />
+            </Suspense>
+          </div>
+
+          {/* ── Auto-scrolling asset ticker ─────────────────────────────────── */}
+          {filteredCrypto.length > 0 && (() => {
+            const chips = filteredCrypto.slice(0, 24);
+            return (
+              <div className="relative overflow-hidden rounded-xl border border-border bg-card/50">
+                {/* fade edges */}
+                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card/80 to-transparent z-10 pointer-events-none" />
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card/80 to-transparent z-10 pointer-events-none" />
+
+                <style>{`
+                  @keyframes assetTicker {
+                    0%   { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                  }
+                  .asset-ticker-track {
+                    animation: assetTicker 35s linear infinite;
+                    display: flex;
+                    width: max-content;
+                  }
+                  .asset-ticker-track:hover { animation-play-state: paused; }
+                `}</style>
+
+                <div className="py-2 px-2">
+                  <div className="asset-ticker-track gap-1.5" style={{ gap: '6px' }}>
+                    {[...chips, ...chips].map((asset, i) => {
+                      const isActive = selectedAsset?.id === asset.id;
+                      const isPos    = (asset.change24h ?? 0) >= 0;
+                      const isBrand  = asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/');
+                      return (
+                        <button
+                          key={`${asset.id}-${i}`}
+                          onClick={() => handleAssetClick(asset)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex-shrink-0 transition-all active:scale-95 ${
+                            isActive
+                              ? 'bg-primary/15 border-primary/40 text-primary'
+                              : 'bg-background/60 border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border'
+                          }`}
+                          style={{ marginRight: 6 }}
+                        >
+                          <span className={`w-5 h-5 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${isBrand ? 'bg-white' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+                            {(asset.image?.startsWith('http') || asset.image?.startsWith('/')) ? (
+                              <img src={asset.image} alt={asset.symbol} className={isBrand ? 'w-3.5 h-3.5 object-contain' : 'w-5 h-5 object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            ) : <span className="text-white text-[8px] font-bold">{asset.symbol?.slice(0, 2)}</span>}
+                          </span>
+                          <span>{asset.symbol}</span>
+                          <span className={`text-[10px] ${isPos ? 'text-green-500' : 'text-red-500'}`}>
+                            {isPos ? '+' : ''}{formatPercent(asset.change24h)}%
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[...filteredCrypto, ...filteredStocks].length > 0 ? (
-                  [...filteredCrypto, ...filteredStocks].map((asset) => {
-                    const isPositive = typeof asset.change24h === 'number' && asset.change24h >= 0;
-                    const isInWatchlist = watchlist.some((w) => w.id === asset.id);
-                    const isCrypto = filteredCrypto.includes(asset);
-                    return (
-                      <div
-                        key={asset.id}
-                        onClick={() => handleAssetClick(asset)}
-                        className="bg-card border border-border rounded-lg p-4 hover:bg-accent transition-all hover:scale-105 cursor-pointer animate-fadeIn"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0 ${!isCrypto && (asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/')) ? 'bg-white border border-slate-200' : isCrypto ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'}`}>
-                              {(asset.image?.startsWith('http') || asset.image?.startsWith('/')) ? (
-                                <img src={asset.image} alt={asset.symbol} className={(asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/')) ? 'w-7 h-7 object-contain' : 'w-full h-full object-cover'} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                              ) : <span className="text-white">{asset.symbol?.slice(0, 2)}</span>}
-                            </div>
-                            <div>
-                              <p className="font-semibold">{asset.name}</p>
-                              <p className="text-sm text-muted-foreground">{asset.symbol}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleWatchlist(asset.id, isCrypto ? 'crypto' : 'stocks');
-                              }}
-                              className={`p-1 rounded cursor-pointer ${
-                                isInWatchlist ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'
-                              }`}
-                            >
-                              <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-current' : ''}`} />
-                            </span>
-                            <div className="text-right">
-                              <p className="font-semibold">${(asset.price ?? 0).toLocaleString()}</p>
-                              <p className={`text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                                {formatPercent(asset.change24h)}%
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="col-span-full text-center py-8 text-muted-foreground">
-                    No assets found for "{searchQuery}"
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+            );
+          })()}
         </div>
       )}
 

@@ -2,7 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { cryptoAssets, stockAssets } from '@/lib/mockData';
+import { loadCrypto, loadStocks, subscribeToCrypto, startCryptoWebSocket } from '@/lib/marketData';
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles, Shield, AlertTriangle, Landmark, Flame, Activity, Zap, BarChart2 } from 'lucide-react';
+
+function SparkLine({ data, isPositive }: { data: number[]; isPositive: boolean }) {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const w = 64, h = 28;
+  const pts = data
+    .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 2) - 1}`)
+    .join(' ');
+  return (
+    <svg width={w} height={h} className="opacity-75 flex-shrink-0">
+      <polyline points={pts} fill="none" stroke={isPositive ? '#22c55e' : '#ef4444'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 import { readUnifiedAuthSession } from '../../../../shared/unified-auth';
 import LiveTransactionMap from '@/components/LiveTransactionMap';
 import MobileAppShowcase from '@/components/MobileAppShowcase';
@@ -11,9 +28,9 @@ import PriceComparison from '@/components/PriceComparison';
 import TradeModal from '@/components/TradeModal';
 import AssetDetailsModal from '@/components/AssetDetailsModal';
 import AuraAIInsight from '@/components/AuraAIInsight';
-import { getPortfolio } from '@/lib/mockAPI';
+import { getPortfolio, getWatchlist } from '@/lib/mockAPI';
 
-export default function DashboardHome() {
+export default function DashboardHome({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [portfolio, setPortfolio] = useState<any | null>(null);
   const isPortfolioReady = portfolio && typeof portfolio.totalValue === 'number';
   const { totalValue = 0, change24h = 0, changeAmount = 0 } = portfolio || {};
@@ -25,6 +42,15 @@ export default function DashboardHome() {
   const [netTradeCashflow, setNetTradeCashflow] = useState(0);
   const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
   const isNewUser = isPortfolioReady && totalValue === 0 && cashBalance === 0 && transactionFeed.length === 0;
+  const [liveAssets, setLiveAssets] = useState<any[]>(cryptoAssets.slice(0, 8));
+  const [liveStocks, setLiveStocks] = useState<any[]>(stockAssets.slice(0, 8));
+  const [tickerAssets, setTickerAssets] = useState<any[]>(cryptoAssets.slice(0, 16));
+  const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
+  const [displayValue, setDisplayValue] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [miniCurve, setMiniCurve] = useState<number[]>([]);
+  const [fearGreed, setFearGreed] = useState<{ value: number; label: string } | null>(null);
+  const [watchlistItems, setWatchlistItems] = useState<any[]>([]);
 
   // ── Dynamic portfolio health ──────────────────────────────────
   const computePortfolioHealth = () => {
@@ -173,14 +199,109 @@ export default function DashboardHome() {
     loadRecentTransactions();
     refreshCapitalMetrics();
 
+    // Load live asset prices
+    loadCrypto().then((data) => {
+      setLiveAssets(data.slice(0, 8));
+      setTickerAssets(data.slice(0, 16));
+      // Fetch 7-day sparklines for top 8 crypto (parallel)
+      const symbols = data.slice(0, 8).map((a: any) => a.symbol);
+      Promise.all(
+        symbols.map((sym: string) =>
+          fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=8`)
+            .then((r) => r.json())
+            .then((rows: any[]) => ({ sym, closes: rows.map((k) => parseFloat(k[4])) }))
+            .catch(() => ({ sym, closes: [] as number[] }))
+        )
+      ).then((results) => {
+        const map: Record<string, number[]> = {};
+        for (const { sym, closes } of results) if (closes.length) map[sym] = closes;
+        setSparklines(map);
+      });
+    }).catch(() => {});
+    loadStocks().then((data) => setLiveStocks(data.slice(0, 8))).catch(() => {});
+
+    // Fear & Greed index
+    fetch('https://api.alternative.me/fng/?limit=1')
+      .then((r) => r.json())
+      .then((d) => {
+        const v = Number(d?.data?.[0]?.value ?? 0);
+        const label = d?.data?.[0]?.value_classification ?? '';
+        if (v > 0) setFearGreed({ value: v, label });
+      }).catch(() => {});
+
+    // Watchlist
+    setWatchlistItems(getWatchlist());
+
+    startCryptoWebSocket();
+    const unsubPrices = subscribeToCrypto((prices) => {
+      setLiveAssets((prev) =>
+        prev.map((a) => {
+          const p = prices[a.symbol];
+          return p ? { ...a, price: p.price, change24h: p.change24h } : a;
+        })
+      );
+      setTickerAssets((prev) =>
+        prev.map((a) => {
+          const p = prices[a.symbol];
+          return p ? { ...a, price: p.price, change24h: p.change24h } : a;
+        })
+      );
+    });
+
     const capitalInterval = setInterval(() => {
       refreshCapitalMetrics();
       loadRecentTransactions();
       void loadLivePortfolio();
     }, 2000);
 
-    return () => clearInterval(capitalInterval);
+    return () => {
+      clearInterval(capitalInterval);
+      unsubPrices();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isPortfolioReady || totalValue === 0) return;
+
+    // Count-up animation (runs once)
+    if (!hasAnimated) {
+      setHasAnimated(true);
+      const start = Date.now();
+      const duration = 1400;
+      const tick = () => {
+        const t = Math.min((Date.now() - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 4);
+        setDisplayValue(totalValue * eased);
+        if (t < 1) requestAnimationFrame(tick);
+        else setDisplayValue(totalValue);
+      };
+      requestAnimationFrame(tick);
+    } else {
+      setDisplayValue(totalValue);
+    }
+
+    // Mini equity curve from buy history
+    try {
+      const txs: any[] = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      const buyTxs = txs.filter((tx) => tx?.type === 'buy')
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      if (buyTxs.length >= 2) {
+        let cum = 0;
+        const byMonth = new Map<string, number>();
+        for (const tx of buyTxs) {
+          const d = new Date(tx.timestamp);
+          const key = `${d.getFullYear()}-${d.getMonth()}`;
+          cum += Number(tx.gross) || (Number(tx.amount || 0) * Number(tx.price || 0));
+          byMonth.set(key, cum);
+        }
+        const vals = Array.from(byMonth.values());
+        if (vals.length > 0) vals[vals.length - 1] = totalValue;
+        setMiniCurve(vals.length >= 2 ? vals : []);
+      }
+    } catch { /* */ }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPortfolioReady, totalValue]);
 
   const handleAssetClick = (asset: any) => {
     setSelectedAsset(asset);
@@ -193,65 +314,246 @@ export default function DashboardHome() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+
+      {/* ── Live price ticker strip — pulled flush to top via negative margin ── */}
+      <div className="-mt-4 md:-mt-6 -mx-4 md:-mx-6 mb-2">
+      <style>{`
+        @keyframes dashTicker {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .dash-ticker-track {
+          animation: dashTicker 40s linear infinite;
+          display: flex;
+          width: max-content;
+        }
+        .dash-ticker-track:hover { animation-play-state: paused; }
+        @keyframes moverPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.45; }
+        }
+        .mover-badge { animation: moverPulse 2.4s ease-in-out infinite; }
+        .mover-arrow { animation: moverPulse 1.8s ease-in-out infinite; }
+      `}</style>
+      <div className="relative overflow-hidden rounded-xl border border-white/8 bg-card/60 backdrop-blur-sm py-2.5">
+        <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+        <div className="overflow-hidden">
+          <div className="dash-ticker-track">
+            {[...tickerAssets, ...tickerAssets].map((asset, i) => {
+              const pos = asset.change24h >= 0;
+              return (
+                <div key={i} className="flex items-center gap-2 px-4 border-r border-white/5 flex-shrink-0">
+                  {asset.image?.startsWith('http') && (
+                    <img src={asset.image} alt={asset.symbol} className="w-4 h-4 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <span className="text-xs font-bold text-foreground whitespace-nowrap">{asset.symbol}</span>
+                  <span className="text-xs font-semibold text-foreground/80 whitespace-nowrap">
+                    ${(asset.price ?? 0) >= 1000
+                      ? (asset.price / 1000).toFixed(2) + 'K'
+                      : (asset.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className={`text-[11px] font-semibold whitespace-nowrap ${pos ? 'text-green-400' : 'text-red-400'}`}>
+                    {pos ? '+' : ''}{(asset.change24h ?? 0).toFixed(2)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      </div>
+
       {/* Personalized header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold mb-1">{getTimeGreeting()}, {firstName} 👋</h1>
-          <p className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-        {isPortfolioReady && totalValue > 0 && (
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ${isPositive ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
-            {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            {isPositive ? '+' : ''}{change24h}% today
-          </div>
-        )}
-      </div>
+      {(() => {
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        const etOffset = -5; // EST (approximate)
+        const etHour = (hour + etOffset + 24) % 24;
+        const etMinutes = etHour * 60 + minute;
+        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+        const nyseOpen = isWeekday && etMinutes >= 570 && etMinutes < 960; // 9:30–16:00 ET
+        // GSE: Mon–Fri 9:30–15:00 GMT (Ghana is GMT/UTC+0)
+        const gmtMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+        const gseOpen = isWeekday && gmtMinutes >= 570 && gmtMinutes < 900; // 9:30–15:00 GMT
 
-      {/* Portfolio value card */}
-      <div className="gradient-primary rounded-xl p-6 text-white animate-fadeIn">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-sm opacity-80 mb-1">Total Portfolio Value</p>
+        const dynamicSubtext = (() => {
+          if (isPortfolioReady && totalValue > 0 && change24h !== 0) {
+            return isPositive
+              ? `Your portfolio is up ${change24h}% today — keep it going`
+              : `Markets dipped ${Math.abs(change24h)}% today — stay the course`;
+          }
+          if (hour < 9) return 'Pre-market hours — crypto never sleeps';
+          if (hour < 12) return 'Morning session underway — catch the moves early';
+          if (hour < 14) return 'Midday check-in — see what\'s moving';
+          if (hour < 17) return 'Afternoon session — markets closing soon';
+          return 'After-hours — crypto trading 24/7';
+        })();
+
+        return (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black leading-tight bg-gradient-to-r from-white via-white/90 to-white/60 bg-clip-text text-transparent">
+                {getTimeGreeting()}{firstName && firstName !== 'there' ? `, ${firstName}` : ''} 👋
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1.5">{dynamicSubtext}</p>
+            </div>
+            <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                  nyseOpen ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-muted text-muted-foreground border-border'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${nyseOpen ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+                  NYSE {nyseOpen ? 'Open' : 'Closed'}
+                </div>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                  gseOpen ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-muted text-muted-foreground border-border'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${gseOpen ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+                  GSE {gseOpen ? 'Open' : 'Closed'}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <svg className="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                {now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Portfolio value card — redesigned */}
+      <div className="relative rounded-2xl overflow-hidden text-white shadow-2xl"
+        style={{ background: 'linear-gradient(135deg, #080d1c 0%, #0c1428 55%, #080f20 100%)' }}>
+
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
+
+        {/* Glowing orbs */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 65%)' }} />
+        <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.18) 0%, transparent 65%)' }} />
+        <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-64 h-20 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, rgba(139,92,246,0.07) 0%, transparent 70%)' }} />
+
+        {/* Mini equity curve watermark */}
+        {miniCurve.length >= 2 && (() => {
+          const maxV = Math.max(...miniCurve);
+          const pts = miniCurve.map((v, i) =>
+            `${(i / (miniCurve.length - 1)) * 100},${40 - (v / maxV) * 34}`).join(' ');
+          const area = `M 0 40 ${miniCurve.map((v, i) =>
+            `L ${(i / (miniCurve.length - 1)) * 100} ${40 - (v / maxV) * 34}`).join(' ')} L 100 40 Z`;
+          return (
+            <div className="absolute bottom-0 inset-x-0 h-24 pointer-events-none">
+              <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0.18" />
+                    <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d={area} fill="url(#mcGrad)" />
+                <polyline points={pts} fill="none" stroke={isPositive ? '#22c55e' : '#ef4444'} strokeWidth="0.8" strokeOpacity="0.4" />
+              </svg>
+            </div>
+          );
+        })()}
+
+        {/* Card content */}
+        <div className="relative z-10 p-6">
+
+          {/* Top row: label + action buttons */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Total Portfolio Value</p>
+            <div className="flex gap-2">
+              <button onClick={() => onNavigate?.('portfolio')}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-white/15 bg-white/10 hover:bg-white/20 transition-all duration-200 active:scale-95">
+                + Deposit
+              </button>
+              <button onClick={() => onNavigate?.('trade')}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/70 hover:bg-indigo-500 border border-indigo-400/30 transition-all duration-200 active:scale-95">
+                Quick Trade
+              </button>
+            </div>
+          </div>
+
+          {/* Big number + 24h badge */}
+          <div className="flex items-end gap-4 mb-2">
             {!isPortfolioReady
-              ? <div className="h-10 w-48 rounded-lg bg-white/20 animate-pulse" />
-              : <h2 className="text-4xl font-bold">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h2>
+              ? <div className="h-12 w-56 rounded-xl bg-white/10 animate-pulse" />
+              : <h2 className="text-5xl font-black tracking-tight tabular-nums leading-none">
+                  ${displayValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
             }
+            {isPortfolioReady && totalValue > 0 && (
+              <span className={`self-end pb-1 text-xs font-bold px-2.5 py-1 rounded-full border tabular-nums mover-badge ${isPositive ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+                {isPositive ? <TrendingUp className="inline w-3 h-3 mr-1" /> : <TrendingDown className="inline w-3 h-3 mr-1" />}
+                {`${isPositive ? '+' : '-'}$${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (${isPositive ? '+' : ''}${change24h}%)`}
+              </span>
+            )}
           </div>
-          {isPortfolioReady && totalValue > 0 && (
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-              {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              <span className="text-sm font-semibold">{isPositive ? '+' : ''}{change24h}%</span>
-            </div>
-          )}
-        </div>
 
-        {isPortfolioReady && totalValue > 0 && (
-          <div className="flex items-center gap-2 mb-4">
-            {isPositive ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-            <span className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
-              {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)
-            </span>
+          <div className="mb-5" />
+
+          {/* Stat pills */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Holdings Value', value: `$${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: '◈', colored: false, positive: true },
+              { label: 'Cash Balance',   value: `$${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: '◎', colored: false, positive: true },
+              { label: 'Net Cashflow',   value: `${netTradeCashflow >= 0 ? '+' : '-'}$${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: netTradeCashflow >= 0 ? '↑' : '↓', colored: true, positive: netTradeCashflow >= 0 },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-xl px-3.5 py-3 border border-white/10 bg-white/[0.06] backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-white/35 text-xs">{stat.icon}</span>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{stat.label}</p>
+                </div>
+                {!isPortfolioReady
+                  ? <div className="h-5 w-20 rounded bg-white/10 animate-pulse" />
+                  : <p className={`font-bold text-sm tabular-nums ${stat.colored ? (stat.positive ? 'text-green-300' : 'text-red-300') : 'text-white'}`}>{stat.value}</p>
+                }
+              </div>
+            ))}
           </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          {[
-            { label: 'Holdings Value', value: `$${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
-            { label: 'Cash Balance', value: `$${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
-            { label: 'Net Cashflow', value: `${netTradeCashflow >= 0 ? '+' : '-'}$${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, colored: true, positive: netTradeCashflow >= 0 },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-              <p className="opacity-80 text-xs mb-0.5">{stat.label}</p>
-              {!isPortfolioReady
-                ? <div className="h-5 w-20 rounded bg-white/20 animate-pulse" />
-                : <p className={`font-semibold ${stat.colored ? (stat.positive ? 'text-green-200' : 'text-red-200') : ''}`}>{stat.value}</p>
-              }
-            </div>
-          ))}
         </div>
       </div>
+
+      {/* ── Global market stats bar ──────────────────────────────── */}
+      {(() => {
+        const btcAsset = liveAssets.find((a) => a.symbol === 'BTC');
+        const totalMCap = liveAssets.reduce((s, a) => s + (a.marketCap || 0), 0);
+        const btcDom = totalMCap > 0 && btcAsset?.marketCap ? (btcAsset.marketCap / totalMCap) * 100 : null;
+        const totalVol = liveAssets.reduce((s, a) => s + (a.volume24h || 0), 0);
+        const fgColor = fearGreed
+          ? fearGreed.value >= 75 ? 'text-emerald-400' : fearGreed.value >= 55 ? 'text-green-400'
+          : fearGreed.value >= 47 ? 'text-yellow-400' : fearGreed.value >= 26 ? 'text-orange-400' : 'text-red-400'
+          : 'text-muted-foreground';
+        const stats = [
+          { label: 'BTC Dominance', value: btcDom != null ? `${btcDom.toFixed(1)}%` : '—', sub: 'of crypto market', color: 'text-orange-400', icon: '₿' },
+          { label: 'Total Market Cap', value: totalMCap > 0 ? `$${(totalMCap / 1e9).toFixed(0)}B` : '—', sub: 'crypto only', color: 'text-blue-400', icon: '◈' },
+          { label: '24h Volume', value: totalVol > 0 ? `$${(totalVol / 1e9).toFixed(1)}B` : '—', sub: 'top assets', color: 'text-purple-400', icon: '⬡' },
+          { label: 'Fear & Greed', value: fearGreed ? `${fearGreed.value}` : '—', sub: fearGreed?.label ?? 'Loading…', color: fgColor, icon: '⚡' },
+        ];
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {stats.map((s) => (
+              <div key={s.label} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+                <span className={`text-lg flex-shrink-0 ${s.color}`}>{s.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{s.label}</p>
+                  <p className={`text-base font-black tabular-nums leading-tight ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{s.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Empty state — new users */}
       {isNewUser && (
@@ -265,7 +567,7 @@ export default function DashboardHome() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={openAuraBank}
+              onClick={() => onNavigate?.('portfolio')}
               className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-black to-red-700 text-white font-semibold hover:opacity-90 transition-opacity shadow-lg"
             >
               <Landmark className="w-4 h-4" />
@@ -396,6 +698,60 @@ export default function DashboardHome() {
         )}
       </div>
 
+      {/* ── Market Movers ─────────────────────────────────────────── */}
+      {(() => {
+        const all = [...liveAssets, ...liveStocks].filter((a) => a.change24h != null);
+        const gainers = [...all].sort((a, b) => b.change24h - a.change24h).slice(0, 4);
+        const losers  = [...all].sort((a, b) => a.change24h - b.change24h).slice(0, 4);
+        const renderMover = (asset: any, i: number) => {
+          const pos = (asset.change24h ?? 0) >= 0;
+          const isCrypto = !asset.exchange && !asset.image?.startsWith('/logos/stocks/');
+          return (
+            <div key={asset.symbol}
+              className="flex items-center justify-between p-2.5 rounded-xl hover:bg-accent/60 transition-colors duration-150 cursor-pointer"
+              onClick={() => handleAssetClick(asset)}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold ${isCrypto ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
+                  {asset.image?.startsWith('http') || asset.image?.startsWith('/logos/') ? (
+                    <img src={asset.image} alt={asset.symbol} className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : <span>{asset.symbol?.slice(0,2)}</span>}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate leading-tight">{asset.symbol}</p>
+                  <p className="text-[10px] text-muted-foreground truncate tabular-nums">${(asset.price ?? 0) >= 1000 ? (asset.price/1000).toFixed(2)+'K' : (asset.price ?? 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</p>
+                </div>
+              </div>
+              <span className={`mover-badge text-sm font-bold tabular-nums px-2 py-0.5 rounded-lg ${pos ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10'}`}
+                style={{ animationDelay: `${i * 300}ms` }}>
+                {pos ? '+' : ''}{(asset.change24h ?? 0).toFixed(2)}%
+              </span>
+            </div>
+          );
+        };
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="mover-arrow text-green-500 text-base">▲</span>
+                <h3 className="font-semibold text-sm">Top Gainers</h3>
+                <span className="ml-auto text-[10px] text-muted-foreground">24h</span>
+              </div>
+              <div className="space-y-0.5">{gainers.map((a, i) => renderMover(a, i))}</div>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="mover-arrow text-red-500 text-base" style={{ animationDelay: '0.9s' }}>▼</span>
+                <h3 className="font-semibold text-sm">Top Losers</h3>
+                <span className="ml-auto text-[10px] text-muted-foreground">24h</span>
+              </div>
+              <div className="space-y-0.5">{losers.map((a, i) => renderMover(a, i))}</div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <PriceComparison assets={[...(cryptoAssets || []), ...(stockAssets || [])]} />
         <AuraAIInsight />
@@ -418,11 +774,12 @@ export default function DashboardHome() {
             </span>
           </div>
           <div className="space-y-2.5">
-            {cryptoAssets.slice(0, 4).map((crypto, i) => {
-              const isPositive = crypto.change24h >= 0;
+            {liveAssets.slice(0, 4).map((crypto, i) => {
+              const isPositive = (crypto.change24h ?? 0) >= 0;
+              const spark = sparklines[crypto.symbol];
               return (
                 <div
-                  key={crypto.id}
+                  key={crypto.id ?? crypto.symbol}
                   onClick={() => handleAssetClick(crypto)}
                   className="relative flex items-center justify-between p-3 hover:bg-muted/60 rounded-xl transition-all duration-300 cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
                   style={{ animationDelay: `${i * 90}ms` }}
@@ -432,21 +789,10 @@ export default function DashboardHome() {
                       <div className={`absolute inset-0 rounded-full blur-md opacity-0 group-hover:opacity-60 transition-opacity duration-300 ${isPositive ? 'bg-green-500/40' : 'bg-red-500/40'}`} />
                       <div className="relative w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden ring-2 ring-transparent group-hover:ring-primary/30 transition-all duration-300 group-hover:scale-110">
                         {crypto.image?.startsWith('http') ? (
-                          <img
-                            src={crypto.image}
-                            alt={crypto.symbol}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const img = e.target as HTMLImageElement;
-                              img.style.display = 'none';
-                              const fallback = img.nextElementSibling as HTMLElement;
-                              if (fallback) fallback.style.display = 'flex';
-                            }}
-                          />
+                          <img src={crypto.image} alt={crypto.symbol} className="w-full h-full object-cover"
+                            onError={(e) => { const img = e.target as HTMLImageElement; img.style.display = 'none'; const fb = img.nextElementSibling as HTMLElement; if (fb) fb.style.display = 'flex'; }} />
                         ) : null}
-                        <span className="text-xs" style={{ display: crypto.image?.startsWith('http') ? 'none' : 'flex' }}>
-                          {crypto.symbol?.slice(0, 2)}
-                        </span>
+                        <span className="text-xs" style={{ display: crypto.image?.startsWith('http') ? 'none' : 'flex' }}>{crypto.symbol?.slice(0, 2)}</span>
                       </div>
                     </div>
                     <div className="min-w-0">
@@ -454,22 +800,22 @@ export default function DashboardHome() {
                       <p className="text-sm text-muted-foreground">{crypto.symbol}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {spark && <SparkLine data={spark} isPositive={isPositive} />}
                     <div className="text-right">
-                      <p className="font-semibold">${(crypto.price ?? 0).toLocaleString()}</p>
-                      <p className={`text-sm flex items-center justify-end gap-0.5 transition-colors ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                      <p className="font-semibold tabular-nums">
+                        ${(crypto.price ?? 0) >= 1000
+                          ? (crypto.price / 1000).toFixed(2) + 'K'
+                          : (crypto.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className={`text-sm flex items-center justify-end gap-0.5 tabular-nums ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                         {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {isPositive ? '+' : ''}{crypto.change24h}%
+                        {isPositive ? '+' : ''}{(crypto.change24h ?? 0).toFixed(2)}%
                       </p>
                     </div>
                     <div className="w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 transition-all duration-300 overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTrade(crypto, 'buy');
-                        }}
-                        className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200 hover:scale-105 active:scale-95 whitespace-nowrap"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); handleTrade(crypto, 'buy'); }}
+                        className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200 hover:scale-105 active:scale-95 whitespace-nowrap">
                         Buy
                       </button>
                     </div>
@@ -499,11 +845,11 @@ export default function DashboardHome() {
             </span>
           </div>
           <div className="space-y-2.5">
-            {stockAssets.slice(0, 4).map((stock, i) => {
-              const isPositive = stock.change24h >= 0;
+            {liveStocks.slice(0, 4).map((stock, i) => {
+              const isPositive = (stock.change24h ?? 0) >= 0;
               return (
                 <div
-                  key={stock.id}
+                  key={stock.id ?? stock.symbol}
                   onClick={() => handleAssetClick(stock)}
                   className="relative flex items-center justify-between p-3 hover:bg-muted/60 rounded-xl transition-all duration-300 cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
                   style={{ animationDelay: `${i * 90}ms` }}
@@ -512,23 +858,12 @@ export default function DashboardHome() {
                     <div className="relative flex-shrink-0" style={{ width: 42, height: 42 }}>
                       <div className={`absolute inset-0 rounded-full blur-md opacity-0 group-hover:opacity-60 transition-opacity duration-300 ${isPositive ? 'bg-green-500/40' : 'bg-red-500/40'}`} />
                       <div className="relative w-full h-full rounded-full bg-white border border-slate-200 flex items-center justify-center overflow-hidden ring-2 ring-transparent group-hover:ring-primary/30 transition-all duration-300 group-hover:scale-110">
-                        {stock.image?.startsWith('http') ? (
-                          <img
-                            src={stock.image}
-                            alt={stock.symbol}
-                            className="w-7 h-7 object-contain"
-                            onError={(e) => {
-                              const img = e.target as HTMLImageElement;
-                              img.style.display = 'none';
-                              const fallback = img.nextElementSibling as HTMLElement;
-                              if (fallback) fallback.style.display = 'flex';
-                            }}
-                          />
+                        {stock.image?.startsWith('/logos/') || stock.image?.startsWith('http') ? (
+                          <img src={stock.image} alt={stock.symbol} className="w-7 h-7 object-contain"
+                            onError={(e) => { const img = e.target as HTMLImageElement; img.style.display = 'none'; const fb = img.nextElementSibling as HTMLElement; if (fb) fb.style.display = 'flex'; }} />
                         ) : null}
-                        <span
-                          className="text-xs font-bold text-slate-700"
-                          style={{ display: stock.image?.startsWith('http') ? 'none' : 'flex' }}
-                        >
+                        <span className="text-xs font-bold text-slate-700"
+                          style={{ display: (stock.image?.startsWith('/logos/') || stock.image?.startsWith('http')) ? 'none' : 'flex' }}>
                           {stock.symbol?.slice(0, 2)}
                         </span>
                       </div>
@@ -540,20 +875,15 @@ export default function DashboardHome() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="text-right">
-                      <p className="font-semibold">${(stock.price ?? 0).toLocaleString()}</p>
-                      <p className={`text-sm flex items-center justify-end gap-0.5 transition-colors ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                      <p className="font-semibold tabular-nums">${(stock.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      <p className={`text-sm flex items-center justify-end gap-0.5 tabular-nums ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                         {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {isPositive ? '+' : ''}{stock.change24h}%
+                        {isPositive ? '+' : ''}{(stock.change24h ?? 0).toFixed(2)}%
                       </p>
                     </div>
                     <div className="w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 transition-all duration-300 overflow-hidden">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTrade(stock, 'buy');
-                        }}
-                        className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200 hover:scale-105 active:scale-95 whitespace-nowrap"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); handleTrade(stock, 'buy'); }}
+                        className="px-3 py-1 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200 hover:scale-105 active:scale-95 whitespace-nowrap">
                         Buy
                       </button>
                     </div>
@@ -565,39 +895,141 @@ export default function DashboardHome() {
         </div>
       </div>
 
+      {/* ── Watchlist ─────────────────────────────────────────────── */}
+      {(() => {
+        const allLive = [...liveAssets, ...liveStocks];
+        const resolved = watchlistItems
+          .map((w) => allLive.find((a) => a.symbol === w.id || a.id === w.id))
+          .filter(Boolean);
+        if (resolved.length === 0) return (
+          <div className="bg-card border border-border rounded-xl p-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-sm mb-0.5">Your Watchlist</p>
+              <p className="text-xs text-muted-foreground">Star assets from Markets to track them here</p>
+            </div>
+            <span className="text-2xl">⭐</span>
+          </div>
+        );
+        return (
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-yellow-400 text-base">⭐</span>
+                <h3 className="font-semibold text-sm">Watchlist</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{resolved.length}</span>
+              </div>
+              <span className="flex items-center gap-1 text-[10px] text-green-500 bg-green-500/10 px-2 py-1 rounded-full font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Live
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {resolved.map((asset: any, i: number) => {
+                const pos = (asset.change24h ?? 0) >= 0;
+                const isCrypto = !asset.exchange && !asset.image?.startsWith('/logos/stocks/');
+                return (
+                  <div key={asset.symbol}
+                    className="flex items-center justify-between p-3 rounded-xl border border-border bg-accent/20 hover:bg-accent/50 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 group animate-in fade-in zoom-in-95 fill-mode-both"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                    onClick={() => handleAssetClick(asset)}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-8 h-8 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center text-[10px] font-bold ${isCrypto ? 'bg-gradient-to-br from-purple-500 to-blue-500 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
+                        {asset.image?.startsWith('http') || asset.image?.startsWith('/logos/') ? (
+                          <img src={asset.image} alt={asset.symbol} className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : <span>{asset.symbol?.slice(0,2)}</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold truncate">{asset.symbol}</p>
+                        <p className="text-[10px] text-muted-foreground tabular-nums">
+                          ${(asset.price ?? 0) >= 1000 ? (asset.price/1000).toFixed(2)+'K' : (asset.price ?? 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-bold tabular-nums ${pos ? 'text-green-500' : 'text-red-500'}`}>
+                      {pos ? '+' : ''}{(asset.change24h ?? 0).toFixed(2)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       <LiveTransactionMap />
 
-      <div className="bg-card rounded-lg border border-border p-6">
-        <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
-        <div className="space-y-3">
-          {transactionFeed.map((tx) => {
-            const isBuy = tx.type === 'buy';
-            const status = (tx.status || 'filled').toLowerCase();
-            const safeAmount = Number(tx.amount || 0);
-            const safePrice = Number(tx.price || 0);
-            const safeTotal = Number(tx.total || (safeAmount * safePrice) || 0);
-            return (
-              <div key={tx.id} className="flex items-center justify-between p-3 hover:bg-accent rounded-lg transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full ${isBuy ? 'bg-green-500/10' : 'bg-red-500/10'} flex items-center justify-center`}>
-                    {isBuy ? <ArrowDownRight className="w-5 h-5 text-green-500" /> : <ArrowUpRight className="w-5 h-5 text-red-500" />}
-                  </div>
-                  <div>
-                    <p className="font-semibold">{isBuy ? 'Bought' : 'Sold'} {tx.assetName}</p>
-                    <p className="text-sm text-muted-foreground">{safeAmount} {tx.asset} @ ${safePrice.toLocaleString()}</p>
-                    <p className={`text-xs mt-0.5 ${status === 'queued' ? 'text-yellow-500' : 'text-green-500'}`}>
-                      {status.toUpperCase()}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">${safeTotal.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleDateString()}</p>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── Recent Transactions (polished) ───────────────────────── */}
+      <div className="bg-card rounded-xl border border-border p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Recent Transactions</h3>
+          <span className="text-xs text-muted-foreground">{transactionFeed.length} recent</span>
         </div>
+        {transactionFeed.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground text-sm">No transactions yet</div>
+        ) : (
+          <div className="space-y-1">
+            {transactionFeed.map((tx, i) => {
+              const isBuy = tx.type === 'buy';
+              const isDeposit = tx.type === 'deposit';
+              const isWithdrawal = tx.type === 'withdrawal';
+              const status = (tx.status || 'filled').toLowerCase();
+              const safeAmount = Number(tx.amount || 0);
+              const safePrice = Number(tx.price || 0);
+              const safeTotal = Number(tx.total || (safeAmount * safePrice) || 0);
+              const logo = [...liveAssets, ...liveStocks].find((a) => a.symbol === tx.asset)?.image;
+              const typeColor = isBuy ? 'bg-green-500/15 text-green-500 border-green-500/25'
+                : tx.type === 'sell' ? 'bg-red-500/15 text-red-500 border-red-500/25'
+                : isDeposit ? 'bg-blue-500/15 text-blue-400 border-blue-500/25'
+                : 'bg-orange-500/15 text-orange-400 border-orange-500/25';
+              const typeLabel = isBuy ? 'BUY' : tx.type === 'sell' ? 'SELL' : isDeposit ? 'DEP' : 'WDR';
+              return (
+                <div key={tx.id ?? i}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-accent/60 transition-all duration-150 group animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                  style={{ animationDelay: `${i * 40}ms` }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Asset logo or icon */}
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center text-white text-[10px] font-bold ${logo ? 'bg-muted' : isBuy || tx.type === 'sell' ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'}`}>
+                        {logo ? (
+                          <img src={logo} alt={tx.asset} className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          isDeposit ? <ArrowDownRight className="w-4 h-4" /> :
+                          isWithdrawal ? <ArrowUpRight className="w-4 h-4" /> :
+                          <span>{(tx.asset || '??').slice(0, 2)}</span>
+                        )}
+                      </div>
+                      {/* Type badge overlay */}
+                      <span className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded border ${typeColor}`}>{typeLabel}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate leading-tight">
+                        {isDeposit ? 'Deposit' : isWithdrawal ? 'Withdrawal' : `${isBuy ? 'Bought' : 'Sold'} ${tx.assetName || tx.asset}`}
+                      </p>
+                      {!isDeposit && !isWithdrawal && (
+                        <p className="text-[11px] text-muted-foreground tabular-nums">
+                          {safeAmount} {tx.asset} · ${safePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className={`text-sm font-bold tabular-nums ${isBuy || isDeposit ? 'text-foreground' : 'text-foreground'}`}>
+                      {isDeposit ? '+' : isWithdrawal ? '-' : ''}${safeTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${status === 'queued' ? 'bg-yellow-500/15 text-yellow-500 border-yellow-500/25' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
+                        {status === 'queued' ? 'QUEUED' : '✓ FILLED'}
+                      </span>
+                      <p className="text-[10px] text-muted-foreground">{new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
 
@@ -612,7 +1044,7 @@ export default function DashboardHome() {
 
       <MobileAppShowcase />
 
-      {selectedAsset && <AssetDetailsModal asset={selectedAsset} onClose={() => setSelectedAsset(null)} onTrade={handleTrade} />}
+      {selectedAsset && <AssetDetailsModal asset={selectedAsset} onClose={() => { setSelectedAsset(null); setWatchlistItems(getWatchlist()); }} onTrade={handleTrade} />}
       {tradeModal && (
         <TradeModal
           asset={tradeModal.asset}

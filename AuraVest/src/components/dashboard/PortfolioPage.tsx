@@ -1,7 +1,15 @@
 // src/components/dashboard/PortfolioPage.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip as ChartTooltipEl,
+  Legend as ChartLegend,
+} from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
+ChartJS.register(ArcElement, ChartTooltipEl, ChartLegend);
 import {
   portfolioData,
   riskMetrics,
@@ -14,7 +22,7 @@ import {
   taxOptimization
 } from '@/lib/mockData';
 import { getPortfolio, exportTransactionsCSV, getWatchlist, addToWatchlist, removeFromWatchlist, getDCAPlans, createDCAPlan } from '@/lib/mockAPI';
-import { loadCrypto, loadStocks, getGoldList } from '@/lib/marketData';
+import { loadCrypto, loadStocks, getGoldList, subscribeToCrypto, startCryptoWebSocket } from '@/lib/marketData';
 import {
   TrendingUp,
   TrendingDown,
@@ -40,7 +48,7 @@ import {
   Info,
 } from 'lucide-react';
 import PortfolioChart from '@/components/PortfolioChart';
-import { chartData } from '@/lib/mockData';
+import { chartData as mockChartData } from '@/lib/mockData';
 import RebalancingWizard from '@/components/RebalancingWizard';
 import TaxOptimizationModal from '@/components/TaxOptimizationModal';
 import GoalsPlanningModal from '@/components/GoalsPlanningModal';
@@ -53,8 +61,13 @@ type FundingEntry = {
   amount: number;
   note?: string;
   method?: string;
-  status?: string;
+  status?: 'pending' | 'completed';
   timestamp?: string;
+  ref?: string;
+  phone?: string;
+  accountName?: string;
+  accountNumber?: string;
+  branch?: string;
 };
 
 export default function PortfolioPage() {
@@ -93,15 +106,30 @@ export default function PortfolioPage() {
   const [fundingAmount, setFundingAmount] = useState('');
   const [fundingNote, setFundingNote] = useState('');
   const [fundingRail, setFundingRail] = useState('AuraBank');
+  const [selectedBank, setSelectedBank] = useState<string | null>(null);
   const [isFunding, setIsFunding] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState<string | null>(null);
+  const [fundingStep, setFundingStep] = useState<'form' | 'confirm' | 'instructions' | 'success'>('form');
+  const [fundingRef, setFundingRef] = useState('');
+  const [momoPhone, setMomoPhone] = useState('');
+  const [momoName, setMomoName] = useState('');
+  const [selectedMomoNetwork, setSelectedMomoNetwork] = useState('mtn');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
+  const [showFundingModal, setShowFundingModal] = useState(false);
   const [recentFundingEntries, setRecentFundingEntries] = useState<FundingEntry[]>([]);
   const [fundingNet30d, setFundingNet30d] = useState(0);
   const [lastFundingEntry, setLastFundingEntry] = useState<FundingEntry | null>(null);
   const [dcaPlansList, setDcaPlansList] = useState<any[]>(dcaPlans);
   const [showDCAModal, setShowDCAModal] = useState(false);
   const [dcaSuccess, setDcaSuccess] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [livePricesLoaded, setLivePricesLoaded] = useState(false);
+  const [displayValue, setDisplayValue] = useState(0);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [miniCurve, setMiniCurve] = useState<number[]>([]);
   const [dcaAmount, setDcaAmount] = useState('100');
   const [dcaFrequency, setDcaFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [dcaAssetOptions, setDcaAssetOptions] = useState<any[]>([]);
@@ -316,7 +344,21 @@ export default function PortfolioPage() {
       const options = [...crypto.slice(0, 12), ...stocks.slice(0, 12), ...(goldAsset ? [goldAsset] : [])];
       setDcaAssetOptions(options);
       setDcaSelectedAsset((prev: any) => prev ?? options[0] ?? null);
+      // Seed live prices from the initial crypto fetch
+      const priceMap: Record<string, number> = {};
+      for (const c of crypto) priceMap[c.symbol] = c.price;
+      setLivePrices(priceMap);
+      setLivePricesLoaded(true);
     }).catch(() => {});
+
+    startCryptoWebSocket();
+    const unsubLivePrices = subscribeToCrypto((prices) => {
+      setLivePrices((prev) => {
+        const next = { ...prev };
+        for (const [sym, data] of Object.entries(prices)) next[sym] = data.price;
+        return next;
+      });
+    });
 
     const savedLocalPositions = localStorage.getItem('auravest_local_positions');
     if (savedLocalPositions) {
@@ -425,9 +467,76 @@ export default function PortfolioPage() {
       refreshCapitalMetrics();
     }, 2000);
 
-    return () => clearInterval(metricsInterval);
+    return () => {
+      clearInterval(metricsInterval);
+      unsubLivePrices();
+    };
   }, []);
   const isPositive = change24h >= 0;
+
+  useEffect(() => {
+    if (!isPortfolioReady || totalValue <= 0 || hasAnimated) return;
+    setHasAnimated(true);
+    const start = performance.now();
+    const duration = 1400;
+    const target = totalValue;
+    const raf = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 4);
+      setDisplayValue(Math.round(target * ease * 100) / 100);
+      if (t < 1) requestAnimationFrame(raf);
+      else setDisplayValue(target);
+    };
+    requestAnimationFrame(raf);
+
+    // Mini equity curve
+    try {
+      const txs: any[] = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      const buys = txs.filter((t: any) => t?.type === 'buy' && t?.timestamp)
+        .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      if (buys.length >= 2) {
+        let cum = 0;
+        const curve = buys.map((tx: any) => {
+          const gross = Number(tx.gross) || (Number(tx.amount || 0) * Number(tx.price || 0));
+          cum += gross;
+          return cum;
+        });
+        curve[curve.length - 1] = totalValue;
+        setMiniCurve(curve);
+      }
+    } catch { /* ignore */ }
+  }, [isPortfolioReady, totalValue]);
+
+  const equityCurve = useMemo(() => {
+    try {
+      const txs: any[] = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      const buyTxs = txs
+        .filter((tx) => tx?.timestamp && tx.type === 'buy')
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      if (buyTxs.length === 0) return mockChartData;
+
+      let cumulative = 0;
+      const byMonth = new Map<string, number>();
+      for (const tx of buyTxs) {
+        const d = new Date(tx.timestamp);
+        const label = d.toLocaleString('en-US', { month: 'short' }) + ' \'' + String(d.getFullYear()).slice(2);
+        const gross = Number(tx.gross) || (Number(tx.amount || 0) * Number(tx.price || 0));
+        cumulative += gross + (Number(tx.fee) || gross * 0.001);
+        byMonth.set(label, cumulative);
+      }
+
+      const entries = Array.from(byMonth.entries());
+      if (entries.length === 0) return mockChartData;
+      // Last point = current live portfolio value to show realised gain/loss
+      if (totalValue > 0) entries[entries.length - 1][1] = totalValue;
+
+      const points = entries.map(([date, value]) => ({ date, value }));
+      return points.length >= 2 ? points : mockChartData;
+    } catch {
+      return mockChartData;
+    }
+  }, [totalValue]);
+
   const allocationAssets: any[] = Array.isArray(assets) ? assets : [];
   // Merge local investment positions into holdings display
   const localHoldings = localPositions.map((position: any) => ({
@@ -534,15 +643,28 @@ export default function PortfolioPage() {
       setFundingError('Enter a valid amount greater than 0.');
       return;
     }
-
     if (fundingAction === 'withdrawal' && normalizedAmount > cashBalance) {
-      setFundingError(`Insufficient cash for withdrawal. Available: $${cashBalance.toFixed(2)}.`);
+      setFundingError(`Insufficient cash. Available: $${cashBalance.toFixed(2)}.`);
+      return;
+    }
+
+    // AuraBank is always instant; MoMo/External deposits show instructions (pending);
+    // MoMo/External withdrawals go pending too
+    const isInstant = fundingRail === 'AuraBank';
+    const isPendingDeposit = fundingAction === 'deposit' && fundingRail !== 'AuraBank';
+    const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+
+    if (isPendingDeposit) {
+      // Just show the instructions screen — don't commit yet
+      setFundingRef(ref);
+      setFundingStep('instructions');
       return;
     }
 
     setIsFunding(true);
     try {
       const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      const method = fundingRail === 'External Bank' && selectedBank ? selectedBank : fundingRail;
       transactions.unshift({
         id: `fund-${Date.now()}`,
         type: fundingAction,
@@ -555,28 +677,85 @@ export default function PortfolioPage() {
         total: Number(normalizedAmount.toFixed(2)),
         currency: 'USD',
         quantityType: 'units',
-        method: fundingRail,
+        method,
         note: fundingNote.trim(),
-        status: 'completed',
+        status: isInstant ? 'completed' : 'pending',
+        ref,
+        phone: fundingRail === 'Mobile Money' ? momoPhone : undefined,
+        accountName: fundingRail === 'Mobile Money' ? momoName : fundingRail === 'External Bank' ? bankAccountName : undefined,
+        accountNumber: fundingRail === 'External Bank' ? bankAccountNumber : undefined,
+        branch: fundingRail === 'External Bank' ? bankBranch : undefined,
         timestamp: new Date().toISOString(),
       });
       localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
 
-      const latestPortfolio = await getPortfolio();
-      if (latestPortfolio && Object.keys(latestPortfolio).length > 0) {
-        setPortfolio(latestPortfolio);
+      if (isInstant) {
+        const latestPortfolio = await getPortfolio();
+        if (latestPortfolio && Object.keys(latestPortfolio).length > 0) setPortfolio(latestPortfolio);
+        refreshTradeHoldings();
+        refreshCapitalMetrics();
+      } else {
+        refreshCapitalMetrics();
       }
-      refreshTradeHoldings();
-      refreshCapitalMetrics();
-      setFundingSuccess(`${fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'} of $${normalizedAmount.toFixed(2)} completed.`);
-      setFundingAmount('');
-      setFundingNote('');
+
+      setFundingStep('success');
+      setFundingRef(ref);
     } catch (error) {
       console.error('Failed to apply funding action:', error);
       setFundingError('Funding action failed. Please try again.');
     } finally {
       setIsFunding(false);
     }
+  };
+
+  const resetFundingForm = () => {
+    setFundingStep('form');
+    setFundingAmount('');
+    setFundingNote('');
+    setFundingRef('');
+    setMomoPhone('');
+    setMomoName('');
+    setSelectedMomoNetwork('mtn');
+    setBankAccountNumber('');
+    setBankAccountName('');
+    setBankBranch('');
+    setFundingError(null);
+    setFundingSuccess(null);
+    setShowFundingModal(false);
+  };
+
+  // Called from instructions screen once user confirms they've sent the payment
+  const confirmPendingDeposit = () => {
+    const normalizedAmount = Number(fundingAmount);
+    const method = fundingRail === 'External Bank' && selectedBank ? selectedBank : fundingRail;
+    try {
+      const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+      transactions.unshift({
+        id: `fund-${Date.now()}`,
+        type: 'deposit',
+        asset: 'CASH',
+        assetName: 'Cash Deposit',
+        amount: Number(normalizedAmount.toFixed(2)),
+        price: 1,
+        gross: Number(normalizedAmount.toFixed(2)),
+        fee: 0,
+        total: Number(normalizedAmount.toFixed(2)),
+        currency: 'USD',
+        quantityType: 'units',
+        method,
+        note: fundingNote.trim(),
+        status: 'pending',
+        ref: fundingRef,
+        phone: fundingRail === 'Mobile Money' ? momoPhone : undefined,
+        accountName: fundingRail === 'Mobile Money' ? momoName : fundingRail === 'External Bank' ? bankAccountName : undefined,
+        accountNumber: fundingRail === 'External Bank' ? bankAccountNumber : undefined,
+        branch: fundingRail === 'External Bank' ? bankBranch : undefined,
+        timestamp: new Date().toISOString(),
+      });
+      localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
+      refreshCapitalMetrics();
+    } catch { /* ignore */ }
+    setFundingStep('success');
   };
 
   // Target allocations for rebalancing — kept in sync with RebalancingWizard's targetAllocations below
@@ -652,187 +831,600 @@ export default function PortfolioPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      <style>{`
+        @keyframes portfolioPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.45; }
+        }
+        .portfolio-icon-pulse { animation: portfolioPulse 1.8s ease-in-out infinite; }
+        .portfolio-badge-pulse { animation: portfolioPulse 2.4s ease-in-out infinite; }
+        .portfolio-change-pulse { animation: portfolioPulse 2.8s ease-in-out infinite; animation-delay: 0.4s; }
+      `}</style>
       <div>
         <h1 className="text-2xl font-bold">Portfolio</h1>
         <p className="text-muted-foreground">Track and manage your investments</p>
       </div>
 
-      <div className="gradient-primary rounded-xl p-6 text-white">
-        <p className="text-sm opacity-90 mb-2">Total Portfolio Value</p>
-        <div className="flex items-end gap-4 mb-2">
-          <h2 className="text-4xl font-bold">{isPortfolioReady ? `$${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'}</h2>
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full ${isPositive ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-            {isPositive ? <TrendingUp className="w-4 h-4 text-green-300" /> : <TrendingDown className="w-4 h-4 text-red-300" />}
-            <span className={`text-sm font-semibold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>{isPositive ? '+' : ''}{change24h}%</span>
-          </div>
-        </div>
-        <p className={`text-sm font-medium ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
-          {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} (24h)
-        </p>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Holdings Value</p>
-            <p className="font-semibold">${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Cash Balance</p>
-            <p className="font-semibold">${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <div className="rounded-lg bg-white/10 border border-white/20 px-3 py-2">
-            <p className="opacity-80">Net Trade Cashflow</p>
-            <p className={`font-semibold ${netTradeCashflow >= 0 ? 'text-green-200' : 'text-red-200'}`}>
-              {netTradeCashflow >= 0 ? '+' : '-'}${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-white/80">Total Portfolio = Holdings Value + Cash Balance</p>
-      </div>
+      <div className="relative rounded-2xl overflow-hidden text-white shadow-2xl"
+        style={{ background: 'linear-gradient(135deg, #080d1c 0%, #0c1428 55%, #080f20 100%)' }}>
 
-      {/* ── Funding Ledger — compact redesign ─────────────────────── */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        {/* Top accent bar that shifts green/red */}
-        <div
-          className={`h-0.5 w-full transition-all duration-500 ${
-            fundingAction === 'deposit'
-              ? 'bg-gradient-to-r from-green-500/80 via-emerald-400/60 to-transparent'
-              : 'bg-gradient-to-r from-red-500/80 via-rose-400/60 to-transparent'
-          }`}
-        />
+        {/* Dot grid */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
 
-        <div className="p-4">
-          {/* Header row: title + toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-sm">Funding Ledger</p>
+        {/* Glowing orbs */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 65%)' }} />
+        <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(circle, rgba(34,211,238,0.18) 0%, transparent 65%)' }} />
+        <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-64 h-20 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, rgba(139,92,246,0.07) 0%, transparent 70%)' }} />
 
-            {/* Pill toggle */}
-            <div className="relative flex items-center bg-muted rounded-full p-0.5 text-xs font-semibold">
-              <div
-                className={`absolute top-0.5 bottom-0.5 rounded-full transition-all duration-300 ${
-                  fundingAction === 'deposit'
-                    ? 'left-0.5 right-[calc(50%+1px)] bg-green-500 shadow-md shadow-green-500/30'
-                    : 'left-[calc(50%+1px)] right-0.5 bg-red-500 shadow-md shadow-red-500/30'
-                }`}
-              />
-              <button onClick={() => setFundingAction('deposit')} className={`relative z-10 px-3.5 py-1 rounded-full transition-colors ${fundingAction === 'deposit' ? 'text-white' : 'text-muted-foreground'}`}>
-                Deposit
+        {/* Mini equity curve watermark */}
+        {miniCurve.length >= 2 && (() => {
+          const maxV = Math.max(...miniCurve);
+          const pts = miniCurve.map((v, i) =>
+            `${(i / (miniCurve.length - 1)) * 100},${40 - (v / maxV) * 34}`).join(' ');
+          const area = `M 0 40 ${miniCurve.map((v, i) =>
+            `L ${(i / (miniCurve.length - 1)) * 100} ${40 - (v / maxV) * 34}`).join(' ')} L 100 40 Z`;
+          return (
+            <div className="absolute bottom-0 inset-x-0 h-24 pointer-events-none">
+              <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="w-full h-full">
+                <defs>
+                  <linearGradient id="pfMcGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0.18" />
+                    <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d={area} fill="url(#pfMcGrad)" />
+                <polyline points={pts} fill="none" stroke={isPositive ? '#22c55e' : '#ef4444'} strokeWidth="0.8" strokeOpacity="0.4" />
+              </svg>
+            </div>
+          );
+        })()}
+
+        {/* Card content */}
+        <div className="relative z-10 p-6">
+
+          {/* Top row: label + action buttons */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Total Portfolio Value</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setFundingAction('deposit'); setFundingStep('form'); setShowFundingModal(true); }}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-white/15 bg-white/10 hover:bg-white/20 transition-all duration-200 active:scale-95">
+                + Deposit
               </button>
-              <button onClick={() => setFundingAction('withdrawal')} className={`relative z-10 px-3.5 py-1 rounded-full transition-colors ${fundingAction === 'withdrawal' ? 'text-white' : 'text-muted-foreground'}`}>
-                Withdraw
+              <button
+                onClick={() => setTradeModal({ asset: null, type: 'buy' })}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-500/70 hover:bg-indigo-500 border border-indigo-400/30 transition-all duration-200 active:scale-95">
+                Quick Trade
               </button>
             </div>
           </div>
 
-          {/* Stat pills row */}
-          <div className="flex gap-2 mb-3">
+          {/* Big number + 24h badge */}
+          <div className="flex items-end gap-4 mb-2">
+            {!isPortfolioReady
+              ? <div className="h-12 w-56 rounded-xl bg-white/10 animate-pulse" />
+              : <h2 className="text-5xl font-black tracking-tight tabular-nums leading-none">
+                  ${displayValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
+            }
+            {isPortfolioReady && totalValue > 0 && (
+              <span className={`portfolio-badge-pulse self-end pb-1 text-xs font-bold px-2.5 py-1 rounded-full border tabular-nums ${isPositive ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+                {isPositive
+                  ? <TrendingUp className="portfolio-icon-pulse inline w-3 h-3 mr-1" />
+                  : <TrendingDown className="portfolio-icon-pulse inline w-3 h-3 mr-1" />}
+                {isPositive ? '+' : '-'}${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })} ({isPositive ? '+' : ''}{change24h}%)
+              </span>
+            )}
+          </div>
+
+          <div className="mb-5" />
+
+          {/* Stat pills */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { label: 'Available', value: `$${cashBalance.toFixed(2)}`, color: 'text-foreground' },
-              { label: 'Net 30D', value: `${fundingNet30d >= 0 ? '+' : '-'}$${Math.abs(fundingNet30d).toFixed(2)}`, color: fundingNet30d >= 0 ? 'text-green-500' : 'text-red-500' },
-              { label: 'Last', value: lastFundingEntry ? `${lastFundingEntry.type === 'deposit' ? '+' : '-'}$${Number(lastFundingEntry.amount || 0).toFixed(2)}` : '—', color: lastFundingEntry ? (lastFundingEntry.type === 'deposit' ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground' },
-            ].map((m) => (
-              <div key={m.label} className="flex-1 bg-muted/60 rounded-lg px-2.5 py-1.5 min-w-0">
-                <p className="text-[9px] text-muted-foreground uppercase tracking-wide leading-none mb-0.5">{m.label}</p>
-                <p className={`text-xs font-bold truncate ${m.color}`}>{m.value}</p>
+              { label: 'Holdings Value', value: `$${holdingsValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: '◈', colored: false, positive: true },
+              { label: 'Cash Balance',   value: `$${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: '◎', colored: false, positive: true },
+              { label: 'Net Cashflow',   value: `${netTradeCashflow >= 0 ? '+' : '-'}$${Math.abs(netTradeCashflow).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, icon: netTradeCashflow >= 0 ? '↑' : '↓', colored: true, positive: netTradeCashflow >= 0 },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-xl px-3.5 py-3 border border-white/10 bg-white/[0.06] backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-white/35 text-xs">{stat.icon}</span>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{stat.label}</p>
+                </div>
+                {!isPortfolioReady
+                  ? <div className="h-5 w-20 rounded bg-white/10 animate-pulse" />
+                  : <p className={`font-bold text-sm tabular-nums ${stat.colored ? (stat.positive ? 'text-green-300' : 'text-red-300') : 'text-white'}`}>{stat.value}</p>
+                }
               </div>
             ))}
           </div>
+        </div>
+      </div>
 
-          {/* Input + controls row — all inline */}
-          <div className="flex gap-2 mb-2.5">
-            {/* Amount */}
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm pointer-events-none">$</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={fundingAmount}
-                onChange={(e) => setFundingAmount(e.target.value)}
-                placeholder="0.00"
-                className={`w-full pl-7 pr-3 py-2 text-sm font-semibold rounded-xl border bg-background focus:outline-none transition-all duration-200 placeholder:text-muted-foreground/30 ${
-                  fundingAction === 'deposit'
-                    ? 'border-border focus:border-green-500/50 focus:ring-2 focus:ring-green-500/15'
-                    : 'border-border focus:border-red-500/50 focus:ring-2 focus:ring-red-500/15'
-                }`}
-              />
+      {/* ── Funding Ledger ─────────────────────────────────────────── */}
+      {(() => {
+        const GH_BANKS = [
+          { name: 'GCB Bank',     logo: '/logos/banks/gh/gcb.png'      },
+          { name: 'Ecobank',      logo: '/logos/banks/gh/ecobank.png'  },
+          { name: 'Absa Ghana',   logo: '/logos/banks/gh/absa.png'     },
+          { name: 'Fidelity',     logo: '/logos/banks/gh/fidelity.png' },
+          { name: 'Stanbic',      logo: '/logos/banks/gh/stanbic.png'  },
+          { name: 'Zenith Bank',  logo: '/logos/banks/gh/zenith.png'   },
+          { name: 'CalBank',      logo: '/logos/banks/gh/calbank.png'  },
+          { name: 'Access Bank',  logo: '/logos/banks/gh/access.png'   },
+          { name: 'UBA Ghana',    logo: '/logos/banks/gh/uba.png'      },
+          { name: 'GTBank',       logo: '/logos/banks/gh/gtbank.svg'   },
+        ];
+
+        const AURA_ACCOUNT = { name: 'AuraVest Ltd', number: '1020304050', bank: 'AuraBank Ghana', branch: 'Accra Digital Hub', sort: '040100' };
+
+        const RAILS = [
+          { id: 'AuraBank',      label: 'AuraBank',      logo: '/app-logos/bank.jpg',        bg: 'from-indigo-500/20 to-blue-500/10',   border: 'border-indigo-500/30', activeBorder: 'border-indigo-500', text: 'text-indigo-400' },
+          { id: 'Mobile Money',  label: 'Mobile Money',  logo: '/app-logos/mobilemoney.jpg', bg: 'from-yellow-500/20 to-amber-400/10',  border: 'border-yellow-500/30', activeBorder: 'border-yellow-500', text: 'text-yellow-400' },
+          { id: 'External Bank', label: 'External Bank', logo: '/logos/banks/gh/gcb.png',    bg: 'from-emerald-500/20 to-green-400/10', border: 'border-emerald-500/30', activeBorder: 'border-emerald-500', text: 'text-emerald-400' },
+        ];
+
+        const MOMO_NETWORKS = [
+          { id: 'mtn',        name: 'MTN MoMo',     logo: '/app-logos/mtnmomo.png',     ring: 'border-yellow-400/60', activeBg: 'bg-yellow-500/10', merchant: '0551234567' },
+          { id: 'telecel',    name: 'Telecel Cash',  logo: '/app-logos/telecelcash.jpg', ring: 'border-red-400/60',    activeBg: 'bg-red-500/10',    merchant: '0201234567' },
+          { id: 'airteltigo', name: 'AT Money',      logo: '/app-logos/atmoney.jpg',     ring: 'border-blue-400/60',   activeBg: 'bg-blue-500/10',   merchant: '0271234567' },
+        ];
+
+        const fmtDate = (ts?: string) => {
+          if (!ts) return '';
+          const d = new Date(ts);
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        };
+
+        const amt = Number(fundingAmount);
+        const momoNet = MOMO_NETWORKS.find(n => n.id === selectedMomoNetwork) ?? MOMO_NETWORKS[0];
+        const method = fundingRail === 'External Bank' && selectedBank ? selectedBank
+          : fundingRail === 'Mobile Money' ? momoNet.name
+          : fundingRail;
+
+        const CopyField = ({ label, value }: { label: string; value: string }) => (
+          <div className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/60 border border-border/50">
+            <div>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
+              <p className="text-sm font-bold mt-0.5 font-mono">{value}</p>
             </div>
-            {/* Rail */}
-            <select
-              value={fundingRail}
-              onChange={(e) => setFundingRail(e.target.value)}
-              className="rounded-xl border border-border bg-background px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-0 w-32"
-            >
-              {(fundingAction === 'deposit'
-                ? ['AuraBank', 'Mobile Money', 'External Bank']
-                : ['AuraBank', 'Mobile Money']
-              ).map((rail) => <option key={rail} value={rail}>{rail}</option>)}
-            </select>
-          </div>
-
-          {/* Note + submit row */}
-          <div className="flex gap-2 mb-2.5">
-            <input
-              type="text"
-              value={fundingNote}
-              onChange={(e) => setFundingNote(e.target.value)}
-              placeholder="Note (optional)"
-              className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <button
-              onClick={handleFundingSubmit}
-              disabled={isFunding}
-              className={`px-5 py-2 rounded-xl font-bold text-xs text-white transition-all duration-200 active:scale-95 disabled:opacity-60 flex-shrink-0 ${
-                fundingAction === 'deposit'
-                  ? 'bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25'
-                  : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25'
-              }`}
-            >
-              {isFunding
-                ? <span className="flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />Wait</span>
-                : fundingAction === 'deposit' ? '+ Fund' : '− Pull'
-              }
+            <button onClick={() => navigator.clipboard?.writeText(value)}
+              className="text-[10px] font-semibold text-primary hover:text-primary/80 border border-border px-2 py-1 rounded-lg transition-colors">
+              Copy
             </button>
           </div>
+        );
 
-          {/* Feedback */}
-          {(fundingError || fundingSuccess) && (
-            <div className={`rounded-xl px-3 py-1.5 text-xs mb-2 flex items-center gap-2 transition-all ${
-              fundingError
-                ? 'bg-red-500/10 border border-red-500/20 text-red-600'
-                : 'bg-green-500/10 border border-green-500/20 text-green-600'
-            }`}>
-              <span>{fundingError ? '✗' : '✓'}</span>
-              {fundingError || fundingSuccess}
-            </div>
-          )}
-        </div>
+        const openFunding = (action: 'deposit' | 'withdrawal') => {
+          setFundingAction(action);
+          setFundingStep('form');
+          setShowFundingModal(true);
+        };
 
-        {/* Recent activity — borderless inner table */}
-        {recentFundingEntries.length > 0 && (
-          <div className="border-t border-border/60 px-4 pb-3">
-            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest py-2">Recent</p>
-            <div className="space-y-0.5 max-h-28 overflow-y-auto">
-              {recentFundingEntries.map((entry, idx) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50 transition-colors duration-100 cursor-default"
-                  style={{ animationDelay: `${idx * 30}ms` }}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${entry.type === 'deposit' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className="text-xs text-muted-foreground truncate">
-                      {entry.type === 'deposit' ? 'Deposit' : 'Withdraw'} · {entry.method || 'AuraBank'}
-                      {entry.note ? ` · ${entry.note}` : ''}
-                    </span>
+        return (
+          <>
+            {/* ── Compact Ledger Card ──────────────────────────────── */}
+            <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="h-0.5 w-full bg-gradient-to-r from-indigo-500/70 via-purple-400/50 to-transparent" />
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="font-bold text-sm">Funding Ledger</p>
+                    <p className="text-[10px] text-muted-foreground">Deposits &amp; withdrawals</p>
                   </div>
-                  <span className={`text-xs font-semibold flex-shrink-0 ml-3 ${entry.type === 'deposit' ? 'text-green-500' : 'text-red-500'}`}>
-                    {entry.type === 'deposit' ? '+' : '-'}${Number(entry.amount || 0).toFixed(2)}
-                  </span>
+                  <div className="text-right">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Cash Balance</p>
+                    <p className="text-base font-bold tabular-nums">${cashBalance.toFixed(2)}</p>
+                  </div>
                 </div>
-              ))}
+
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="bg-muted/50 rounded-xl px-3 py-2.5 border border-border/50">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Net 30D</p>
+                    <p className={`text-sm font-bold tabular-nums ${fundingNet30d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {fundingNet30d >= 0 ? '+' : '−'}${Math.abs(fundingNet30d).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/50 rounded-xl px-3 py-2.5 border border-border/50">
+                    <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">Last Entry</p>
+                    <p className={`text-sm font-bold tabular-nums ${lastFundingEntry ? (lastFundingEntry.type === 'deposit' ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
+                      {lastFundingEntry ? `${lastFundingEntry.type === 'deposit' ? '+' : '−'}$${Number(lastFundingEntry.amount || 0).toFixed(2)}` : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => openFunding('deposit')}
+                    className="py-3 rounded-xl font-bold text-sm text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/20 transition-all active:scale-95">
+                    + Deposit
+                  </button>
+                  <button onClick={() => openFunding('withdrawal')}
+                    className="py-3 rounded-xl font-bold text-sm text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all active:scale-95">
+                    − Withdraw
+                  </button>
+                </div>
+              </div>
+
+              {recentFundingEntries.length > 0 && (
+                <div className="border-t border-border/60 px-5 pb-4">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest py-3">Recent Activity</p>
+                  <div className="space-y-1 max-h-52 overflow-y-auto">
+                    {recentFundingEntries.map((entry, idx) => {
+                      const isDeposit = entry.type === 'deposit';
+                      const isPending = entry.status === 'pending';
+                      const eLogo = (() => {
+                        const m = (entry.method || '').toLowerCase();
+                        if (m.includes('mobile') || m.includes('mtn') || m.includes('momo')) return '/logos/gse/MTNGH.svg';
+                        const b = GH_BANKS.find(gb => gb.name.toLowerCase() === m || m.includes(gb.name.toLowerCase().split(' ')[0]));
+                        return b ? b.logo : '/app-logos/bank.jpg';
+                      })();
+                      return (
+                        <div key={entry.id}
+                          className="flex items-center gap-3 py-2.5 px-2 rounded-xl hover:bg-muted/50 transition-colors cursor-default animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+                          style={{ animationDelay: `${idx * 40}ms` }}>
+                          <div className="relative flex-shrink-0">
+                            <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted border border-border flex items-center justify-center">
+                              <img src={eLogo} alt={entry.method || 'Bank'} className="w-full h-full object-contain p-1"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            </div>
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background flex items-center justify-center text-[8px] font-black text-white ${isDeposit ? 'bg-green-500' : 'bg-red-500'}`}>
+                              {isDeposit ? '↓' : '↑'}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <p className="text-xs font-semibold">{isDeposit ? 'Deposit' : 'Withdrawal'}</p>
+                              {isPending
+                                ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-500">PENDING</span>
+                                : <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isDeposit ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{isDeposit ? 'IN' : 'OUT'}</span>
+                              }
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {entry.method || 'AuraBank'}
+                              {entry.ref ? ` · ${entry.ref}` : ''}
+                              {entry.note ? ` · ${entry.note}` : ''}
+                              {entry.timestamp ? ` · ${fmtDate(entry.timestamp)}` : ''}
+                            </p>
+                          </div>
+                          <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${isPending ? 'text-yellow-500' : isDeposit ? 'text-green-500' : 'text-red-500'}`}>
+                            {isDeposit ? '+' : '−'}${Number(entry.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+
+            {/* ── Funding Modal (bottom sheet) ─────────────────────── */}
+            {showFundingModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                {/* Backdrop */}
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={resetFundingForm} />
+
+                {/* Dialog */}
+                <div className="relative w-full max-w-lg bg-card rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+                  style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+                  <div className={`h-0.5 w-full bg-gradient-to-r transition-all duration-500 ${fundingAction === 'deposit' ? 'from-green-500/80 via-emerald-400/60 to-transparent' : 'from-red-500/80 via-rose-400/60 to-transparent'}`} />
+
+                  <div className="px-4 pb-5 pt-3">
+
+                    {/* SUCCESS */}
+                    {fundingStep === 'success' && (
+                      <div className="text-center py-4">
+                        <div className={`w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl ${fundingRail === 'AuraBank' ? 'bg-green-500/15' : 'bg-yellow-500/15'}`}>
+                          {fundingRail === 'AuraBank' ? '✓' : '⏳'}
+                        </div>
+                        <p className="font-bold text-sm mb-1">
+                          {fundingRail === 'AuraBank' ? (fundingAction === 'deposit' ? 'Deposit Successful' : 'Withdrawal Submitted') : 'Transfer Initiated'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {fundingRail === 'AuraBank'
+                            ? `$${amt.toFixed(2)} has been ${fundingAction === 'deposit' ? 'added to' : 'removed from'} your cash balance.`
+                            : `Your ${fundingAction} of $${amt.toFixed(2)} is pending confirmation from ${method}.`}
+                        </p>
+                        {fundingRef && (
+                          <p className="text-[10px] text-muted-foreground font-mono bg-muted rounded-lg px-3 py-1.5 inline-block mt-1.5">
+                            Ref: {fundingRef}
+                          </p>
+                        )}
+                        <button onClick={resetFundingForm}
+                          className="mt-4 w-full py-2.5 rounded-xl font-bold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-colors active:scale-95">
+                          Done
+                        </button>
+                      </div>
+                    )}
+
+                    {/* INSTRUCTIONS */}
+                    {fundingStep === 'instructions' && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <button onClick={() => setFundingStep('form')}
+                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
+                            ←
+                          </button>
+                          <p className="font-bold text-sm flex-1">Payment Instructions</p>
+                          <button onClick={resetFundingForm}
+                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
+                            ✕
+                          </button>
+                        </div>
+                        <div className={`rounded-xl p-3 mb-3 border ${fundingRail === 'Mobile Money' ? 'bg-yellow-500/8 border-yellow-500/20' : 'bg-emerald-500/8 border-emerald-500/20'}`}>
+                          <p className="text-xs font-semibold mb-0.5">{fundingRail === 'Mobile Money' ? `📱 Send via ${momoNet.name}` : '🏦 Bank Transfer'}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {fundingRail === 'Mobile Money'
+                              ? 'Send exactly the amount below to our merchant number. Use the reference code as your payment narration.'
+                              : `Transfer from your ${selectedBank} account to the AuraVest account below. Include the reference in the narration.`}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5 mb-3">
+                          <CopyField label="Amount to Send" value={`$${amt.toFixed(2)}`} />
+                          {fundingRail === 'Mobile Money' ? (
+                            <>
+                              <CopyField label={`Send To (${momoNet.name})`} value={momoNet.merchant} />
+                              <CopyField label="Merchant Name" value="AuraVest" />
+                            </>
+                          ) : (
+                            <>
+                              <CopyField label="Account Name" value={AURA_ACCOUNT.name} />
+                              <CopyField label="Account Number" value={AURA_ACCOUNT.number} />
+                              <CopyField label="Bank" value={AURA_ACCOUNT.bank} />
+                              <CopyField label="Branch" value={AURA_ACCOUNT.branch} />
+                              <CopyField label="Sort Code" value={AURA_ACCOUNT.sort} />
+                            </>
+                          )}
+                          <CopyField label="Payment Reference (Required)" value={fundingRef} />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg p-2 mb-3">
+                          ⚠ Always include the reference in your narration. Deposit credited within
+                          {fundingRail === 'Mobile Money' ? ' 5–15 min' : ' 1–3 business days'} once confirmed.
+                        </p>
+                        <button onClick={confirmPendingDeposit}
+                          className="w-full py-2.5 rounded-xl font-bold text-sm text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25 transition-all active:scale-95">
+                          I've Sent the Payment
+                        </button>
+                      </div>
+                    )}
+
+                    {/* CONFIRM */}
+                    {fundingStep === 'confirm' && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <button onClick={() => setFundingStep('form')}
+                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
+                            ←
+                          </button>
+                          <p className="font-bold text-sm flex-1">Confirm {fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'}</p>
+                          <button onClick={resetFundingForm}
+                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
+                            ✕
+                          </button>
+                        </div>
+                        <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2 mb-3">
+                          {[
+                            { label: 'Type',       value: fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal' },
+                            { label: 'Amount',     value: `$${amt.toFixed(2)}` },
+                            { label: 'Method',     value: method },
+                            { label: 'Settlement', value: 'Instant' },
+                            ...(fundingNote.trim() ? [{ label: 'Note', value: fundingNote.trim() }] : []),
+                          ].map(row => (
+                            <div key={row.label} className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">{row.label}</span>
+                              <span className="font-semibold">{row.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={handleFundingSubmit} disabled={isFunding}
+                          className={`w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-60 ${
+                            fundingAction === 'deposit' ? 'bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25'
+                          }`}>
+                          {isFunding
+                            ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Processing...</span>
+                            : `Confirm ${fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'}`}
+                        </button>
+                        {fundingError && <p className="text-xs text-red-500 mt-2 text-center">{fundingError}</p>}
+                      </div>
+                    )}
+
+                    {/* FORM */}
+                    {fundingStep === 'form' && (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-sm">{fundingAction === 'deposit' ? 'Deposit Funds' : 'Withdraw Funds'}</p>
+                            <p className="text-[10px] text-muted-foreground">Available: <span className="font-semibold text-foreground">${cashBalance.toFixed(2)}</span></p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex items-center bg-muted rounded-full p-0.5 text-xs font-semibold">
+                              <div className={`absolute top-0.5 bottom-0.5 rounded-full transition-all duration-300 ${
+                                fundingAction === 'deposit'
+                                  ? 'left-0.5 right-[calc(50%+1px)] bg-green-500 shadow-md shadow-green-500/30'
+                                  : 'left-[calc(50%+1px)] right-0.5 bg-red-500 shadow-md shadow-red-500/30'
+                              }`} />
+                              <button onClick={() => setFundingAction('deposit')}
+                                className={`relative z-10 px-3 py-1 rounded-full transition-colors ${fundingAction === 'deposit' ? 'text-white' : 'text-muted-foreground'}`}>
+                                In
+                              </button>
+                              <button onClick={() => setFundingAction('withdrawal')}
+                                className={`relative z-10 px-3 py-1 rounded-full transition-colors ${fundingAction === 'withdrawal' ? 'text-white' : 'text-muted-foreground'}`}>
+                                Out
+                              </button>
+                            </div>
+                            <button onClick={resetFundingForm}
+                              className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Payment Method</p>
+                        <div className="grid grid-cols-3 gap-2 mb-3">
+                          {RAILS.map((rail) => (
+                            <button key={rail.id}
+                              onClick={() => { setFundingRail(rail.id); setSelectedBank(null); }}
+                              className={`relative flex flex-col items-center gap-1 p-2 rounded-xl border bg-gradient-to-br transition-all duration-200 active:scale-95 ${rail.bg} ${fundingRail === rail.id ? rail.activeBorder + ' shadow-md' : rail.border + ' opacity-60 hover:opacity-100'}`}>
+                              <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border flex items-center justify-center">
+                                <img src={rail.logo} alt={rail.label} className="w-full h-full object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              </div>
+                              <span className={`text-[9px] font-semibold ${fundingRail === rail.id ? rail.text : 'text-muted-foreground'}`}>{rail.label}</span>
+                              {fundingRail === rail.id && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-current opacity-80" />}
+                            </button>
+                          ))}
+                        </div>
+
+                        {fundingRail === 'AuraBank' && (
+                          <div className="flex items-center gap-2 rounded-xl bg-indigo-500/8 border border-indigo-500/20 px-3 py-2 mb-3 text-xs">
+                            <span className="text-indigo-400">⚡</span>
+                            <span className="text-muted-foreground">AuraBank transfers settle <span className="font-semibold text-foreground">instantly</span>.</span>
+                          </div>
+                        )}
+
+                        {fundingRail === 'Mobile Money' && (
+                          <div className="mb-3">
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Select Network</p>
+                            <div className="grid grid-cols-3 gap-2 mb-2">
+                              {MOMO_NETWORKS.map((net) => (
+                                <button key={net.id} onClick={() => setSelectedMomoNetwork(net.id)}
+                                  className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all duration-200 active:scale-95 ${
+                                    selectedMomoNetwork === net.id
+                                      ? `${net.ring} ${net.activeBg} shadow-sm`
+                                      : 'border-border bg-muted/30 opacity-60 hover:opacity-100'
+                                  }`}>
+                                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center">
+                                    <img src={net.logo} alt={net.name} className="w-full h-full object-cover"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                  </div>
+                                  <span className="text-[9px] font-semibold text-center leading-tight">{net.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                            <input type="text" value={momoName} onChange={e => setMomoName(e.target.value)}
+                              placeholder="Full name on MoMo account"
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500/50 mb-1.5" />
+                            <input type="tel" value={momoPhone} onChange={e => setMomoPhone(e.target.value)}
+                              placeholder={`Your ${momoNet.name} number (e.g. 055 123 4567)`}
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500/50 mb-1" />
+                            <p className="text-[10px] text-muted-foreground">
+                              {fundingAction === 'deposit'
+                                ? "Enter the name and number you're sending from so we can match your payment."
+                                : 'Withdrawal processes within 5–15 minutes.'}
+                            </p>
+                          </div>
+                        )}
+
+                        {fundingRail === 'External Bank' && (
+                          <div className="mb-3">
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Select Your Bank</p>
+                            <div className="grid grid-cols-5 gap-1.5 mb-2">
+                              {GH_BANKS.map((bank) => (
+                                <button key={bank.name} onClick={() => setSelectedBank(bank.name)}
+                                  className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
+                                    selectedBank === bank.name
+                                      ? 'border-emerald-500 bg-emerald-500/10 shadow-sm'
+                                      : 'border-border bg-muted/30 hover:bg-muted/60 opacity-70 hover:opacity-100'
+                                  }`}>
+                                  <div className="w-7 h-7 rounded-md overflow-hidden bg-background border border-border/50 flex items-center justify-center">
+                                    <img src={bank.logo} alt={bank.name} className="w-full h-full object-contain p-0.5"
+                                      onError={(e) => {
+                                        const t = e.target as HTMLImageElement;
+                                        t.style.display = 'none';
+                                        if (t.parentElement) t.parentElement.innerHTML = `<span class="text-[8px] font-bold text-muted-foreground">${bank.name.slice(0,3)}</span>`;
+                                      }} />
+                                  </div>
+                                  <span className="text-[7px] font-semibold text-center leading-tight text-muted-foreground line-clamp-1">{bank.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="space-y-1.5 mt-2">
+                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Your Account Details</p>
+                              <input type="text" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)}
+                                placeholder="Full name on bank account"
+                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
+                              <input type="text" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)}
+                                placeholder="Account Number"
+                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
+                              <input type="text" value={bankBranch} onChange={e => setBankBranch(e.target.value)}
+                                placeholder="Branch (optional)"
+                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
+                              <p className="text-[10px] text-muted-foreground">
+                                {fundingAction === 'deposit'
+                                  ? 'Enter the account you\'re sending from so we can match your transfer.'
+                                  : 'External bank withdrawals take 1–3 business days to reflect.'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-1.5 mb-2">
+                          {[50, 100, 500, 1000].map((a) => (
+                            <button key={a} onClick={() => setFundingAmount(String(a))}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${
+                                fundingAmount === String(a)
+                                  ? fundingAction === 'deposit' ? 'bg-green-500/20 border-green-500/50 text-green-500' : 'bg-red-500/20 border-red-500/50 text-red-500'
+                                  : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                              }`}>${a}</button>
+                          ))}
+                        </div>
+
+                        <div className="relative mb-2">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold pointer-events-none text-sm">$</span>
+                          <input type="number" min="0" step="0.01" value={fundingAmount}
+                            onChange={e => setFundingAmount(e.target.value)} placeholder="0.00"
+                            className={`w-full pl-7 pr-3 py-2.5 text-base font-bold rounded-xl border bg-background focus:outline-none transition-all placeholder:text-muted-foreground/30 ${
+                              fundingAction === 'deposit' ? 'border-border focus:border-green-500/60 focus:ring-2 focus:ring-green-500/15' : 'border-border focus:border-red-500/60 focus:ring-2 focus:ring-red-500/15'
+                            }`} />
+                        </div>
+
+                        <input type="text" value={fundingNote} onChange={e => setFundingNote(e.target.value)}
+                          placeholder="Note (optional)"
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 mb-2" />
+
+                        {fundingError && (
+                          <div className="rounded-lg px-3 py-2 text-xs flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-500 mb-2">
+                            <span>✗</span>{fundingError}
+                          </div>
+                        )}
+
+                        <button
+                          disabled={
+                            !amt || amt <= 0
+                            || (fundingRail === 'External Bank' && !selectedBank)
+                            || (fundingRail === 'External Bank' && (!bankAccountName.trim() || !bankAccountNumber.trim()))
+                            || (fundingRail === 'Mobile Money' && (!momoName.trim() || !momoPhone.trim()))
+                          }
+                          onClick={() => {
+                            setFundingError(null);
+                            if (amt <= 0) { setFundingError('Enter a valid amount.'); return; }
+                            if (fundingAction === 'withdrawal' && amt > cashBalance) { setFundingError(`Insufficient cash. Available: $${cashBalance.toFixed(2)}.`); return; }
+                            if (fundingAction === 'deposit' && fundingRail !== 'AuraBank') {
+                              const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+                              setFundingRef(ref);
+                              setFundingStep('instructions');
+                            } else {
+                              setFundingStep('confirm');
+                            }
+                          }}
+                          className={`w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-40 ${
+                            fundingAction === 'deposit' ? 'bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25'
+                          }`}>
+                          {fundingAction === 'deposit' ? 'Continue to Deposit →' : 'Continue to Withdraw →'}
+                        </button>
+                      </>
+                    )}
+
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Allocation + Holdings — unified section ─────────────────── */}
       {(() => {
@@ -936,10 +1528,34 @@ export default function PortfolioPage() {
             {/* ── Allocation header ── */}
             <div className="p-6 pb-0">
               <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2">
-                  <PieChartIcon className="w-5 h-5 text-primary" />
+                <div className="flex items-center gap-3">
+                  {allocationAssets.length > 0 ? (
+                    <div className="w-9 h-9 flex-shrink-0">
+                      <Doughnut
+                        data={{
+                          labels: allocationAssets.map((a: any) => a.type),
+                          datasets: [{
+                            data: allocationAssets.map((a: any) => a.allocation),
+                            backgroundColor: allocationAssets.map((a: any) => getAllocConfig(a.type).barHex + 'cc'),
+                            borderColor: 'transparent',
+                            borderWidth: 0,
+                            hoverOffset: 3,
+                          }],
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: true,
+                          cutout: '66%',
+                          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}%` } } },
+                          animation: { duration: 1200, easing: 'easeInOutQuart' },
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <PieChartIcon className="w-5 h-5 text-primary" />
+                  )}
                   <h3 className="font-semibold">Asset Allocation</h3>
-                  <span className="text-xs text-muted-foreground ml-1">· click a card to drill into holdings</span>
+                  <span className="text-xs text-muted-foreground">· click a card to filter</span>
                 </div>
                 {holdingsFilter !== 'all' && (
                   <button
@@ -1087,9 +1703,14 @@ export default function PortfolioPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredHoldings.map((holding, idx) => {
-                  const isPositive = holding.change24h >= 0;
-                  const isPositivePnL = holding.unrealizedPnL >= 0;
                   const isLocal = holding.type === 'Local Investments' || holding.currency === 'GHS';
+                  const livePrice = (!isLocal && livePricesLoaded && livePrices[holding.symbol])
+                    ? livePrices[holding.symbol] : holding.currentPrice;
+                  const liveValue = holding.amount * livePrice;
+                  const livePnL = liveValue - (holding.costBasis || 0);
+                  const livePnLPct = (holding.costBasis || 0) > 0 ? (livePnL / holding.costBasis) * 100 : 0;
+                  const isPositive = holding.change24h >= 0;
+                  const isPositivePnL = livePnL >= 0;
                   const quantityLabel = holding.quantityType === 'shares' ? 'shares' : 'units';
                   const holdingStatus = (holding.status || 'filled').toLowerCase();
                   const hCfg = ALLOC_CONFIG.find(c => {
@@ -1130,11 +1751,16 @@ export default function PortfolioPage() {
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="font-semibold">
-                            {isLocal
-                              ? `GHS ${holding.currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                              : `$${(holding.currentValue / 1000).toFixed(1)}K`}
-                          </p>
+                          <div className="flex items-center justify-end gap-1.5 mb-0.5">
+                            {livePricesLoaded && !isLocal && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 font-bold tracking-wide">LIVE</span>
+                            )}
+                            <p className="font-semibold">
+                              {isLocal
+                                ? `GHS ${(holding.amount * holding.currentPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                                : `$${(liveValue / 1000).toFixed(1)}K`}
+                            </p>
+                          </div>
                           <p className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
                             {isPositive ? '+' : ''}{holding.change24h.toFixed(2)}%
                           </p>
@@ -1146,20 +1772,20 @@ export default function PortfolioPage() {
                           {
                             label: 'Cost Basis',
                             value: isLocal
-                              ? `GHS ${holding.costBasis.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                              : `$${(holding.costBasis / 1000).toFixed(1)}K`,
+                              ? `GHS ${(holding.costBasis || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                              : `$${((holding.costBasis || 0) / 1000).toFixed(1)}K`,
                             color: '',
                           },
                           {
                             label: 'Unrealized P&L',
                             value: isPositivePnL
-                              ? `+${isLocal ? `GHS ${Math.abs(holding.unrealizedPnL).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `$${(holding.unrealizedPnL / 1000).toFixed(1)}K`}`
-                              : `-${isLocal ? `GHS ${Math.abs(holding.unrealizedPnL).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `$${(Math.abs(holding.unrealizedPnL) / 1000).toFixed(1)}K`}`,
+                              ? `+${isLocal ? `GHS ${Math.abs(livePnL).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `$${(livePnL / 1000).toFixed(1)}K`}`
+                              : `-${isLocal ? `GHS ${Math.abs(livePnL).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `$${(Math.abs(livePnL) / 1000).toFixed(1)}K`}`,
                             color: isPositivePnL ? 'text-green-500' : 'text-red-500',
                           },
                           {
                             label: 'P&L %',
-                            value: `${isPositivePnL ? '+' : ''}${holding.unrealizedPnLPercent.toFixed(1)}%`,
+                            value: `${isPositivePnL ? '+' : ''}${livePnLPct.toFixed(1)}%`,
                             color: isPositivePnL ? 'text-green-500' : 'text-red-500',
                           },
                         ].map((stat, sIdx) => (
@@ -1344,7 +1970,7 @@ export default function PortfolioPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card border border-border rounded-lg p-6">
           <h3 className="font-semibold mb-4">Portfolio Performance</h3>
-          <PortfolioChart data={chartData} />
+          <PortfolioChart data={equityCurve} />
         </div>
 
         <div className="bg-card border border-border rounded-lg p-6">

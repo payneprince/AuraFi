@@ -235,6 +235,23 @@ export default function DashboardClient() {
 
       {/* Top Navigation Bar - Hidden on mobile */}
       <header className="hidden md:flex items-center justify-between px-6 py-3 bg-black border-b border-slate-800/40 sticky top-0 z-30">
+        <style>{`
+          @keyframes navPillGlow {
+            0%, 100% { box-shadow: 0 4px 15px rgba(185,28,28,0.35), 0 0 0 0 rgba(185,28,28,0); }
+            50%       { box-shadow: 0 4px 24px rgba(185,28,28,0.55), 0 0 12px 2px rgba(185,28,28,0.18); }
+          }
+          .nav-pill-active {
+            animation: navPillGlow 2.8s ease-in-out infinite;
+          }
+          @keyframes navIconPop {
+            0%   { transform: scale(1) rotate(0deg); }
+            40%  { transform: scale(1.22) rotate(-6deg); }
+            70%  { transform: scale(0.95) rotate(3deg); }
+            100% { transform: scale(1) rotate(0deg); }
+          }
+          .nav-icon-pop { animation: navIconPop 0.35s ease-out forwards; }
+        `}</style>
+
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
@@ -261,15 +278,14 @@ export default function DashboardClient() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as any)}
-                className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-left transition-all ${
+                className={`nav-pill-${active ? 'active' : 'idle'} relative flex items-center gap-2 px-4 py-2 rounded-xl text-left transition-all duration-200 active:scale-95 ${
                   active
-                    ? 'bg-gradient-to-r from-red-700 to-red-900 text-white shadow-lg shadow-red-900/30'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? 'bg-gradient-to-r from-red-700 to-red-900 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 hover:scale-[1.03]'
                 }`}
               >
-                <item.icon className={`w-4.5 h-4.5 flex-shrink-0 ${active ? 'text-white' : ''}`} />
-                <span className="font-medium text-sm">{item.label}</span>
-                {active && <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-1.5 h-1.5 rounded-full bg-white/70" />}
+                <item.icon className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${active ? 'nav-icon-pop scale-110' : ''}`} />
+                <span className={`font-medium text-sm transition-all duration-200 ${active ? 'tracking-wide' : ''}`}>{item.label}</span>
               </button>
             );
           })}
@@ -279,7 +295,7 @@ export default function DashboardClient() {
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-6 overflow-auto pb-20 md:pb-6">
 
-        {activeTab === 'home' && <DashboardHome key={`home-${syncVersion}`} />}
+        {activeTab === 'home' && <DashboardHome key={`home-${syncVersion}`} onNavigate={(tab) => setActiveTab(tab as any)} />}
         {activeTab === 'markets' && <MarketsPage key={`markets-${syncVersion}`} />}
         {activeTab === 'portfolio' && <PortfolioPage key={`portfolio-${syncVersion}`} />}
         {activeTab === 'trade' && <TradePage key={`trade-${syncVersion}`} />}
