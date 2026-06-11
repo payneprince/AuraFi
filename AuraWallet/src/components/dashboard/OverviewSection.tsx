@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CreditCard, Sparkles, Wallet, PlusCircle, HandCoins, FileText, ArrowUpRight, ArrowDownLeft, Smartphone, Link2, Send } from 'lucide-react';
+import { CreditCard, Sparkles, Wallet, PlusCircle, HandCoins, FileText, ArrowUpRight, ArrowDownLeft, Link2, Send, X } from 'lucide-react';
 import TransactionList, { getWalletTxStyle } from '@/components/TransactionList';
 import TransferForm from '@/components/TransferForm';
 import { auraBankCards } from '@/components/CardManager';
@@ -105,31 +105,26 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
     }));
   }, [auraBankSnapshot]);
 
-  const fundSources: Array<{ id: 'bank' | 'card' | 'mobile'; label: string; logo?: string; icon?: typeof Smartphone; ring: string; glow: string }> = [
-    { id: 'bank', label: 'AuraBank', logo: '/app-logos/bank.jpg', ring: 'ring-indigo-400/40', glow: 'bg-indigo-500/30' },
-    { id: 'card', label: 'Bank Card', logo: '/app-logos/bank.jpg', ring: 'ring-teal-400/40', glow: 'bg-teal-500/30' },
-    { id: 'mobile', label: 'Mobile Money', logo: '/app-logos/mobilemoney.jpg', ring: 'ring-emerald-400/40', glow: 'bg-emerald-500/30' },
-  ];
-
-  const mobileNetworks = [
-    { id: 'mtn', name: 'MTN Mobile Money', eta: 'Instant', feeText: '0.5%', logo: '/app-logos/mtnmomo.png', ring: 'ring-yellow-400/40', glow: 'bg-yellow-400/30' },
-    { id: 'telecel', name: 'Telecel Cash', eta: '1-2 min', feeText: '0.6%', logo: '/app-logos/telecelcash.jpg', ring: 'ring-red-400/40', glow: 'bg-red-500/30' },
-    { id: 'airteltigo', name: 'AirtelTigo Money', eta: 'Instant', feeText: '0.5%', logo: '/app-logos/atmoney.jpg', ring: 'ring-blue-400/40', glow: 'bg-blue-500/30' },
-  ];
   const [showAddFundsModal, setShowAddFundsModal] = useState(false);
   const [showRequestMoneyModal, setShowRequestMoneyModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
   const [addAmount, setAddAmount] = useState('');
-  const [addSource, setAddSource] = useState<'bank' | 'card' | 'mobile'>('bank');
+  const [addSource, setAddSource] = useState<'bank' | 'paystack'>('bank');
+  const [auraSourceType, setAuraSourceType] = useState<'account' | 'card'>('account');
+  const [walletFundingAction, setWalletFundingAction] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [walletFundingStep, setWalletFundingStep] = useState<'form' | 'confirm' | 'success'>('form');
+  const [walletFundingRef, setWalletFundingRef] = useState('');
+  const [walletFundingNote, setWalletFundingNote] = useState('');
+  const [momoPhone, setMomoPhone] = useState('');
+  const [momoName, setMomoName] = useState('');
   const [selectedOverviewCardId, setSelectedOverviewCardId] = useState<string>('');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
-  const [selectedCardId, setSelectedCardId] = useState<string>('');
-  const [selectedNetworkId, setSelectedNetworkId] = useState<string>(mobileNetworks[0].id);
-  const [mobileWalletNumber, setMobileWalletNumber] = useState('');
+  const [selectedAuraBankCardId, setSelectedAuraBankCardId] = useState<string>('');
   const [requestAmount, setRequestAmount] = useState('');
   const [requestNote, setRequestNote] = useState('');
   const [requestLink, setRequestLink] = useState('');
   const [formError, setFormError] = useState('');
+  const [isAddingFunds, setIsAddingFunds] = useState(false);
 
   useEffect(() => {
     if (bankCards.length === 0) return;
@@ -142,90 +137,138 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
   useEffect(() => {
     if (bankAccounts.length === 0) return;
     const hasSelection = bankAccounts.some((account: any) => String(account.id) === selectedBankAccountId);
-    if (!hasSelection) {
-      setSelectedBankAccountId(String(bankAccounts[0].id));
-    }
+    if (!hasSelection) setSelectedBankAccountId(String(bankAccounts[0].id));
   }, [bankAccounts, selectedBankAccountId]);
 
   useEffect(() => {
     if (bankCards.length === 0) return;
-    const hasSelection = bankCards.some((card) => String(card.id) === selectedCardId);
-    if (!hasSelection) {
-      setSelectedCardId(String(bankCards[0].id));
-    }
-  }, [bankCards, selectedCardId]);
+    const hasSelection = bankCards.some((c) => String(c.id) === selectedAuraBankCardId);
+    if (!hasSelection) setSelectedAuraBankCardId(String(bankCards[0].id));
+  }, [bankCards, selectedAuraBankCardId]);
 
-  const handleAddFunds = async () => {
-    const parsedAmount = Number.parseFloat(addAmount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setFormError('Enter a valid amount greater than 0.');
+  const loadPaystackScript = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (typeof window === 'undefined') return reject(new Error('SSR'));
+      if ((window as any).PaystackPop) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://js.paystack.co/v2/inline.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.head.appendChild(s);
+    });
+
+  const detectMomoCode = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '').replace(/^233/, '0');
+    if (/^0(24|54|55|59|57)/.test(digits)) return 'MTN';
+    if (/^0(20|50)/.test(digits)) return 'VOD';
+    if (/^0(27|56|26)/.test(digits)) return 'ATL';
+    return 'MTN';
+  };
+
+  const getWalletUserEmail = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem('aurawallet_user') || localStorage.getItem('auravest_user') || '{}') as { email?: string };
+      return u.email || 'demo@aurawallet.com';
+    } catch { return 'demo@aurawallet.com'; }
+  };
+
+  const commitWalletTopUp = async (amount: number, sourceLabel: string) => {
+    walletData.balance = Number(walletData.balance || 0) + amount;
+    walletData.transactions.unshift({ id: Date.now(), amount, description: `Top up via ${sourceLabel}`, date: new Date().toISOString().split('T')[0] });
+    persistWalletStateForUser(getActiveWalletUserId());
+    await appendWalletLedgerEvent({ type: 'funding.deposit', amount, description: `Wallet top up via ${sourceLabel}`, metadata: { source: addSource, sourceLabel } });
+  };
+
+  const commitWalletWithdrawal = async (amount: number, methodLabel: string) => {
+    walletData.balance = Math.max(0, Number(walletData.balance || 0) - amount);
+    walletData.transactions.unshift({ id: Date.now(), amount: -amount, description: `Withdrawal via ${methodLabel}`, date: new Date().toISOString().split('T')[0] });
+    persistWalletStateForUser(getActiveWalletUserId());
+    await appendWalletLedgerEvent({ type: 'funding.withdrawal', amount, description: `Wallet withdrawal via ${methodLabel}`, metadata: { source: addSource, sourceLabel: methodLabel } });
+  };
+
+  const handleWalletFundingContinue = () => {
+    const parsed = Number.parseFloat(addAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) { setFormError('Enter a valid amount greater than 0.'); return; }
+    if (walletFundingAction === 'withdrawal' && parsed > walletBalance) { setFormError('Amount exceeds your wallet balance.'); return; }
+    if (addSource === 'bank' && auraSourceType === 'account') {
+      const acct = bankAccounts.find((a: any) => String(a.id) === selectedBankAccountId);
+      if (!acct) { setFormError('Select an AuraBank account.'); return; }
+      if (walletFundingAction === 'deposit' && Number(acct.availableBalance ?? acct.balance ?? 0) < parsed) {
+        setFormError('Insufficient AuraBank balance.'); return;
+      }
+    }
+    if (addSource === 'paystack' && walletFundingAction === 'withdrawal') {
+      if (!momoPhone.trim()) { setFormError('Enter your account/wallet number.'); return; }
+      if (!momoName.trim()) { setFormError('Enter the account holder name.'); return; }
+    }
+    setFormError('');
+    setWalletFundingStep('confirm');
+  };
+
+  const handleWalletFundingConfirm = async () => {
+    const parsed = Number.parseFloat(addAmount);
+    if (addSource === 'bank') {
+      const acct = bankAccounts.find((a: any) => String(a.id) === selectedBankAccountId);
+      const card = bankCards.find(c => String(c.id) === selectedAuraBankCardId);
+      const lbl = auraSourceType === 'account'
+        ? `${acct?.name || 'AuraBank'} ••••${String(acct?.accountNumber || '').slice(-4)}`
+        : `${card?.brand || 'AuraBank'} ••••${card?.last4 || ''}`;
+      if (walletFundingAction === 'deposit') await commitWalletTopUp(parsed, lbl);
+      else await commitWalletWithdrawal(parsed, 'AuraBank');
+      setWalletFundingRef(`wallet-bank-${Date.now()}`);
+      setWalletFundingStep('success');
+      onTransferComplete();
       return;
     }
 
-    let sourceLabel = 'Mobile Money';
-
-    if (addSource === 'bank') {
-      const selectedAccount = bankAccounts.find((account: any) => String(account.id) === selectedBankAccountId);
-      if (!selectedAccount) {
-        setFormError('Select an AuraBank account to continue.');
-        return;
-      }
-      if (Number(selectedAccount.availableBalance ?? selectedAccount.balance ?? 0) < parsedAmount) {
-        setFormError('Selected AuraBank account has insufficient balance.');
-        return;
-      }
-
-      sourceLabel = `${selectedAccount.name || String(selectedAccount.type || 'Account').toUpperCase()} ••••${String(selectedAccount.accountNumber || '').slice(-4)} (${selectedAccount.currency || 'USD'})`;
-    }
-
-    if (addSource === 'card') {
-      const selectedCard = bankCards.find((card) => String(card.id) === selectedCardId);
-      if (!selectedCard) {
-        setFormError('Select an AuraBank card to continue.');
-        return;
-      }
-      sourceLabel = `${selectedCard.brand} ${selectedCard.type.toUpperCase()} ••••${selectedCard.last4}`;
-    }
-
-    if (addSource === 'mobile') {
-      const selectedNetwork = mobileNetworks.find((network) => network.id === selectedNetworkId);
-      if (!selectedNetwork) {
-        setFormError('Select a mobile money network.');
-        return;
-      }
-      const normalizedWallet = mobileWalletNumber.replace(/\s+/g, '');
-      if (!/^\+?[0-9]{10,15}$/.test(normalizedWallet)) {
-        setFormError('Enter a valid mobile wallet number (10-15 digits, optional +).');
-        return;
-      }
-      sourceLabel = `${selectedNetwork.name} (${normalizedWallet})`;
-    }
-
-    walletData.balance = Number(walletData.balance || 0) + parsedAmount;
-    const actionId = `wallet-topup-${Date.now()}`;
-
-    walletData.transactions.unshift({
-      id: Date.now(),
-      amount: parsedAmount,
-      description: `Top up via ${sourceLabel}`,
-      date: new Date().toISOString().split('T')[0],
-    });
-    persistWalletStateForUser(getActiveWalletUserId());
-    await appendWalletLedgerEvent({
-      type: 'funding.deposit',
-      amount: parsedAmount,
-      description: `Wallet top up via ${sourceLabel}`,
-      metadata: {
-        source: addSource,
-        sourceLabel,
-        sourceActionId: actionId,
-      },
-    });
-
+    setIsAddingFunds(true);
     setFormError('');
-    setAddAmount('');
-    setShowAddFundsModal(false);
-    onTransferComplete();
+
+    if (walletFundingAction === 'deposit') {
+      try {
+        const res = await fetch('/api/paystack/initialize', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: getWalletUserEmail(), amount: parsed, currency: 'GHS', channels: ['mobile_money', 'card', 'bank_transfer'] }),
+        });
+        const { accessCode, reference, error } = await res.json() as { accessCode?: string; reference?: string; error?: string };
+        if (!accessCode || !reference) throw new Error(error ?? 'Init failed');
+        await loadPaystackScript();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const popup = new (window as any).PaystackPop();
+        popup.resumeTransaction(accessCode, {
+          onSuccess: async () => {
+            try {
+              const vData = await (await fetch(`/api/paystack/verify?reference=${reference}`)).json() as { success: boolean };
+              if (!vData.success) throw new Error('Verification failed');
+              await commitWalletTopUp(parsed, 'Paystack');
+              setWalletFundingRef(reference);
+              setWalletFundingStep('success');
+              onTransferComplete();
+            } catch { setFormError('Payment received but balance update failed. Please refresh.'); }
+            finally { setIsAddingFunds(false); }
+          },
+          onCancel: () => { setIsAddingFunds(false); setFormError('Payment cancelled.'); },
+        });
+      } catch { setIsAddingFunds(false); setFormError('Could not launch Paystack. Try again.'); }
+      return;
+    }
+
+    // Paystack withdrawal
+    try {
+      const res = await fetch('/api/paystack/transfer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: parsed, currency: 'GHS', recipientType: 'mobile_money', accountNumber: momoPhone.trim().replace(/\s+/g, ''), bankCode: detectMomoCode(momoPhone), name: momoName.trim() || 'Customer' }),
+      });
+      const data = await res.json() as { success?: boolean; error?: string; code?: string; reference?: string; transferCode?: string };
+      const isPending = !data.success && data.code === 'transfer_unavailable';
+      if (!data.success && !isPending) throw new Error(data.error ?? 'Transfer failed');
+      await commitWalletWithdrawal(parsed, isPending ? 'Paystack (pending)' : 'Paystack');
+      setWalletFundingRef(data.reference || data.transferCode || '');
+      setWalletFundingStep('success');
+      onTransferComplete();
+    } catch (err: unknown) {
+      setFormError((err as Error)?.message ?? 'Transfer failed. Try again.');
+    } finally { setIsAddingFunds(false); }
   };
 
   const handleRequestMoney = () => {
@@ -252,13 +295,14 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
   const closeAddFundsModal = () => {
     setShowAddFundsModal(false);
     setAddAmount('');
-    setMobileWalletNumber('');
+    setWalletFundingStep('form');
+    setWalletFundingAction('deposit');
+    setWalletFundingRef('');
+    setWalletFundingNote('');
+    setMomoPhone('');
+    setMomoName('');
     setFormError('');
-  };
-
-  const handleSelectSource = (source: 'bank' | 'card' | 'mobile') => {
-    setAddSource(source);
-    setFormError('');
+    setAddSource('bank');
   };
 
   const selectedOverviewCard = bankCards.find((card) => String(card.id) === selectedOverviewCardId) || bankCards[0];
@@ -334,7 +378,7 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
         <h3 className="text-white font-bold text-xl mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {[
-            { icon: PlusCircle, label: 'Add Funds', onClick: () => setShowAddFundsModal(true), spin: 'border-t-green-400/80 border-r-green-400/30', bg: 'bg-green-500/15', text: 'text-green-300' },
+            { icon: PlusCircle, label: 'Add Funds', onClick: () => { setShowAddFundsModal(true); loadPaystackScript().catch(() => {}); }, spin: 'border-t-green-400/80 border-r-green-400/30', bg: 'bg-green-500/15', text: 'text-green-300' },
             { icon: HandCoins, label: 'Request Money', onClick: () => setShowRequestMoneyModal(true), spin: 'border-t-pink-400/80 border-r-pink-400/30', bg: 'bg-pink-500/15', text: 'text-pink-300' },
             { icon: FileText, label: 'Last Transaction', onClick: () => setSelectedTransaction(walletData.transactions[0] || null), spin: 'border-t-sky-400/80 border-r-sky-400/30', bg: 'bg-sky-500/15', text: 'text-sky-300' },
           ].map((action, idx) => {
@@ -405,162 +449,232 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
       </div>
 
       {showAddFundsModal && (
-        <WalletModal title="Add Funds" onClose={closeAddFundsModal}>
-            <div className="space-y-4">
-              <div>
-                <label className="text-white/80 text-sm font-medium">Amount</label>
-                <input
-                  value={addAmount}
-                  onChange={(event) => setAddAmount(event.target.value)}
-                  placeholder="0.00"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
-                />
-              </div>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => { if (walletFundingStep !== 'success') closeAddFundsModal(); }}>
+          <div className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-[#0B1E39] border border-white/10 shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300"
+            onClick={e => e.stopPropagation()}>
+            <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-green-500/10 blur-3xl pointer-events-none" />
 
+            {/* Header */}
+            <div className="relative flex items-center justify-between px-5 pt-5 pb-3 border-b border-white/5">
               <div>
-                <label className="text-white/80 text-sm font-medium">Source</label>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {fundSources.map((source) => {
-                    const active = addSource === source.id;
-                    const Icon = source.icon;
-                    return (
-                      <button
-                        key={source.id}
-                        type="button"
-                        onClick={() => handleSelectSource(source.id)}
-                        className={`group relative flex flex-col items-center gap-2 px-2 py-3 rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                          active
-                            ? 'border-green-400/40 bg-green-500/10 text-white shadow-sm'
-                            : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:-translate-y-0.5'
-                        }`}
-                      >
-                        <span className={`relative flex items-center justify-center w-10 h-10 rounded-2xl bg-white overflow-hidden ring-2 ${source.ring} transition-transform duration-300 ${active ? 'scale-110' : ''}`}>
-                          {active && <span className={`absolute inset-0 ${source.glow} blur-lg animate-pulse`} />}
-                          {source.logo ? (
-                            <img src={source.logo} alt={source.label} className="relative w-full h-full object-cover" />
-                          ) : Icon ? (
-                            <Icon className="relative w-5 h-5 text-emerald-600" />
-                          ) : null}
-                        </span>
-                        {source.label}
-                        {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                <h3 className="text-white font-bold text-lg">
+                  {walletFundingStep === 'success' ? (walletFundingAction === 'deposit' ? 'Deposit Confirmed' : 'Withdrawal Submitted') : 'Manage Funds'}
+                </h3>
+                <p className="text-white/40 text-xs mt-0.5">Available: ${walletBalance.toFixed(2)}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {walletFundingStep === 'form' && (
+                  <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5">
+                    {(['deposit', 'withdrawal'] as const).map(a => (
+                      <button key={a} onClick={() => { setWalletFundingAction(a); setFormError(''); }}
+                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${walletFundingAction === a ? (a === 'deposit' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400') : 'text-white/40 hover:text-white/70'}`}>
+                        {a === 'deposit' ? 'In' : 'Out'}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                )}
+                <button onClick={closeAddFundsModal} className="text-white/40 hover:text-white hover:rotate-90 transition-all duration-300">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* ── FORM STEP ── */}
+            {walletFundingStep === 'form' && (
+              <div className="relative px-5 pb-5 pt-4 space-y-3 max-h-[70vh] overflow-y-auto">
+                {/* Rail selector */}
+                <div>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-1.5">Payment Method</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { id: 'bank' as const, label: 'AuraBank', logo: '/app-logos/bank.jpg', depositSub: 'Instant · Internal', withdrawSub: 'Instant · Internal' },
+                      { id: 'paystack' as const, label: 'Paystack', logo: '/app-logos/paystack.png', depositSub: 'Card · MoMo · Bank', withdrawSub: 'Transfer · Pending' },
+                    ]).map(rail => (
+                      <button key={rail.id} onClick={() => { setAddSource(rail.id); setFormError(''); }}
+                        className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all active:scale-95 ${addSource === rail.id ? (walletFundingAction === 'deposit' ? 'border-green-500/40 bg-green-500/8' : 'border-red-500/40 bg-red-500/8') : 'border-white/10 bg-white/5 opacity-60 hover:opacity-100'}`}>
+                        <div className="w-9 h-9 rounded-xl overflow-hidden bg-white/10 border border-white/10 flex items-center justify-center">
+                          <img src={rail.logo} alt={rail.label} className="w-full h-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        </div>
+                        <p className={`text-xs font-bold ${addSource === rail.id ? (walletFundingAction === 'deposit' ? 'text-green-400' : 'text-red-400') : 'text-white/50'}`}>{rail.label}</p>
+                        <p className="text-[9px] text-white/30 leading-tight text-center">{walletFundingAction === 'deposit' ? rail.depositSub : rail.withdrawSub}</p>
+                        {addSource === rail.id && <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full animate-pulse ${walletFundingAction === 'deposit' ? 'bg-green-400' : 'bg-red-400'}`} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* AuraBank info + account/card selector */}
+                {addSource === 'bank' && (
+                  <div className="rounded-xl bg-indigo-500/8 border border-indigo-500/20 px-3 py-2.5 text-xs space-y-2.5 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-indigo-400">⚡</span>
+                      <span className="text-indigo-200/80">AuraBank transfers settle <span className="font-semibold text-indigo-100">instantly</span> with no fees.</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-indigo-200/40 text-[11px]">Accepted:</span>
+                      <div className="flex items-center -space-x-1">
+                        {['/app-logos/visa.svg', '/app-logos/mastercard.svg', '/app-logos/amex.svg'].map(src => (
+                          <img key={src} src={src} alt="" className="w-8 h-5 rounded object-contain bg-white ring-1 ring-black/20 p-0.5" />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {(['account', 'card'] as const).map(t => (
+                        <button key={t} type="button" onClick={() => setAuraSourceType(t)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${auraSourceType === t ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-white/5 text-white/30 border border-white/10 hover:bg-white/10'}`}>
+                          {t === 'account' ? 'Account' : 'Card'}
+                        </button>
+                      ))}
+                    </div>
+                    {auraSourceType === 'account' && (bankAccounts.length > 0
+                      ? <select value={selectedBankAccountId} onChange={e => setSelectedBankAccountId(e.target.value)}
+                          className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                          {bankAccounts.map((a: any) => <option key={a.id} value={String(a.id)} className="text-black">{a.name || a.type} ••••{String(a.accountNumber || '').slice(-4)} — {a.currency || 'USD'} {Number(a.availableBalance ?? a.balance ?? 0).toFixed(2)}</option>)}
+                        </select>
+                      : <p className="text-white/30 text-[11px]">No AuraBank accounts linked.</p>
+                    )}
+                    {auraSourceType === 'card' && (bankCards.length > 0
+                      ? <select value={selectedAuraBankCardId} onChange={e => setSelectedAuraBankCardId(e.target.value)}
+                          className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                          {bankCards.map(c => <option key={c.id} value={String(c.id)} className="text-black">{c.brand} {c.type.toUpperCase()} ••••{c.last4}</option>)}
+                        </select>
+                      : <p className="text-white/30 text-[11px]">No AuraBank cards linked.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Paystack deposit info */}
+                {addSource === 'paystack' && walletFundingAction === 'deposit' && (
+                  <div className="rounded-xl bg-teal-500/8 border border-teal-500/20 px-3 py-2.5 text-xs space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-teal-400">🔒</span>
+                      <p className="font-semibold text-white/90">Secure checkout via Paystack</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white/40 text-[11px]">Pay via:</span>
+                      <div className="flex items-center -space-x-1.5">
+                        {['/app-logos/mtnmomo.png', '/app-logos/telecelcash.jpg', '/app-logos/atmoney.jpg', '/logos/banks/gh/ecobank.png', '/logos/banks/gh/gcb.png', '/logos/banks/gh/absa.png'].map(src => (
+                          <img key={src} src={src} alt="" className="w-5 h-5 rounded-full object-cover ring-1 ring-black/30 bg-white" />
+                        ))}
+                      </div>
+                      <span className="text-white/40 text-[11px]">MTN, Telecel, AirtelTigo, Ecobank + more</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Paystack withdrawal info + fields */}
+                {addSource === 'paystack' && walletFundingAction === 'withdrawal' && (
+                  <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/20 px-3 py-2.5 text-xs space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-yellow-400 mt-0.5">⏳</span>
+                      <p className="text-white/60">Withdrawals reflected within <span className="font-semibold text-white">1–3 business days</span>.</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white/40 text-[11px]">Withdraw to:</span>
+                      <div className="flex items-center -space-x-1.5">
+                        {['/app-logos/mtnmomo.png', '/app-logos/telecelcash.jpg', '/app-logos/atmoney.jpg', '/logos/banks/gh/ecobank.png', '/logos/banks/gh/gcb.png', '/logos/banks/gh/access.png'].map(src => (
+                          <img key={src} src={src} alt="" className="w-5 h-5 rounded-full object-cover ring-1 ring-black/30 bg-white" />
+                        ))}
+                      </div>
+                      <span className="text-white/40 text-[11px]">MTN MoMo, Telecel, banks + more</span>
+                    </div>
+                    <input type="tel" value={momoPhone} onChange={e => setMomoPhone(e.target.value)} placeholder="MoMo or bank account number"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-yellow-500/20" />
+                    <input type="text" value={momoName} onChange={e => setMomoName(e.target.value)} placeholder="Account holder name"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-yellow-500/20" />
+                  </div>
+                )}
+
+                {/* Quick amounts */}
+                <div className="flex gap-1.5">
+                  {[50, 100, 500, 1000].map(a => (
+                    <button key={a} onClick={() => setAddAmount(String(a))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${addAmount === String(a) ? (walletFundingAction === 'deposit' ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-red-500/20 border-red-500/50 text-red-400') : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:text-white'}`}>
+                      ${a}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Amount input */}
+                <div className="flex rounded-xl border border-white/10 bg-white/5 overflow-hidden focus-within:ring-2 focus-within:ring-green-500/30 focus-within:border-green-500/30 transition-all">
+                  <span className="flex items-center px-3 text-white/40 text-sm font-bold border-r border-white/10">$</span>
+                  <input type="number" min="0" step="0.01" value={addAmount} onChange={e => setAddAmount(e.target.value)} placeholder="0.00"
+                    className="flex-1 bg-transparent px-3 py-2.5 text-white font-semibold text-sm placeholder:text-white/25 focus:outline-none" />
+                </div>
+
+                {/* Note */}
+                <input type="text" value={walletFundingNote} onChange={e => setWalletFundingNote(e.target.value)} placeholder="Note (optional)"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/25 focus:outline-none focus:ring-2 focus:ring-green-500/20" />
+
+                {formError && <p className="text-red-400 text-xs animate-in fade-in duration-200">{formError}</p>}
+
+                <button onClick={handleWalletFundingContinue}
+                  className={`group relative w-full overflow-hidden rounded-xl px-4 py-2.5 text-white font-bold text-sm transition-all hover:-translate-y-0.5 ${walletFundingAction === 'deposit' ? 'bg-gradient-to-r from-green-600 to-emerald-500 hover:shadow-lg hover:shadow-green-500/30' : 'bg-gradient-to-r from-red-600 to-rose-500 hover:shadow-lg hover:shadow-red-500/30'}`}>
+                  <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                  <span className="relative">Continue to {walletFundingAction === 'deposit' ? 'Deposit' : 'Withdraw'} →</span>
+                </button>
+              </div>
+            )}
+
+            {/* ── CONFIRM STEP ── */}
+            {walletFundingStep === 'confirm' && (
+              <div className="relative px-5 pb-5 pt-4 space-y-1">
+                {[
+                  { label: 'Action', value: walletFundingAction === 'deposit' ? '↓ Deposit' : '↑ Withdrawal' },
+                  { label: 'Amount', value: `$${Number(addAmount).toFixed(2)}` },
+                  { label: 'Method', value: addSource === 'bank' ? 'AuraBank' : 'Paystack' },
+                  { label: 'Settlement', value: addSource === 'bank' ? 'Instant' : walletFundingAction === 'deposit' ? 'Via Paystack' : 'Pending (1–3 days)' },
+                  ...(addSource === 'paystack' && walletFundingAction === 'withdrawal' ? [{ label: 'Recipient', value: `${momoName.trim()} · ${momoPhone.trim()}` }] : []),
+                  ...(walletFundingNote ? [{ label: 'Note', value: walletFundingNote }] : []),
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between py-2.5 border-b border-white/5">
+                    <span className="text-white/40 text-xs">{label}</span>
+                    <span className={`text-sm font-semibold ${label === 'Amount' ? (walletFundingAction === 'deposit' ? 'text-green-400' : 'text-red-400') : 'text-white'}`}>{value}</span>
+                  </div>
+                ))}
+
+                {formError && <p className="text-red-400 text-xs pt-1 animate-in fade-in duration-200">{formError}</p>}
+
+                <div className="flex gap-2 pt-3">
+                  <button onClick={() => { setWalletFundingStep('form'); setFormError(''); }}
+                    className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white/60 text-sm font-semibold hover:bg-white/10 transition-all">
+                    ← Back
+                  </button>
+                  <button onClick={handleWalletFundingConfirm} disabled={isAddingFunds}
+                    className={`flex-1 relative overflow-hidden rounded-xl px-4 py-2.5 text-white font-bold text-sm transition-all disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-lg ${walletFundingAction === 'deposit' ? 'bg-gradient-to-r from-green-600 to-emerald-500 hover:shadow-green-500/30' : 'bg-gradient-to-r from-red-600 to-rose-500 hover:shadow-red-500/30'}`}>
+                    {isAddingFunds
+                      ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />{addSource === 'bank' ? 'Processing…' : 'Launching Paystack…'}</span>
+                      : `Confirm ${walletFundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'}`}
+                  </button>
                 </div>
               </div>
+            )}
 
-              {addSource === 'bank' && (
-                <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  <label className="text-white/80 text-sm font-medium flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-indigo-400/40">
-                      <img src="/app-logos/bank.jpg" alt="AuraBank" className="w-full h-full object-cover" />
-                    </span>
-                    AuraBank Account
-                  </label>
-                  <select
-                    value={selectedBankAccountId}
-                    onChange={(event) => setSelectedBankAccountId(event.target.value)}
-                    className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
-                  >
-                    {bankAccounts.map((account: any) => (
-                      <option key={account.id} value={String(account.id)} className="text-black">
-                        {(account.name || String(account.type || 'Account').toUpperCase())} ••••{String(account.accountNumber || '').slice(-4)} — {account.currency || 'USD'} {Number(account.availableBalance ?? account.balance ?? 0).toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
+            {/* ── SUCCESS STEP ── */}
+            {walletFundingStep === 'success' && (
+              <div className="relative px-5 pb-6 pt-4 flex flex-col items-center text-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center animate-in zoom-in-50 duration-500">
+                  <span className="text-3xl">{walletFundingAction === 'deposit' ? '✅' : '⏳'}</span>
                 </div>
-              )}
-
-              {addSource === 'card' && (
-                <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  <label className="text-white/80 text-sm font-medium flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-teal-400/40">
-                      <img src="/app-logos/bank.jpg" alt="AuraBank" className="w-full h-full object-cover" />
-                    </span>
-                    AuraBank Card
-                  </label>
-                  <select
-                    value={selectedCardId}
-                    onChange={(event) => setSelectedCardId(event.target.value)}
-                    className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
-                  >
-                    {bankCards.map((card) => (
-                      <option key={card.id} value={String(card.id)} className="text-black">
-                        {card.brand} {String(card.type).toUpperCase()} ••••{card.last4}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {addSource === 'mobile' && (
-                <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
-                  <label className="text-white/80 text-sm font-medium flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white overflow-hidden ring-1 ring-emerald-400/40">
-                      <img src="/app-logos/mobilemoney.jpg" alt="Mobile Money" className="w-full h-full object-cover" />
-                    </span>
-                    Mobile Money Network
-                  </label>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    {mobileNetworks.map((network) => {
-                      const active = selectedNetworkId === network.id;
-                      return (
-                        <button
-                          key={network.id}
-                          type="button"
-                          onClick={() => setSelectedNetworkId(network.id)}
-                          className={`group relative flex flex-col items-center gap-2 px-2 py-3 rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                            active
-                              ? 'border-green-400/40 bg-green-500/10 text-white shadow-sm'
-                              : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:-translate-y-0.5'
-                          }`}
-                        >
-                          <span className={`relative flex items-center justify-center w-10 h-10 rounded-2xl bg-white overflow-hidden ring-2 ${network.ring} transition-transform duration-300 ${active ? 'scale-110' : ''}`}>
-                            {active && <span className={`absolute inset-0 ${network.glow} blur-lg animate-pulse`} />}
-                            <img src={network.logo} alt={network.name} className="relative w-full h-full object-cover" />
-                          </span>
-                          <span className="text-center leading-tight">{network.name}</span>
-                          {active && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-2 text-white/50 text-xs">
-                    {(() => {
-                      const net = mobileNetworks.find((n) => n.id === selectedNetworkId);
-                      return net ? `Fee ${net.feeText} • ETA ${net.eta}` : '';
-                    })()}
+                <div>
+                  <p className="text-white font-bold text-lg">{walletFundingAction === 'deposit' ? 'Funds Added!' : 'Withdrawal Submitted'}</p>
+                  <p className="text-white/50 text-sm mt-1">
+                    {walletFundingAction === 'deposit'
+                      ? `$${Number(addAmount).toFixed(2)} added to your wallet`
+                      : `$${Number(addAmount).toFixed(2)} withdrawal is being processed`}
                   </p>
-
-                  <div className="mt-3">
-                    <label className="text-white/80 text-sm font-medium">Wallet Number</label>
-                    <input
-                      value={mobileWalletNumber}
-                      onChange={(event) => setMobileWalletNumber(event.target.value)}
-                      placeholder="+233xxxxxxxxx"
-                      className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500/40 focus:border-transparent"
-                    />
-                  </div>
                 </div>
-              )}
-
-              {formError && (
-                <p className="text-red-300 text-sm animate-in fade-in slide-in-from-top-1 duration-200">{formError}</p>
-              )}
-
-              <button
-                onClick={handleAddFunds}
-                className="group relative w-full overflow-hidden rounded-lg px-4 py-2.5 bg-gradient-to-r from-black via-white/15 to-green-500 text-white font-bold transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20 hover:-translate-y-0.5"
-              >
-                <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                <span className="relative">Confirm Add Funds</span>
-              </button>
-            </div>
-        </WalletModal>
+                {walletFundingRef && <p className="text-white/20 text-[11px] font-mono">Ref: {walletFundingRef.slice(0, 24)}</p>}
+                <button onClick={closeAddFundsModal}
+                  className="w-full rounded-xl bg-green-500/20 border border-green-500/30 text-green-300 font-semibold text-sm py-2.5 hover:bg-green-500/30 transition-all">
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {showRequestMoneyModal && (

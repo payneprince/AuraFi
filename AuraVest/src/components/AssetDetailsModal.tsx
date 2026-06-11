@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, TrendingUp, TrendingDown, Zap, Star, Bell } from 'lucide-react';
-import TransactionSuccessModal from '@/components/TransactionSuccessModal';
+import { X, TrendingUp, TrendingDown, Zap, Star, Bell, Check } from 'lucide-react';
+import { getWatchlist, addToWatchlist, removeFromWatchlist } from '@/lib/mockAPI';
 
 function DetailSparkline({ price, change24h, symbol, isPositive }: { price: number; change24h: number; symbol: string; isPositive: boolean }) {
   const N = 40;
@@ -86,10 +86,28 @@ function DetailSparkline({ price, change24h, symbol, isPositive }: { price: numb
 }
 
 export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successTransaction, setSuccessTransaction] = useState<any>(null);
   const [tradeHoldings, setTradeHoldings] = useState<any[]>([]);
+  const [showAlertForm, setShowAlertForm] = useState(false);
+  const [alertPrice, setAlertPrice] = useState('');
+  const [alertDir, setAlertDir] = useState<'above' | 'below'>('above');
+  const [alertSet, setAlertSet] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [isWatchlisted, setIsWatchlisted] = useState(() => {
+    const wl = getWatchlist();
+    return wl.some((w: any) => w.id === (asset?.symbol ?? asset?.id));
+  });
+
+  const toggleWatchlist = () => {
+    const id = asset?.symbol ?? asset?.id;
+    const type = (asset?.assetClass || asset?.type || 'crypto').toLowerCase().replace(' ', '_');
+    if (isWatchlisted) {
+      removeFromWatchlist(id);
+      setIsWatchlisted(false);
+    } else {
+      addToWatchlist({ id, type });
+      setIsWatchlisted(true);
+    }
+  };
 
   const isPositive = asset.change24h >= 0;
   const isLocalGhanaStock = asset?.exchange === 'GSE' || asset?.currency === 'GHS';
@@ -320,21 +338,68 @@ export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <button className="py-2 rounded-xl border border-border bg-background hover:bg-accent text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
-              <Bell className="w-3 h-3" /> Set Alert
+            <button
+              onClick={() => { setShowAlertForm(v => !v); setAlertPrice(currentPrice.toFixed(currentPrice < 1 ? 4 : 2)); setAlertSet(false); }}
+              className={`py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${showAlertForm ? 'border-blue-500/50 bg-blue-500/10 text-blue-400' : 'border-border bg-background hover:bg-accent'}`}>
+              <Bell className="w-3 h-3" /> {showAlertForm ? 'Cancel' : 'Set Alert'}
             </button>
-            <button className="py-2 rounded-xl border border-border bg-background hover:bg-accent text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
-              <Star className="w-3 h-3" /> Watchlist
+            <button
+              onClick={toggleWatchlist}
+              className={`py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
+                isWatchlisted
+                  ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-400 hover:bg-yellow-400/20'
+                  : 'border-border bg-background hover:bg-accent'
+              }`}>
+              <Star className={`w-3 h-3 ${isWatchlisted ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+              {isWatchlisted ? 'Watchlisted' : 'Watchlist'}
             </button>
           </div>
+
+          {showAlertForm && !alertSet && (
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3.5 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              <p className="text-xs font-semibold text-blue-400 flex items-center gap-1.5"><Bell className="w-3 h-3" /> Price Alert · {asset.symbol}</p>
+              <div className="flex gap-1.5">
+                {(['above', 'below'] as const).map(d => (
+                  <button key={d} type="button" onClick={() => setAlertDir(d)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${alertDir === d ? 'bg-blue-500/20 border-blue-500/50 text-blue-300' : 'bg-background border-border text-muted-foreground hover:bg-accent'}`}>
+                    {d === 'above' ? '▲ Above' : '▼ Below'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-lg border border-border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/30">
+                <span className="flex items-center px-2.5 text-muted-foreground text-xs border-r border-border">{isLocalGhanaStock ? 'GH¢' : '$'}</span>
+                <input type="number" step="any" value={alertPrice} onChange={e => setAlertPrice(e.target.value)}
+                  className="flex-1 bg-transparent px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none" placeholder="Target price" />
+              </div>
+              <button type="button"
+                disabled={!alertPrice || Number(alertPrice) <= 0}
+                onClick={() => {
+                  const target = Number(alertPrice);
+                  if (!target || target <= 0) return;
+                  const existing = JSON.parse(localStorage.getItem('auravest_price_alerts') || '[]');
+                  existing.push({ id: Date.now(), symbol: asset.symbol, name: asset.name, targetPrice: target, direction: alertDir, createdAt: new Date().toISOString() });
+                  localStorage.setItem('auravest_price_alerts', JSON.stringify(existing));
+                  setAlertSet(true);
+                  setTimeout(() => { setShowAlertForm(false); setAlertSet(false); }, 2000);
+                }}
+                className="w-full py-2 rounded-lg bg-blue-500 hover:bg-blue-400 disabled:opacity-40 text-white text-xs font-bold transition-all active:scale-95">
+                Confirm Alert
+              </button>
+            </div>
+          )}
+
+          {showAlertForm && alertSet && (
+            <div className="rounded-xl border border-green-500/20 bg-green-500/8 p-3 flex items-center gap-2.5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <Check className="w-3.5 h-3.5 text-green-400" />
+              </div>
+              <p className="text-xs text-green-300 font-semibold">
+                Alert set: notify when {asset.symbol} goes {alertDir} {isLocalGhanaStock ? 'GH¢' : '$'}{Number(alertPrice).toLocaleString()}
+              </p>
+            </div>
+          )}
         </div>
       </div>
-
-      <TransactionSuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => { setShowSuccessModal(false); setSuccessTransaction(null); }}
-        transaction={successTransaction}
-      />
     </div>
   );
 }

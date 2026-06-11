@@ -125,7 +125,7 @@ export default function Products() {
       {
         name: "AuraWallet",
         mobileTitle: "AuraWallet Mobile",
-        image: "/images/aurawallet-logo.jpeg",
+        image: "/images/wallet.jpg",
         desc: "Send, receive, and manage money instantly with zero friction",
         features: ["QR payments", "Bill payments", "Split expenses", "Instant transfers"],
         mobileHighlights: [

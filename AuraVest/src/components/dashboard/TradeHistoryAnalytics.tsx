@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   Chart as ChartJS,
   type ScriptableContext,
@@ -19,6 +19,7 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
+  BarChart2,
   Calendar,
   DollarSign,
   BookOpen,
@@ -28,6 +29,8 @@ import {
   ArrowDownRight,
   Activity,
 } from 'lucide-react';
+
+const TradingChart = lazy(() => import('./TradingChart'));
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Filler, Legend);
 
@@ -204,11 +207,14 @@ function computeAssetVolumes(txs: any[]): { symbol: string; volume: number; imag
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function TradeHistoryAnalytics() {
+  const [view, setView] = useState<'chart' | 'analytics'>('chart');
   const [filter, setFilter] = useState('all');
   const [dateRange, setDateRange] = useState('30d');
   const [allTxs, setAllTxs] = useState<any[]>([]);
   const [assetImages, setAssetImages] = useState<Record<string, string>>({});
   const [isClient, setIsClient] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState<string | undefined>(undefined);
+  const [tickerAssets, setTickerAssets] = useState<any[]>([]);
 
   useEffect(() => { setIsClient(true); }, []);
 
@@ -223,7 +229,7 @@ export default function TradeHistoryAnalytics() {
     return () => window.removeEventListener('storage', load);
   }, []);
 
-  // Build symbol→image map from live market data
+  // Build symbol→image map + ticker asset list from live market data
   useEffect(() => {
     Promise.all([loadCrypto(), loadStocks(), getGoldList()]).then(([crypto, stocks, gold]) => {
       const map: Record<string, string> = {};
@@ -231,6 +237,7 @@ export default function TradeHistoryAnalytics() {
         if (a?.symbol && a?.image) map[a.symbol] = a.image;
       });
       setAssetImages(map);
+      setTickerAssets((crypto as any[]).slice(0, 24));
     });
   }, []);
 
@@ -407,6 +414,108 @@ export default function TradeHistoryAnalytics() {
     <div className="space-y-6">
 
       {/* Header + Filters */}
+      {/* ── Sub-tab bar ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 p-1 bg-muted/60 rounded-xl border border-border animate-in fade-in duration-300">
+        <button
+          onClick={() => setView('chart')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
+            view === 'chart'
+              ? 'bg-background text-foreground shadow-sm border border-border'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart2 className="w-4 h-4" />
+          Live Chart
+        </button>
+        <button
+          onClick={() => setView('analytics')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-200 ${
+            view === 'analytics'
+              ? 'bg-background text-foreground shadow-sm border border-border'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Analytics
+        </button>
+      </div>
+
+      {/* ── Live Chart tab ───────────────────────────────────────────────────── */}
+      {view === 'chart' && (
+        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {/* Chart */}
+          <div style={{ height: 560 }}>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full bg-[#080d1a] rounded-2xl border border-white/8">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-transparent border-t-primary animate-spin" />
+                  <span className="text-sm text-muted-foreground">Loading chart…</span>
+                </div>
+              </div>
+            }>
+              <TradingChart initialSymbol={chartSymbol} />
+            </Suspense>
+          </div>
+
+          {/* Auto-scrolling asset ticker */}
+          {tickerAssets.length > 0 && (
+            <div className="relative overflow-hidden rounded-xl border border-border bg-card/50">
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-card/80 to-transparent z-10 pointer-events-none" />
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-card/80 to-transparent z-10 pointer-events-none" />
+              <style>{`
+                @keyframes analyticsTicker {
+                  0%   { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                .analytics-ticker-track {
+                  animation: analyticsTicker 35s linear infinite;
+                  display: flex;
+                  width: max-content;
+                }
+                .analytics-ticker-track:hover { animation-play-state: paused; }
+              `}</style>
+              <div className="py-2 px-2">
+                <div className="analytics-ticker-track" style={{ gap: 6 }}>
+                  {[...tickerAssets, ...tickerAssets].map((asset: any, i: number) => {
+                    const isActive = chartSymbol === asset.symbol;
+                    const isPos    = (asset.change24h ?? 0) >= 0;
+                    const isBrand  = asset.image?.includes('simpleicons.org') || asset.image?.includes('/logos/stocks/');
+                    return (
+                      <button
+                        key={`${asset.id}-${i}`}
+                        onClick={() => setChartSymbol(asset.symbol)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex-shrink-0 transition-all active:scale-95 ${
+                          isActive
+                            ? 'bg-primary/15 border-primary/40 text-primary'
+                            : 'bg-background/60 border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent hover:border-border'
+                        }`}
+                        style={{ marginRight: 6 }}
+                      >
+                        <span className={`w-5 h-5 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${isBrand ? 'bg-white' : 'bg-gradient-to-br from-purple-500 to-blue-500'}`}>
+                          {(asset.image?.startsWith('http') || asset.image?.startsWith('/')) ? (
+                            <img src={asset.image} alt={asset.symbol}
+                              className={isBrand ? 'w-3.5 h-3.5 object-contain' : 'w-5 h-5 object-cover'}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : <span className="text-white text-[8px] font-bold">{asset.symbol?.slice(0, 2)}</span>}
+                        </span>
+                        <span>{asset.symbol}</span>
+                        <span className={`text-[10px] ${isPos ? 'text-green-500' : 'text-red-500'}`}>
+                          {isPos ? '+' : ''}{Number(asset.change24h ?? 0).toFixed(2)}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === 'analytics' && <>
+
+      {/* Analytics header + filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-primary" />
@@ -664,6 +773,8 @@ export default function TradeHistoryAnalytics() {
           </div>
         </>
       )}
+
+      </> /* end analytics view */}
     </div>
   );
 }

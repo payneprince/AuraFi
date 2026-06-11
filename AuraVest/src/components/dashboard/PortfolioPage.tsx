@@ -114,10 +114,13 @@ export default function PortfolioPage() {
   const [fundingRef, setFundingRef] = useState('');
   const [momoPhone, setMomoPhone] = useState('');
   const [momoName, setMomoName] = useState('');
-  const [selectedMomoNetwork, setSelectedMomoNetwork] = useState('mtn');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankAccountName, setBankAccountName] = useState('');
   const [bankBranch, setBankBranch] = useState('');
+  const [auraBankSnapshot, setAuraBankSnapshot] = useState<any>(null);
+  const [auraSourceType, setAuraSourceType] = useState<'account' | 'card'>('account');
+  const [selectedAuraBankAccountId, setSelectedAuraBankAccountId] = useState<string>('');
+  const [selectedAuraBankCardId, setSelectedAuraBankCardId] = useState<string>('');
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [recentFundingEntries, setRecentFundingEntries] = useState<FundingEntry[]>([]);
   const [fundingNet30d, setFundingNet30d] = useState(0);
@@ -135,6 +138,55 @@ export default function PortfolioPage() {
   const [dcaAssetOptions, setDcaAssetOptions] = useState<any[]>([]);
   const [dcaSelectedAsset, setDcaSelectedAsset] = useState<any>(null);
   const holdingsValue = Number(Math.max(totalValue - cashBalance, 0).toFixed(2));
+
+  const parsePortfolioCookies = (): Record<string, string> => {
+    if (typeof document === 'undefined') return {};
+    return document.cookie.split(';').map(c => c.trim()).filter(Boolean)
+      .reduce((acc, c) => { const i = c.indexOf('='); if (i !== -1) acc[c.slice(0, i)] = c.slice(i + 1); return acc; }, {} as Record<string, string>);
+  };
+
+  useEffect(() => {
+    try {
+      const encoded = parsePortfolioCookies().aurabank_sources_snapshot;
+      if (!encoded) { setAuraBankSnapshot(null); return; }
+      setAuraBankSnapshot(JSON.parse(decodeURIComponent(encoded)));
+    } catch { setAuraBankSnapshot(null); }
+  }, []);
+
+  const vestBankAccounts = useMemo(() => {
+    const list = auraBankSnapshot?.accounts;
+    if (!Array.isArray(list) || list.length === 0) return [];
+    return list.map((a: any) => ({
+      id: String(a?.id ?? a?.accountNumber ?? Math.random()),
+      name: String(a?.name ?? a?.type ?? 'Account').toUpperCase(),
+      balance: Number(a?.balance ?? 0),
+      accountNumber: String(a?.accountNumber ?? ''),
+      currency: String(a?.currency ?? 'USD'),
+    }));
+  }, [auraBankSnapshot]);
+
+  const vestBankCards = useMemo(() => {
+    const list = auraBankSnapshot?.cards;
+    if (!Array.isArray(list) || list.length === 0) return [];
+    return list
+      .filter((c: any) => String(c?.status || 'active').toLowerCase() === 'active')
+      .map((c: any) => ({
+        id: String(c?.id ?? c?.cardNumber ?? Math.random()),
+        brand: String(c?.brand ?? 'AuraBank').toUpperCase(),
+        type: String(c?.type ?? 'Debit'),
+        last4: String(c?.last4 ?? String(c?.cardNumber ?? '').slice(-4)),
+      }));
+  }, [auraBankSnapshot]);
+
+  useEffect(() => {
+    if (vestBankAccounts.length && !selectedAuraBankAccountId)
+      setSelectedAuraBankAccountId(vestBankAccounts[0].id);
+  }, [vestBankAccounts]);
+
+  useEffect(() => {
+    if (vestBankCards.length && !selectedAuraBankCardId)
+      setSelectedAuraBankCardId(vestBankCards[0].id);
+  }, [vestBankCards]);
 
   const refreshCapitalMetrics = () => {
     const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
@@ -635,6 +687,128 @@ export default function PortfolioPage() {
     }
   };
 
+  const loadPaystackScript = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (typeof window === 'undefined') return reject(new Error('SSR'));
+      if ((window as any).PaystackPop) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://js.paystack.co/v2/inline.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load Paystack script'));
+      document.head.appendChild(s);
+    });
+
+  // Auto-detect Ghana MoMo network from phone prefix
+  const detectMomoCode = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '').replace(/^233/, '0');
+    if (/^0(24|54|55|59|57)/.test(digits)) return 'MTN';
+    if (/^0(20|50)/.test(digits)) return 'VOD';
+    if (/^0(27|56|26)/.test(digits)) return 'ATL';
+    return 'MTN';
+  };
+
+  const getUserEmail = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem('auravest_user') || '{}') as { email?: string };
+      return u.email || 'demo@auravest.com';
+    } catch { return 'demo@auravest.com'; }
+  };
+
+  const commitFundingTx = async (tx: object) => {
+    const txns = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
+    txns.unshift(tx);
+    localStorage.setItem('auravest_transactions', JSON.stringify(txns));
+    const latest = await getPortfolio();
+    if (latest && Object.keys(latest).length > 0) setPortfolio(latest);
+    refreshTradeHoldings();
+    refreshCapitalMetrics();
+  };
+
+  const launchPaystackDeposit = async (amount: number, method: string) => {
+    setIsFunding(true);
+    setFundingError(null);
+    try {
+      const channels = ['mobile_money', 'card', 'bank_transfer'];
+      const res = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: getUserEmail(), amount, currency: 'GHS', channels }),
+      });
+      const { accessCode, reference, error } = await res.json() as { accessCode?: string; reference?: string; error?: string };
+      if (!accessCode || !reference) throw new Error(error ?? 'Initialisation failed');
+
+      await loadPaystackScript();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const popup = new (window as any).PaystackPop();
+      popup.resumeTransaction(accessCode, {
+        onSuccess: async () => {
+          try {
+            const vRes = await fetch(`/api/paystack/verify?reference=${reference}`);
+            const vData = await vRes.json() as { success: boolean };
+            if (!vData.success) throw new Error('Verification failed');
+            await commitFundingTx({
+              id: `fund-${Date.now()}`, type: 'deposit', asset: 'CASH', assetName: 'Cash Deposit',
+              amount: Number(amount.toFixed(2)), price: 1, gross: Number(amount.toFixed(2)), fee: 0,
+              total: Number(amount.toFixed(2)), currency: 'GHS', quantityType: 'units', method,
+              note: fundingNote.trim(), status: 'completed', ref: reference,
+              phone: momoPhone.trim() || undefined,
+              timestamp: new Date().toISOString(),
+            });
+            setFundingRef(reference);
+            setFundingStep('success');
+          } catch {
+            setFundingError('Payment received but balance update failed. Please refresh.');
+          } finally { setIsFunding(false); }
+        },
+        onCancel: () => { setIsFunding(false); setFundingError('Payment cancelled.'); },
+      });
+    } catch {
+      setIsFunding(false);
+      setFundingError('Could not launch Paystack. Try again.');
+    }
+  };
+
+  const launchPaystackWithdrawal = async (amount: number, method: string) => {
+    setIsFunding(true);
+    setFundingError(null);
+    try {
+      const res = await fetch('/api/paystack/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount, currency: 'GHS',
+          recipientType: 'mobile_money',
+          accountNumber: momoPhone.trim().replace(/\s+/g, ''),
+          bankCode: detectMomoCode(momoPhone),
+          name: momoName.trim() || 'Customer',
+          reason: 'AuraVest withdrawal',
+        }),
+      });
+      const data = await res.json() as { success: boolean; reference?: string; error?: string; code?: string };
+      const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+
+      // Paystack transfers require a Registered Business account — fall back to pending for starter accounts
+      const isPendingFallback = !data.success && data.code === 'transfer_unavailable';
+
+      if (!data.success && !isPendingFallback) throw new Error(data.error ?? 'Transfer failed');
+
+      await commitFundingTx({
+        id: `fund-${Date.now()}`, type: 'withdrawal', asset: 'CASH', assetName: 'Cash Withdrawal',
+        amount: Number(amount.toFixed(2)), price: 1, gross: Number(amount.toFixed(2)), fee: 0,
+        total: Number(amount.toFixed(2)), currency: 'GHS', quantityType: 'units', method,
+        note: fundingNote.trim(), status: isPendingFallback ? 'pending' : 'completed',
+        ref: data.reference ?? ref,
+        phone: momoPhone.trim(),
+        accountName: momoName.trim(),
+        timestamp: new Date().toISOString(),
+      });
+      setFundingRef(data.reference ?? ref);
+      setFundingStep('success');
+    } catch (err) {
+      setFundingError(err instanceof Error ? err.message : 'Withdrawal failed. Try again.');
+    } finally { setIsFunding(false); }
+  };
+
   const handleFundingSubmit = async () => {
     setFundingError(null);
     setFundingSuccess(null);
@@ -648,56 +822,37 @@ export default function PortfolioPage() {
       return;
     }
 
-    // AuraBank is always instant; MoMo/External deposits show instructions (pending);
-    // MoMo/External withdrawals go pending too
     const isInstant = fundingRail === 'AuraBank';
-    const isPendingDeposit = fundingAction === 'deposit' && fundingRail !== 'AuraBank';
-    const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+    const method = fundingRail;
 
-    if (isPendingDeposit) {
-      // Just show the instructions screen — don't commit yet
-      setFundingRef(ref);
-      setFundingStep('instructions');
+    // Route MoMo / External Bank through Paystack
+    if (!isInstant && fundingAction === 'deposit') {
+      await launchPaystackDeposit(normalizedAmount, method);
+      return;
+    }
+    if (!isInstant && fundingAction === 'withdrawal') {
+      await launchPaystackWithdrawal(normalizedAmount, method);
       return;
     }
 
+    // AuraBank — instant mock
+    const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
     setIsFunding(true);
     try {
       const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
-      const method = fundingRail === 'External Bank' && selectedBank ? selectedBank : fundingRail;
       transactions.unshift({
-        id: `fund-${Date.now()}`,
-        type: fundingAction,
-        asset: 'CASH',
+        id: `fund-${Date.now()}`, type: fundingAction, asset: 'CASH',
         assetName: fundingAction === 'deposit' ? 'Cash Deposit' : 'Cash Withdrawal',
-        amount: Number(normalizedAmount.toFixed(2)),
-        price: 1,
-        gross: Number(normalizedAmount.toFixed(2)),
-        fee: 0,
-        total: Number(normalizedAmount.toFixed(2)),
-        currency: 'USD',
-        quantityType: 'units',
-        method,
-        note: fundingNote.trim(),
-        status: isInstant ? 'completed' : 'pending',
-        ref,
-        phone: fundingRail === 'Mobile Money' ? momoPhone : undefined,
-        accountName: fundingRail === 'Mobile Money' ? momoName : fundingRail === 'External Bank' ? bankAccountName : undefined,
-        accountNumber: fundingRail === 'External Bank' ? bankAccountNumber : undefined,
-        branch: fundingRail === 'External Bank' ? bankBranch : undefined,
+        amount: Number(normalizedAmount.toFixed(2)), price: 1, gross: Number(normalizedAmount.toFixed(2)),
+        fee: 0, total: Number(normalizedAmount.toFixed(2)), currency: 'USD', quantityType: 'units',
+        method, note: fundingNote.trim(), status: 'completed', ref,
         timestamp: new Date().toISOString(),
       });
       localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
-
-      if (isInstant) {
-        const latestPortfolio = await getPortfolio();
-        if (latestPortfolio && Object.keys(latestPortfolio).length > 0) setPortfolio(latestPortfolio);
-        refreshTradeHoldings();
-        refreshCapitalMetrics();
-      } else {
-        refreshCapitalMetrics();
-      }
-
+      const latestPortfolio = await getPortfolio();
+      if (latestPortfolio && Object.keys(latestPortfolio).length > 0) setPortfolio(latestPortfolio);
+      refreshTradeHoldings();
+      refreshCapitalMetrics();
       setFundingStep('success');
       setFundingRef(ref);
     } catch (error) {
@@ -715,7 +870,6 @@ export default function PortfolioPage() {
     setFundingRef('');
     setMomoPhone('');
     setMomoName('');
-    setSelectedMomoNetwork('mtn');
     setBankAccountNumber('');
     setBankAccountName('');
     setBankBranch('');
@@ -724,32 +878,17 @@ export default function PortfolioPage() {
     setShowFundingModal(false);
   };
 
-  // Called from instructions screen once user confirms they've sent the payment
   const confirmPendingDeposit = () => {
     const normalizedAmount = Number(fundingAmount);
-    const method = fundingRail === 'External Bank' && selectedBank ? selectedBank : fundingRail;
     try {
       const transactions = JSON.parse(localStorage.getItem('auravest_transactions') || '[]');
       transactions.unshift({
-        id: `fund-${Date.now()}`,
-        type: 'deposit',
-        asset: 'CASH',
-        assetName: 'Cash Deposit',
-        amount: Number(normalizedAmount.toFixed(2)),
-        price: 1,
-        gross: Number(normalizedAmount.toFixed(2)),
-        fee: 0,
-        total: Number(normalizedAmount.toFixed(2)),
-        currency: 'USD',
-        quantityType: 'units',
-        method,
-        note: fundingNote.trim(),
-        status: 'pending',
-        ref: fundingRef,
-        phone: fundingRail === 'Mobile Money' ? momoPhone : undefined,
-        accountName: fundingRail === 'Mobile Money' ? momoName : fundingRail === 'External Bank' ? bankAccountName : undefined,
-        accountNumber: fundingRail === 'External Bank' ? bankAccountNumber : undefined,
-        branch: fundingRail === 'External Bank' ? bankBranch : undefined,
+        id: `fund-${Date.now()}`, type: 'deposit', asset: 'CASH', assetName: 'Cash Deposit',
+        amount: Number(normalizedAmount.toFixed(2)), price: 1, gross: Number(normalizedAmount.toFixed(2)),
+        fee: 0, total: Number(normalizedAmount.toFixed(2)), currency: 'GHS', quantityType: 'units',
+        method: fundingRail, note: fundingNote.trim(), status: 'pending', ref: fundingRef,
+        phone: momoPhone.trim() || undefined,
+        accountName: momoName.trim() || undefined,
         timestamp: new Date().toISOString(),
       });
       localStorage.setItem('auravest_transactions', JSON.stringify(transactions));
@@ -947,31 +1086,9 @@ export default function PortfolioPage() {
 
       {/* ── Funding Ledger ─────────────────────────────────────────── */}
       {(() => {
-        const GH_BANKS = [
-          { name: 'GCB Bank',     logo: '/logos/banks/gh/gcb.png'      },
-          { name: 'Ecobank',      logo: '/logos/banks/gh/ecobank.png'  },
-          { name: 'Absa Ghana',   logo: '/logos/banks/gh/absa.png'     },
-          { name: 'Fidelity',     logo: '/logos/banks/gh/fidelity.png' },
-          { name: 'Stanbic',      logo: '/logos/banks/gh/stanbic.png'  },
-          { name: 'Zenith Bank',  logo: '/logos/banks/gh/zenith.png'   },
-          { name: 'CalBank',      logo: '/logos/banks/gh/calbank.png'  },
-          { name: 'Access Bank',  logo: '/logos/banks/gh/access.png'   },
-          { name: 'UBA Ghana',    logo: '/logos/banks/gh/uba.png'      },
-          { name: 'GTBank',       logo: '/logos/banks/gh/gtbank.svg'   },
-        ];
-
-        const AURA_ACCOUNT = { name: 'AuraVest Ltd', number: '1020304050', bank: 'AuraBank Ghana', branch: 'Accra Digital Hub', sort: '040100' };
-
         const RAILS = [
-          { id: 'AuraBank',      label: 'AuraBank',      logo: '/app-logos/bank.jpg',        bg: 'from-indigo-500/20 to-blue-500/10',   border: 'border-indigo-500/30', activeBorder: 'border-indigo-500', text: 'text-indigo-400' },
-          { id: 'Mobile Money',  label: 'Mobile Money',  logo: '/app-logos/mobilemoney.jpg', bg: 'from-yellow-500/20 to-amber-400/10',  border: 'border-yellow-500/30', activeBorder: 'border-yellow-500', text: 'text-yellow-400' },
-          { id: 'External Bank', label: 'External Bank', logo: '/logos/banks/gh/gcb.png',    bg: 'from-emerald-500/20 to-green-400/10', border: 'border-emerald-500/30', activeBorder: 'border-emerald-500', text: 'text-emerald-400' },
-        ];
-
-        const MOMO_NETWORKS = [
-          { id: 'mtn',        name: 'MTN MoMo',     logo: '/app-logos/mtnmomo.png',     ring: 'border-yellow-400/60', activeBg: 'bg-yellow-500/10', merchant: '0551234567' },
-          { id: 'telecel',    name: 'Telecel Cash',  logo: '/app-logos/telecelcash.jpg', ring: 'border-red-400/60',    activeBg: 'bg-red-500/10',    merchant: '0201234567' },
-          { id: 'airteltigo', name: 'AT Money',      logo: '/app-logos/atmoney.jpg',     ring: 'border-blue-400/60',   activeBg: 'bg-blue-500/10',   merchant: '0271234567' },
+          { id: 'AuraBank',  label: 'AuraBank',  logo: '/app-logos/bank.jpg', bg: 'from-indigo-500/20 to-blue-500/10',   border: 'border-indigo-500/30', activeBorder: 'border-indigo-500', text: 'text-indigo-400' },
+          { id: 'Paystack',  label: 'Paystack',  logo: '/app-logos/paystack.png',  bg: 'from-teal-500/20 to-cyan-500/10',     border: 'border-teal-500/30',   activeBorder: 'border-teal-500',   text: 'text-teal-400'   },
         ];
 
         const fmtDate = (ts?: string) => {
@@ -981,10 +1098,7 @@ export default function PortfolioPage() {
         };
 
         const amt = Number(fundingAmount);
-        const momoNet = MOMO_NETWORKS.find(n => n.id === selectedMomoNetwork) ?? MOMO_NETWORKS[0];
-        const method = fundingRail === 'External Bank' && selectedBank ? selectedBank
-          : fundingRail === 'Mobile Money' ? momoNet.name
-          : fundingRail;
+        const method = fundingRail === 'AuraBank' ? 'AuraBank' : 'Paystack';
 
         const CopyField = ({ label, value }: { label: string; value: string }) => (
           <div className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/60 border border-border/50">
@@ -1003,6 +1117,8 @@ export default function PortfolioPage() {
           setFundingAction(action);
           setFundingStep('form');
           setShowFundingModal(true);
+          // Preload Paystack script in background so the popup opens instantly on confirm
+          loadPaystackScript().catch(() => {});
         };
 
         return (
@@ -1056,20 +1172,16 @@ export default function PortfolioPage() {
                     {recentFundingEntries.map((entry, idx) => {
                       const isDeposit = entry.type === 'deposit';
                       const isPending = entry.status === 'pending';
-                      const eLogo = (() => {
-                        const m = (entry.method || '').toLowerCase();
-                        if (m.includes('mobile') || m.includes('mtn') || m.includes('momo')) return '/logos/gse/MTNGH.svg';
-                        const b = GH_BANKS.find(gb => gb.name.toLowerCase() === m || m.includes(gb.name.toLowerCase().split(' ')[0]));
-                        return b ? b.logo : '/app-logos/bank.jpg';
-                      })();
+                      const eLogo = (entry.method || '').toLowerCase().includes('paystack') ? null : '/app-logos/bank.jpg';
                       return (
                         <div key={entry.id}
                           className="flex items-center gap-3 py-2.5 px-2 rounded-xl hover:bg-muted/50 transition-colors cursor-default animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
                           style={{ animationDelay: `${idx * 40}ms` }}>
                           <div className="relative flex-shrink-0">
                             <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted border border-border flex items-center justify-center">
-                              <img src={eLogo} alt={entry.method || 'Bank'} className="w-full h-full object-contain p-1"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              {eLogo
+                                ? <img src={eLogo} alt={entry.method || 'Bank'} className="w-full h-full object-contain p-1" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                : <span className="text-sm font-black text-teal-400">P</span>}
                             </div>
                             <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background flex items-center justify-center text-[8px] font-black text-white ${isDeposit ? 'bg-green-500' : 'bg-red-500'}`}>
                               {isDeposit ? '↓' : '↑'}
@@ -1117,16 +1229,18 @@ export default function PortfolioPage() {
                     {/* SUCCESS */}
                     {fundingStep === 'success' && (
                       <div className="text-center py-4">
-                        <div className={`w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl ${fundingRail === 'AuraBank' ? 'bg-green-500/15' : 'bg-yellow-500/15'}`}>
-                          {fundingRail === 'AuraBank' ? '✓' : '⏳'}
+                        <div className={`w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl ${fundingAction === 'deposit' || fundingRail === 'AuraBank' ? 'bg-green-500/15' : 'bg-yellow-500/15'}`}>
+                          {fundingAction === 'deposit' || fundingRail === 'AuraBank' ? '✓' : '⏳'}
                         </div>
                         <p className="font-bold text-sm mb-1">
-                          {fundingRail === 'AuraBank' ? (fundingAction === 'deposit' ? 'Deposit Successful' : 'Withdrawal Submitted') : 'Transfer Initiated'}
+                          {fundingAction === 'deposit' ? 'Deposit Successful' : fundingRail === 'AuraBank' ? 'Withdrawal Complete' : 'Withdrawal Submitted'}
                         </p>
                         <p className="text-xs text-muted-foreground mb-1">
-                          {fundingRail === 'AuraBank'
-                            ? `$${amt.toFixed(2)} has been ${fundingAction === 'deposit' ? 'added to' : 'removed from'} your cash balance.`
-                            : `Your ${fundingAction} of $${amt.toFixed(2)} is pending confirmation from ${method}.`}
+                          {fundingAction === 'deposit'
+                            ? `$${amt.toFixed(2)} has been added to your cash balance.`
+                            : fundingRail === 'AuraBank'
+                            ? `$${amt.toFixed(2)} has been removed from your cash balance.`
+                            : `Your withdrawal of $${amt.toFixed(2)} is being processed and will reflect within 1–3 business days.`}
                         </p>
                         {fundingRef && (
                           <p className="text-[10px] text-muted-foreground font-mono bg-muted rounded-lg px-3 py-1.5 inline-block mt-1.5">
@@ -1140,62 +1254,11 @@ export default function PortfolioPage() {
                       </div>
                     )}
 
-                    {/* INSTRUCTIONS */}
-                    {fundingStep === 'instructions' && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <button onClick={() => setFundingStep('form')}
-                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
-                            ←
-                          </button>
-                          <p className="font-bold text-sm flex-1">Payment Instructions</p>
-                          <button onClick={resetFundingForm}
-                            className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
-                            ✕
-                          </button>
-                        </div>
-                        <div className={`rounded-xl p-3 mb-3 border ${fundingRail === 'Mobile Money' ? 'bg-yellow-500/8 border-yellow-500/20' : 'bg-emerald-500/8 border-emerald-500/20'}`}>
-                          <p className="text-xs font-semibold mb-0.5">{fundingRail === 'Mobile Money' ? `📱 Send via ${momoNet.name}` : '🏦 Bank Transfer'}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {fundingRail === 'Mobile Money'
-                              ? 'Send exactly the amount below to our merchant number. Use the reference code as your payment narration.'
-                              : `Transfer from your ${selectedBank} account to the AuraVest account below. Include the reference in the narration.`}
-                          </p>
-                        </div>
-                        <div className="space-y-1.5 mb-3">
-                          <CopyField label="Amount to Send" value={`$${amt.toFixed(2)}`} />
-                          {fundingRail === 'Mobile Money' ? (
-                            <>
-                              <CopyField label={`Send To (${momoNet.name})`} value={momoNet.merchant} />
-                              <CopyField label="Merchant Name" value="AuraVest" />
-                            </>
-                          ) : (
-                            <>
-                              <CopyField label="Account Name" value={AURA_ACCOUNT.name} />
-                              <CopyField label="Account Number" value={AURA_ACCOUNT.number} />
-                              <CopyField label="Bank" value={AURA_ACCOUNT.bank} />
-                              <CopyField label="Branch" value={AURA_ACCOUNT.branch} />
-                              <CopyField label="Sort Code" value={AURA_ACCOUNT.sort} />
-                            </>
-                          )}
-                          <CopyField label="Payment Reference (Required)" value={fundingRef} />
-                        </div>
-                        <p className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg p-2 mb-3">
-                          ⚠ Always include the reference in your narration. Deposit credited within
-                          {fundingRail === 'Mobile Money' ? ' 5–15 min' : ' 1–3 business days'} once confirmed.
-                        </p>
-                        <button onClick={confirmPendingDeposit}
-                          className="w-full py-2.5 rounded-xl font-bold text-sm text-white bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25 transition-all active:scale-95">
-                          I've Sent the Payment
-                        </button>
-                      </div>
-                    )}
-
                     {/* CONFIRM */}
                     {fundingStep === 'confirm' && (
                       <div>
                         <div className="flex items-center gap-2 mb-3">
-                          <button onClick={() => setFundingStep('form')}
+                          <button onClick={() => { setFundingStep('form'); setFundingError(null); }}
                             className="w-7 h-7 rounded-lg border border-border bg-muted flex items-center justify-center text-xs hover:bg-muted/80 transition-colors">
                             ←
                           </button>
@@ -1210,7 +1273,8 @@ export default function PortfolioPage() {
                             { label: 'Type',       value: fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal' },
                             { label: 'Amount',     value: `$${amt.toFixed(2)}` },
                             { label: 'Method',     value: method },
-                            { label: 'Settlement', value: 'Instant' },
+                            { label: 'Settlement', value: fundingRail === 'AuraBank' ? 'Instant' : fundingAction === 'deposit' ? 'Via Paystack' : 'Pending (1–3 days)' },
+                            ...(fundingRail === 'Paystack' && fundingAction === 'withdrawal' ? [{ label: 'Recipient', value: `${momoName.trim()} · ${momoPhone.trim()}` }] : []),
                             ...(fundingNote.trim() ? [{ label: 'Note', value: fundingNote.trim() }] : []),
                           ].map(row => (
                             <div key={row.label} className="flex justify-between text-xs">
@@ -1224,7 +1288,7 @@ export default function PortfolioPage() {
                             fundingAction === 'deposit' ? 'bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25'
                           }`}>
                           {isFunding
-                            ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Processing...</span>
+                            ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />{fundingRail === 'AuraBank' ? 'Processing…' : 'Launching Paystack…'}</span>
                             : `Confirm ${fundingAction === 'deposit' ? 'Deposit' : 'Withdrawal'}`}
                         </button>
                         {fundingError && <p className="text-xs text-red-500 mt-2 text-center">{fundingError}</p>}
@@ -1263,101 +1327,143 @@ export default function PortfolioPage() {
                         </div>
 
                         <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Payment Method</p>
-                        <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="grid grid-cols-2 gap-2 mb-3">
                           {RAILS.map((rail) => (
                             <button key={rail.id}
-                              onClick={() => { setFundingRail(rail.id); setSelectedBank(null); }}
-                              className={`relative flex flex-col items-center gap-1 p-2 rounded-xl border bg-gradient-to-br transition-all duration-200 active:scale-95 ${rail.bg} ${fundingRail === rail.id ? rail.activeBorder + ' shadow-md' : rail.border + ' opacity-60 hover:opacity-100'}`}>
-                              <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border flex items-center justify-center">
-                                <img src={rail.logo} alt={rail.label} className="w-full h-full object-cover"
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              onClick={() => setFundingRail(rail.id)}
+                              className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border bg-gradient-to-br transition-all duration-200 active:scale-95 ${rail.bg} ${fundingRail === rail.id ? rail.activeBorder + ' shadow-md' : rail.border + ' opacity-60 hover:opacity-100'}`}>
+                              <div className="w-10 h-10 rounded-xl overflow-hidden bg-background border border-border flex items-center justify-center">
+                                {rail.logo
+                                  ? <img src={rail.logo} alt={rail.label} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                  : <span className="text-base font-black text-teal-400">P</span>}
                               </div>
-                              <span className={`text-[9px] font-semibold ${fundingRail === rail.id ? rail.text : 'text-muted-foreground'}`}>{rail.label}</span>
-                              {fundingRail === rail.id && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-current opacity-80" />}
+                              <div className="text-center">
+                                <p className={`text-xs font-bold ${fundingRail === rail.id ? rail.text : 'text-muted-foreground'}`}>{rail.label}</p>
+                                <p className="text-[9px] text-muted-foreground leading-tight">
+                                  {rail.id === 'AuraBank' ? 'Instant · Internal' : fundingAction === 'deposit' ? 'Card · MoMo · Bank' : 'Transfer · Pending'}
+                                </p>
+                              </div>
+                              {fundingRail === rail.id && <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-current opacity-80" />}
                             </button>
                           ))}
                         </div>
 
                         {fundingRail === 'AuraBank' && (
-                          <div className="flex items-center gap-2 rounded-xl bg-indigo-500/8 border border-indigo-500/20 px-3 py-2 mb-3 text-xs">
-                            <span className="text-indigo-400">⚡</span>
-                            <span className="text-muted-foreground">AuraBank transfers settle <span className="font-semibold text-foreground">instantly</span>.</span>
+                          <div className="rounded-xl bg-indigo-500/8 border border-indigo-500/20 px-3 py-2.5 mb-3 text-xs space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-indigo-400">⚡</span>
+                              <span className="text-muted-foreground">AuraBank transfers settle <span className="font-semibold text-foreground">instantly</span> with no fees.</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground text-[11px]">Accepted:</span>
+                              <div className="flex items-center -space-x-1">
+                                {[
+                                  { src: '/app-logos/visa.svg', alt: 'Visa' },
+                                  { src: '/app-logos/mastercard.svg', alt: 'Mastercard' },
+                                  { src: '/app-logos/amex.svg', alt: 'Amex' },
+                                ].map(({ src, alt }) => (
+                                  <img key={alt} src={src} alt={alt} title={alt}
+                                    className="w-8 h-5 rounded object-contain bg-white ring-1 ring-black/20 p-0.5" />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex gap-1.5">
+                                {(['account', 'card'] as const).map((t) => (
+                                  <button key={t} type="button"
+                                    onClick={() => setAuraSourceType(t)}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${auraSourceType === t ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10'}`}>
+                                    {t === 'account' ? 'Bank Account' : 'Card'}
+                                  </button>
+                                ))}
+                              </div>
+                              {auraSourceType === 'account' && vestBankAccounts.length > 0 && (
+                                <select value={selectedAuraBankAccountId} onChange={e => setSelectedAuraBankAccountId(e.target.value)}
+                                  className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                                  {vestBankAccounts.map((a) => (
+                                    <option key={a.id} value={a.id} className="text-black">
+                                      {a.name} ••••{a.accountNumber.slice(-4)} — {a.currency} {a.balance.toFixed(2)}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                              {auraSourceType === 'account' && vestBankAccounts.length === 0 && (
+                                <p className="text-muted-foreground text-[11px]">No AuraBank accounts linked. Visit AuraBank to connect.</p>
+                              )}
+                              {auraSourceType === 'card' && vestBankCards.length > 0 && (
+                                <select value={selectedAuraBankCardId} onChange={e => setSelectedAuraBankCardId(e.target.value)}
+                                  className="w-full rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5 text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                                  {vestBankCards.map((c) => (
+                                    <option key={c.id} value={c.id} className="text-black">
+                                      {c.brand} {c.type.toUpperCase()} ••••{c.last4}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                              {auraSourceType === 'card' && vestBankCards.length === 0 && (
+                                <p className="text-muted-foreground text-[11px]">No AuraBank cards linked. Visit AuraBank to connect.</p>
+                              )}
+                            </div>
                           </div>
                         )}
 
-                        {fundingRail === 'Mobile Money' && (
-                          <div className="mb-3">
-                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Select Network</p>
-                            <div className="grid grid-cols-3 gap-2 mb-2">
-                              {MOMO_NETWORKS.map((net) => (
-                                <button key={net.id} onClick={() => setSelectedMomoNetwork(net.id)}
-                                  className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all duration-200 active:scale-95 ${
-                                    selectedMomoNetwork === net.id
-                                      ? `${net.ring} ${net.activeBg} shadow-sm`
-                                      : 'border-border bg-muted/30 opacity-60 hover:opacity-100'
-                                  }`}>
-                                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-background border border-border/50 flex items-center justify-center">
-                                    <img src={net.logo} alt={net.name} className="w-full h-full object-cover"
-                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                  </div>
-                                  <span className="text-[9px] font-semibold text-center leading-tight">{net.name}</span>
-                                </button>
-                              ))}
+                        {fundingRail === 'Paystack' && fundingAction === 'deposit' && (
+                          <div className="rounded-xl bg-teal-500/8 border border-teal-500/20 px-3 py-2.5 mb-3 text-xs">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className="text-teal-400">🔒</span>
+                              <p className="font-semibold text-foreground">Secure checkout via Paystack</p>
                             </div>
-                            <input type="text" value={momoName} onChange={e => setMomoName(e.target.value)}
-                              placeholder="Full name on MoMo account"
-                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500/50 mb-1.5" />
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-muted-foreground text-[11px]">Pay via:</span>
+                              <div className="flex items-center -space-x-1.5">
+                                {[
+                                  { src: '/app-logos/mtnmomo.png', alt: 'MTN' },
+                                  { src: '/app-logos/telecelcash.jpg', alt: 'Telecel' },
+                                  { src: '/app-logos/atmoney.jpg', alt: 'AirtelTigo' },
+                                  { src: '/logos/banks/gh/ecobank.png', alt: 'Ecobank' },
+                                  { src: '/logos/banks/gh/gcb.png', alt: 'GCB' },
+                                  { src: '/logos/banks/gh/absa.png', alt: 'ABSA' },
+                                ].map(({ src, alt }) => (
+                                  <img key={alt} src={src} alt={alt} title={alt}
+                                    className="w-5 h-5 rounded-full object-cover ring-1 ring-black/30 bg-white" />
+                                ))}
+                              </div>
+                              <span className="text-muted-foreground text-[11px]">MTN, Telecel, AirtelTigo, Ecobank, GCB + more</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {fundingRail === 'Paystack' && fundingAction === 'withdrawal' && (
+                          <div className="mb-3 space-y-1.5">
+                            <div className="rounded-xl bg-yellow-500/8 border border-yellow-500/20 px-3 py-2 text-xs mb-2">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <span className="text-yellow-400">⏳</span>
+                                <p className="text-muted-foreground">Withdrawals are processed manually and reflected within <span className="font-semibold text-foreground">1–3 business days</span>.</p>
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-muted-foreground text-[11px]">Withdraw to:</span>
+                                <div className="flex items-center -space-x-1.5">
+                                  {[
+                                    { src: '/app-logos/mtnmomo.png', alt: 'MTN' },
+                                    { src: '/app-logos/telecelcash.jpg', alt: 'Telecel' },
+                                    { src: '/app-logos/atmoney.jpg', alt: 'AirtelTigo' },
+                                    { src: '/logos/banks/gh/ecobank.png', alt: 'Ecobank' },
+                                    { src: '/logos/banks/gh/gcb.png', alt: 'GCB' },
+                                    { src: '/logos/banks/gh/access.png', alt: 'Access' },
+                                  ].map(({ src, alt }) => (
+                                    <img key={alt} src={src} alt={alt} title={alt}
+                                      className="w-5 h-5 rounded-full object-cover ring-1 ring-black/30 bg-white" />
+                                  ))}
+                                </div>
+                                <span className="text-muted-foreground text-[11px]">MTN MoMo, Telecel, AirtelTigo, banks + more</span>
+                              </div>
+                            </div>
                             <input type="tel" value={momoPhone} onChange={e => setMomoPhone(e.target.value)}
-                              placeholder={`Your ${momoNet.name} number (e.g. 055 123 4567)`}
-                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500/50 mb-1" />
-                            <p className="text-[10px] text-muted-foreground">
-                              {fundingAction === 'deposit'
-                                ? "Enter the name and number you're sending from so we can match your payment."
-                                : 'Withdrawal processes within 5–15 minutes.'}
-                            </p>
-                          </div>
-                        )}
-
-                        {fundingRail === 'External Bank' && (
-                          <div className="mb-3">
-                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Select Your Bank</p>
-                            <div className="grid grid-cols-5 gap-1.5 mb-2">
-                              {GH_BANKS.map((bank) => (
-                                <button key={bank.name} onClick={() => setSelectedBank(bank.name)}
-                                  className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border transition-all duration-200 active:scale-95 ${
-                                    selectedBank === bank.name
-                                      ? 'border-emerald-500 bg-emerald-500/10 shadow-sm'
-                                      : 'border-border bg-muted/30 hover:bg-muted/60 opacity-70 hover:opacity-100'
-                                  }`}>
-                                  <div className="w-7 h-7 rounded-md overflow-hidden bg-background border border-border/50 flex items-center justify-center">
-                                    <img src={bank.logo} alt={bank.name} className="w-full h-full object-contain p-0.5"
-                                      onError={(e) => {
-                                        const t = e.target as HTMLImageElement;
-                                        t.style.display = 'none';
-                                        if (t.parentElement) t.parentElement.innerHTML = `<span class="text-[8px] font-bold text-muted-foreground">${bank.name.slice(0,3)}</span>`;
-                                      }} />
-                                  </div>
-                                  <span className="text-[7px] font-semibold text-center leading-tight text-muted-foreground line-clamp-1">{bank.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                            <div className="space-y-1.5 mt-2">
-                              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Your Account Details</p>
-                              <input type="text" value={bankAccountName} onChange={e => setBankAccountName(e.target.value)}
-                                placeholder="Full name on bank account"
-                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
-                              <input type="text" value={bankAccountNumber} onChange={e => setBankAccountNumber(e.target.value)}
-                                placeholder="Account Number"
-                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
-                              <input type="text" value={bankBranch} onChange={e => setBankBranch(e.target.value)}
-                                placeholder="Branch (optional)"
-                                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50" />
-                              <p className="text-[10px] text-muted-foreground">
-                                {fundingAction === 'deposit'
-                                  ? 'Enter the account you\'re sending from so we can match your transfer.'
-                                  : 'External bank withdrawals take 1–3 business days to reflect.'}
-                              </p>
-                            </div>
+                              placeholder="MoMo or bank account number"
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500/50" />
+                            <input type="text" value={momoName} onChange={e => setMomoName(e.target.value)}
+                              placeholder="Account holder name"
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500/50" />
                           </div>
                         )}
 
@@ -1394,21 +1500,13 @@ export default function PortfolioPage() {
                         <button
                           disabled={
                             !amt || amt <= 0
-                            || (fundingRail === 'External Bank' && !selectedBank)
-                            || (fundingRail === 'External Bank' && (!bankAccountName.trim() || !bankAccountNumber.trim()))
-                            || (fundingRail === 'Mobile Money' && (!momoName.trim() || !momoPhone.trim()))
+                            || (fundingRail === 'Paystack' && fundingAction === 'withdrawal' && (!momoPhone.trim() || !momoName.trim()))
                           }
                           onClick={() => {
                             setFundingError(null);
                             if (amt <= 0) { setFundingError('Enter a valid amount.'); return; }
                             if (fundingAction === 'withdrawal' && amt > cashBalance) { setFundingError(`Insufficient cash. Available: $${cashBalance.toFixed(2)}.`); return; }
-                            if (fundingAction === 'deposit' && fundingRail !== 'AuraBank') {
-                              const ref = `AV-${Date.now().toString(36).toUpperCase().slice(-8)}`;
-                              setFundingRef(ref);
-                              setFundingStep('instructions');
-                            } else {
-                              setFundingStep('confirm');
-                            }
+                            setFundingStep('confirm');
                           }}
                           className={`w-full py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-40 ${
                             fundingAction === 'deposit' ? 'bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/25' : 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/25'
