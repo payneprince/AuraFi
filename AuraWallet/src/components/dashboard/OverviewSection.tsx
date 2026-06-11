@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CreditCard, Sparkles, Wallet, PlusCircle, HandCoins, FileText, ArrowUpRight, ArrowDownLeft, Link2, Send, X } from 'lucide-react';
+import SpendAnalytics from './SpendAnalytics';
 import TransactionList, { getWalletTxStyle } from '@/components/TransactionList';
 import TransferForm from '@/components/TransferForm';
 import { auraBankCards } from '@/components/CardManager';
@@ -434,6 +435,8 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
         </div>
         <TransactionList onTransactionClick={(transaction) => setSelectedTransaction(transaction)} />
       </div>
+
+      <SpendAnalytics />
 
       {/* Cross-App Transfer */}
       <div className="group bg-[#0B1E39] border border-white/10 rounded-2xl p-5 flex items-center justify-between gap-4 hover:border-green-400/30 hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '380ms' }}>
