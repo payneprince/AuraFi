@@ -1,6 +1,5 @@
 import { Wallet, TrendingUp, TrendingDown, PieChart, Activity } from 'lucide-react';
 import TransactionList from '@/components/TransactionList';
-import SpendAnalytics from './SpendAnalytics';
 
 interface PortfolioSectionProps {
   walletBalance: number;
@@ -133,8 +132,6 @@ export default function PortfolioSection({ walletBalance, transactions }: Portfo
           </div>
         </div>
       </div>
-
-      <SpendAnalytics />
 
       <div className="group relative overflow-hidden rounded-2xl p-5 bg-[#0B1E39] border border-white/10 hover:border-white/20 hover:shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: '320ms' }}>
         <div className="absolute -bottom-12 -left-12 w-36 h-36 rounded-full bg-sky-500/10 blur-3xl opacity-40 group-hover:opacity-70 transition-opacity duration-500" />
