@@ -5,6 +5,7 @@ module.exports = (phase) => {
   const nextConfig = {
     experimental: {
       externalDir: true,
+      scrollRestoration: false,
     },
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next',
     allowedDevOrigins: ["*.preview.same-app.com"],

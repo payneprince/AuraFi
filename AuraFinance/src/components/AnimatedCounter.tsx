@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export function AnimatedCounter({ end, duration = 2000, suffix = "" }: { end: number; duration?: number; suffix?: string }) {
+export function AnimatedCounter({ end, duration = 2000, suffix = "", prefix = "" }: { end: number; duration?: number; suffix?: string; prefix?: string }) {
   const [count, setCount] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -45,5 +45,5 @@ export function AnimatedCounter({ end, duration = 2000, suffix = "" }: { end: nu
     return () => cancelAnimationFrame(animationFrame);
   }, [isVisible, end, duration]);
 
-  return <div ref={ref}>{count.toLocaleString()}{suffix}</div>;
+  return <span ref={ref}>{prefix}{count.toLocaleString()}{suffix}</span>;
 }

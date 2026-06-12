@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Send } from "lucide-react";
 
 const SOCIAL: { href: string; label: string; svg: React.ReactNode }[] = [
   {
@@ -28,19 +28,19 @@ const LINKS = {
     { label: 'AuraBank',   href: 'http://localhost:3001' },
     { label: 'AuraVest',   href: 'http://localhost:3002' },
     { label: 'AuraWallet', href: 'http://localhost:3003' },
-    { label: 'AuraAI',     href: '#'                    },
+    { label: 'AuraAI',     href: '#' },
   ],
   Company: [
-    { label: 'About Us',     href: '/#features'     },
+    { label: 'About Us',     href: '/#features' },
     { label: 'How It Works', href: '/#how-it-works' },
-    { label: 'Pricing',      href: '/#pricing'      },
-    { label: 'Careers',      href: '#'              },
+    { label: 'Pricing',      href: '/#pricing' },
+    { label: 'Careers',      href: '#' },
   ],
   Legal: [
     { label: 'Privacy Policy',   href: '/privacy' },
-    { label: 'Terms of Service', href: '/terms'   },
-    { label: 'Security',         href: '#'        },
-    { label: 'Cookie Policy',    href: '#'        },
+    { label: 'Terms of Service', href: '/terms' },
+    { label: 'Security',         href: '#' },
+    { label: 'Cookie Policy',    href: '#' },
   ],
 };
 
@@ -55,73 +55,107 @@ export function Footer() {
 
   return (
     <footer id="contact" className="bg-[#050e1c] relative overflow-hidden">
-      {/* Gradient top border */}
+
+      {/* Teal top border */}
       <div className="h-px w-full bg-gradient-to-r from-transparent via-teal to-transparent opacity-60" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-10 mb-12">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-teal/[0.05] blur-[80px] rounded-full" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-5">
+
+        {/* Newsletter banner */}
+        <div className="rounded-2xl p-px bg-gradient-to-r from-teal/30 via-magenta/20 to-teal/10 mb-8">
+          <div className="rounded-2xl bg-white/[0.03] px-6 py-4 flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal to-magenta flex items-center justify-center">
+                <Send className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div>
+                <p className="text-white text-sm font-semibold leading-tight">Stay in the loop</p>
+                <p className="text-white/40 text-xs">Updates, tips & early access</p>
+              </div>
+            </div>
+            {subscribed ? (
+              <p className="text-emerald-400 text-sm font-medium sm:ml-auto flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> You&apos;re subscribed!
+              </p>
+            ) : (
+              <form onSubmit={handleSubscribe} className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="flex-1 sm:w-52 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder:text-white/25 outline-none focus:border-teal/50 transition-colors"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-teal to-magenta text-white text-xs font-bold hover:opacity-90 transition-opacity flex-shrink-0"
+                >
+                  Subscribe <ArrowRight className="w-3 h-3" />
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* Main grid */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
 
           {/* Brand column */}
-          <div className="col-span-2">
-            <Image
-              src="/images/suite.jpeg"
-              alt="Aura Finance"
-              width={100}
-              height={40}
-              className="object-contain rounded-lg mb-3"
-            />
-            <p className="text-white/40 text-sm leading-relaxed mb-5 max-w-xs">
-              Your complete financial ecosystem — banking, investing, payments, and AI in one place.
-            </p>
+          <div className="col-span-2 flex flex-col gap-4">
+            <div>
+              <Image
+                src="/images/suite.jpeg"
+                alt="Aura Finance"
+                width={80}
+                height={32}
+                className="object-contain rounded-lg mb-3"
+              />
+              <p className="text-white/35 text-xs leading-relaxed max-w-[210px]">
+                Banking, investing, payments & AI — all in one ecosystem built for the future of finance.
+              </p>
+            </div>
 
-            {/* Social links */}
-            <div className="flex gap-2 mb-6">
+            {/* Social icons */}
+            <div className="flex gap-2">
               {SOCIAL.map(({ svg, href, label }) => (
                 <a
                   key={label}
                   href={href}
                   aria-label={label}
-                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/8 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-200"
+                  className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-white/30 hover:text-white hover:bg-white/10 hover:border-white/20 transition-[color,background-color,border-color] duration-200"
                 >
                   {svg}
                 </a>
               ))}
             </div>
 
-            {/* App store badges */}
-            <div className="flex flex-col gap-2.5">
-              <a href="#" className="group w-fit">
-                <Image
-                  src="/images/app-store-badge.svg"
-                  alt="Download on the App Store"
-                  width={130}
-                  height={38}
-                  className="h-9 w-auto opacity-60 group-hover:opacity-90 transition-opacity"
-                />
+            {/* App badges */}
+            <div className="flex gap-2 items-center">
+              <a href="#" className="group opacity-45 hover:opacity-80 transition-opacity duration-200">
+                <Image src="/images/app-store-badge.svg" alt="App Store" width={100} height={30} className="h-7 w-auto" />
               </a>
-              <a href="#" className="group w-fit">
-                <Image
-                  src="/images/google-play-badge.svg"
-                  alt="Get it on Google Play"
-                  width={130}
-                  height={38}
-                  className="h-9 w-auto opacity-60 group-hover:opacity-90 transition-opacity"
-                />
+              <a href="#" className="group opacity-45 hover:opacity-80 transition-opacity duration-200">
+                <Image src="/images/google-play-badge.svg" alt="Google Play" width={100} height={30} className="h-7 w-auto" />
               </a>
             </div>
           </div>
 
-          {/* Nav columns */}
+          {/* Link columns */}
           {Object.entries(LINKS).map(([heading, items]) => (
             <div key={heading}>
-              <h4 className="text-white font-semibold text-sm mb-4">{heading}</h4>
+              <h4 className="text-white/60 font-bold text-[10px] uppercase tracking-[0.15em] mb-3.5">{heading}</h4>
               <ul className="space-y-2.5">
                 {items.map(({ label, href }) => (
                   <li key={label}>
                     <a
                       href={href}
-                      className="text-white/40 text-sm hover:text-white transition-colors duration-200"
+                      className="text-white/30 text-xs hover:text-white/80 transition-colors duration-200 flex items-center gap-1 group"
                     >
+                      <span className="w-0 group-hover:w-1.5 h-px bg-teal transition-[width] duration-200 overflow-hidden" />
                       {label}
                     </a>
                   </li>
@@ -131,48 +165,24 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Newsletter */}
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-6 py-5 mb-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-          <div>
-            <p className="text-white font-semibold text-sm">Stay in the loop</p>
-            <p className="text-white/40 text-xs mt-0.5">Get product updates, financial tips, and early feature access.</p>
-          </div>
-          {subscribed ? (
-            <p className="text-emerald-400 text-sm font-medium flex-shrink-0">✓ You&apos;re subscribed!</p>
-          ) : (
-            <form onSubmit={handleSubscribe} className="flex gap-2 w-full sm:w-auto flex-shrink-0">
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="flex-1 sm:w-52 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-white/25 outline-none focus:border-teal/50 transition-colors"
-                required
-              />
-              <button
-                type="submit"
-                className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-teal to-magenta text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-              >
-                Subscribe <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          )}
-        </div>
+        {/* Divider */}
+        <div className="h-px bg-gradient-to-r from-transparent via-white/8 to-transparent mb-4" />
 
         {/* Bottom bar */}
-        <div className="border-t border-white/8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-white/30 text-xs">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-white/20 text-[11px]">
           <p>© {new Date().getFullYear()} Aura Finance. All rights reserved.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70" />
               FDIC Insured
             </span>
-            <span>·</span>
+            <span className="text-white/10">|</span>
             <span>Member SIPC</span>
-            <span>·</span>
+            <span className="text-white/10">|</span>
             <span>ISO 27001 Certified</span>
           </div>
         </div>
+
       </div>
     </footer>
   );

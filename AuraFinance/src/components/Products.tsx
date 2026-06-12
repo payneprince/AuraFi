@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search, Plus, ArrowUpRight, ArrowDownRight, Home, BarChart2, Activity, Briefcase, Menu, TrendingUp } from "lucide-react";
 
 type ProductPromo = {
@@ -41,6 +41,17 @@ type ProductPromo = {
 
 export default function Products() {
   const [activeProduct, setActiveProduct] = useState<ProductPromo | null>(null);
+  const [visible, setVisible] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
+      { threshold: 0.1 }
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const products = useMemo<ProductPromo[]>(
     () => [
@@ -230,41 +241,62 @@ export default function Products() {
   };
 
   return (
-    <section id="products" className="py-20 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold mb-4">Four Products, One Powerful Ecosystem</h2>
-          <p className="text-xl text-muted-foreground">Everything you need to master your financial life</p>
+    <section ref={sectionRef} id="products" className="relative py-12 overflow-hidden bg-gradient-to-b from-white via-teal/[0.05] to-slate-100">
+
+      {/* Subtle radial glow in centre */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="w-[500px] h-[300px] bg-teal/[0.07] blur-[80px] rounded-full" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`text-center mb-8 transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
+          <span className="inline-block text-xs font-bold uppercase tracking-widest text-teal bg-teal/10 px-4 py-1.5 rounded-full mb-3">
+            Products
+          </span>
+          <h2 className="text-3xl font-bold mb-2">Four Products, One Powerful Ecosystem</h2>
+          <p className="text-base text-muted-foreground">Everything you need to master your financial life</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {products.map((product, idx) => (
-            <div key={idx} className="glass rounded-2xl p-6 hover:scale-105 transition-transform">
-              <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center mb-4 overflow-hidden border border-gray-200">
+            <div
+              key={idx}
+              className={`group relative bg-white rounded-2xl p-6 border border-gray-100 shadow-sm
+                hover:shadow-xl hover:shadow-teal/10 hover:-translate-y-2 hover:border-teal/25 hover:scale-[1.02]
+                transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out will-change-transform
+                ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+              style={{ transitionDelay: visible ? `${idx * 100}ms` : "0ms" }}
+            >
+              {/* Top accent line on hover */}
+              <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-teal/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
+
+              <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center mb-4 overflow-hidden border border-gray-200 group-hover:border-teal/30 group-hover:shadow-md group-hover:shadow-teal/15 transition-[transform,box-shadow,border-color] duration-200">
                 <Image
                   src={product.image}
                   alt={`${product.name} logo`}
                   width={48}
                   height={48}
-                  className="object-cover rounded-xl"
+                  className="object-cover rounded-xl group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
-              <h3 className="text-2xl font-bold mb-2">{product.name}</h3>
-              <p className="text-muted-foreground mb-4">{product.desc}</p>
+              <h3 className="text-xl font-bold mb-1.5 group-hover:text-teal transition-colors duration-200">{product.name}</h3>
+              <p className="text-muted-foreground text-sm mb-4">{product.desc}</p>
               <ul className="space-y-2">
                 {product.features.map((feature, featureIndex) => (
                   <li key={featureIndex} className="text-sm flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-teal" />
-                    {feature}
+                    <div className="h-1.5 w-1.5 rounded-full bg-teal flex-shrink-0 group-hover:scale-125 transition-transform duration-200"
+                      style={{ transitionDelay: `${featureIndex * 40}ms` }} />
+                    <span className="group-hover:text-gray-700 transition-colors duration-200">{feature}</span>
                   </li>
                 ))}
               </ul>
               <button
                 type="button"
                 onClick={() => setActiveProduct(product)}
-                className="mt-4 text-teal font-semibold hover:underline"
+                className="mt-5 inline-flex items-center gap-1 text-sm text-teal font-semibold group-hover:gap-2 transition-[gap] duration-200"
               >
-                Explore {product.name.split("Aura")[1]} →
+                Explore {product.name.split("Aura")[1]}
+                <span className="group-hover:translate-x-0.5 transition-transform duration-200">→</span>
               </button>
             </div>
           ))}
@@ -280,106 +312,96 @@ export default function Products() {
             aria-label="Close promotion"
           />
 
-          <div className="relative h-screen w-screen flex items-center justify-center p-3 sm:p-6">
+          <div className="relative h-screen w-screen flex items-center justify-center p-3 sm:p-4">
             <div
-              className={`relative h-[82vh] w-[94vw] max-w-[1180px] overflow-y-auto overflow-x-hidden scrollbar-hide rounded-[28px] border border-white/10 bg-gradient-to-br ${activeProduct.theme.overlay} shadow-[0_40px_120px_rgba(0,0,0,0.75)]`}
+              className={`relative w-[94vw] max-w-[1100px] max-h-[90vh] overflow-hidden rounded-[24px] border border-white/10 bg-gradient-to-br ${activeProduct.theme.overlay} shadow-[0_40px_120px_rgba(0,0,0,0.75)]`}
             >
               <div className={`pointer-events-none absolute inset-0 ${activeProduct.theme.glow}`} />
               <div className={`pointer-events-none absolute inset-0 ${activeProduct.theme.aura}`} />
 
-              <div className="relative h-full grid lg:grid-cols-[0.95fr_1.05fr] gap-8 p-6 sm:p-10 lg:p-14">
-                <div className="flex flex-col justify-center z-10 space-y-6">
-                  <div className="inline-flex items-center gap-3 mb-5">
-                    <div className="h-12 w-12 rounded-xl bg-white/90 border border-white/40 overflow-hidden flex items-center justify-center">
+              <div className="relative grid lg:grid-cols-[0.95fr_1.05fr] gap-5 p-5 sm:p-7 lg:p-9">
+                <div className="flex flex-col justify-center z-10 space-y-3">
+                  <div className="inline-flex items-center gap-2.5 mb-1">
+                    <div className="h-9 w-9 rounded-xl bg-white/90 border border-white/40 overflow-hidden flex items-center justify-center flex-shrink-0">
                       <Image
                         src={activeProduct.image}
                         alt={`${activeProduct.name} logo`}
-                        width={48}
-                        height={48}
+                        width={36}
+                        height={36}
                         className="object-cover rounded-xl"
                       />
                     </div>
                     <div>
-                      <p className="text-white/60 text-xs uppercase tracking-[0.2em]">Spotlight</p>
-                      <p className="text-white font-semibold text-lg">{activeProduct.mobileTitle}</p>
+                      <p className="text-white/60 text-[10px] uppercase tracking-[0.2em]">Spotlight</p>
+                      <p className="text-white font-semibold text-sm">{activeProduct.mobileTitle}</p>
                     </div>
                   </div>
 
-                  <div className="inline-flex items-center gap-3 text-white/85 text-sm mb-5">
-                    <span className="text-xl">🚀</span>
+                  <div className="inline-flex items-center gap-2 text-white/75 text-xs">
+                    <span>🚀</span>
                     <span>1,482 launched today</span>
                   </div>
 
-                  <h3 className="text-3xl sm:text-5xl font-bold leading-tight text-white">
+                  <h3 className="text-2xl sm:text-3xl font-bold leading-tight text-white">
                     {activeProduct.promoTitle}
                   </h3>
 
-                  <p className="max-w-xl text-white/85 text-base sm:text-2xl leading-relaxed">
+                  <p className="max-w-xl text-white/80 text-sm leading-relaxed">
                     {activeProduct.promoCopy}
                   </p>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {activeProduct.mobileHighlights.map((item) => (
-                      <div key={item.title} className="flex items-start gap-3">
-                        <div className={`mt-1.5 h-5 w-5 rounded-full ${activeProduct.theme.pointBg} flex items-center justify-center`}>
-                          <div className={`h-2 w-2 rounded-full ${activeProduct.theme.pointDot}`} />
+                      <div key={item.title} className="flex items-start gap-2.5">
+                        <div className={`mt-1 h-4 w-4 rounded-full ${activeProduct.theme.pointBg} flex items-center justify-center flex-shrink-0`}>
+                          <div className={`h-1.5 w-1.5 rounded-full ${activeProduct.theme.pointDot}`} />
                         </div>
                         <div>
-                          <h4 className="text-lg font-semibold text-white">{item.title}</h4>
-                          <p className="text-white/75 text-sm sm:text-base">{item.desc}</p>
+                          <h4 className="text-sm font-semibold text-white leading-tight">{item.title}</h4>
+                          <p className="text-white/60 text-xs">{item.desc}</p>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button className="bg-black/30 backdrop-blur-sm hover:bg-black/40 px-2 py-2 rounded-xl transition-colors">
-                      <Image src="/images/app-store-badge.svg" alt="Download on the App Store" width={160} height={48} className="h-10 w-auto" />
-                    </button>
-
-                    <button className="bg-black/30 backdrop-blur-sm hover:bg-black/40 px-2 py-2 rounded-xl transition-colors">
-                      <Image src="/images/google-play-badge.svg" alt="Get it on Google Play" width={170} height={48} className="h-10 w-auto" />
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-2.5 pt-1">
                     <button
                       type="button"
                       onClick={() => openProduct(activeProduct)}
-                      className={`rounded-full bg-gradient-to-r ${activeProduct.theme.button} px-8 py-4 text-base sm:text-lg font-bold text-white ${activeProduct.theme.ctaShadow} hover:brightness-110 transition-all`}
+                      className={`rounded-full bg-gradient-to-r ${activeProduct.theme.button} px-6 py-2.5 text-sm font-bold text-white ${activeProduct.theme.ctaShadow} hover:brightness-110 transition-all`}
                     >
                       {activeProduct.cta}
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveProduct(null)}
-                      className="rounded-full border border-white/25 bg-white/5 px-8 py-4 text-base sm:text-lg font-semibold text-white/90 hover:bg-white/10 transition-colors"
+                      className="rounded-full border border-white/25 bg-white/5 px-6 py-2.5 text-sm font-semibold text-white/90 hover:bg-white/10 transition-colors"
                     >
                       Maybe Later
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 pt-1 max-w-md">
+                  <div className="grid grid-cols-3 gap-3 pt-1 max-w-xs">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-white">4.9</p>
-                      <p className="text-xs text-white/70">App Rating</p>
+                      <p className="text-lg font-bold text-white">4.9</p>
+                      <p className="text-[10px] text-white/60">App Rating</p>
                     </div>
                     <div className="text-center border-x border-white/20">
-                      <p className="text-2xl font-bold text-white">1M+</p>
-                      <p className="text-xs text-white/70">Downloads</p>
+                      <p className="text-lg font-bold text-white">1M+</p>
+                      <p className="text-[10px] text-white/60">Downloads</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-white">24/7</p>
-                      <p className="text-xs text-white/70">Support</p>
+                      <p className="text-lg font-bold text-white">24/7</p>
+                      <p className="text-[10px] text-white/60">Support</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="relative hidden lg:flex items-center justify-center">
-                  <div className="relative w-64 h-[520px] mx-auto">
+                  <div className="relative w-52 h-[400px] mx-auto">
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 rounded-[3rem] shadow-2xl transform rotate-6 opacity-50" />
 
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black rounded-[3rem] shadow-2xl border-[10px] border-gray-800 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-black rounded-[3rem] shadow-2xl border-[8px] border-gray-800 overflow-hidden">
                       <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-28 h-5 bg-black rounded-b-2xl z-30" />
 
                       <div className="absolute top-1 left-0 right-0 px-7 flex justify-between items-center text-[9px] text-white/90 z-20">

@@ -33,6 +33,12 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning className="antialiased">
+        {/* Runs before paint — disables browser scroll restoration so page always starts at top */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `history.scrollRestoration='manual';window.scrollTo(0,0);`,
+          }}
+        />
         <ClientBody>{children}</ClientBody>
       </body>
     </html>
