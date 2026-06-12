@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu, X, Moon, Sun } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
@@ -9,29 +9,13 @@ import { clearUnifiedAuthSession } from '../../../shared/unified-auth';
 
 export function Navigation() {
   const [open, setOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const { data: session } = useSession();
 
   useEffect(() => {
-    // Check for saved theme preference or default to light mode
-    const isDark = localStorage.getItem('theme') === 'dark';
-    setDarkMode(isDark);
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    }
+    // Force light mode — remove any previously saved dark preference
+    document.documentElement.classList.remove('dark');
+    localStorage.removeItem('theme');
   }, []);
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('theme', newMode ? 'dark' : 'light');
-
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  };
 
   return (
     <nav className="fixed top-0 w-full z-50 glass border-b">
@@ -48,46 +32,31 @@ export function Navigation() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/#products" className="hover:text-teal transition">Products</Link>
-            <Link href="/#features" className="hover:text-teal transition">Features</Link>
-            <Link href="/#pricing" className="hover:text-teal transition">Pricing</Link>
-            <Link href="/about" className="hover:text-teal transition">About</Link>
-            <Link href="/blog" className="hover:text-teal transition">Blog</Link>
-            <Link href="/contact" className="hover:text-teal transition">Contact</Link>
+            <Link href="/#products"    className="hover:text-teal transition text-sm font-medium">Products</Link>
+            <Link href="/#how-it-works" className="hover:text-teal transition text-sm font-medium">How It Works</Link>
+            <Link href="/#features"    className="hover:text-teal transition text-sm font-medium">Features</Link>
+            <Link href="/#pricing"     className="hover:text-teal transition text-sm font-medium">Pricing</Link>
+            <Link href="/#contact"     className="hover:text-teal transition text-sm font-medium">Contact</Link>
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            <button
-              onClick={toggleDarkMode}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-yellow-500" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-              )}
-            </button>
             {session ? (
               <>
-                <span className="px-4 py-2">Welcome, {session.user?.name ?? 'User'}</span>
+                <span className="px-4 py-2 text-sm">Welcome, {session.user?.name ?? 'User'}</span>
                 <button
-                  onClick={() => {
-                    clearUnifiedAuthSession();
-                    signOut({ callbackUrl: '/' });
-                  }}
-                  className="px-4 py-2 hover:text-teal transition"
+                  onClick={() => { clearUnifiedAuthSession(); signOut({ callbackUrl: '/' }); }}
+                  className="px-4 py-2 text-sm hover:text-teal transition"
                 >
                   Logout
                 </button>
-                <Link href="/dashboard" className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white hover:opacity-90">
+                <Link href="/dashboard" className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white text-sm font-semibold hover:opacity-90">
                   Dashboard
                 </Link>
               </>
             ) : (
               <>
-                <button onClick={() => signIn()} className="px-4 py-2 hover:text-teal transition">Login</button>
-                <button onClick={() => signIn()} className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white hover:opacity-90">
+                <button onClick={() => signIn()} className="px-4 py-2 text-sm hover:text-teal transition">Login</button>
+                <button onClick={() => signIn()} className="px-6 py-2 rounded-full bg-gradient-to-r from-teal to-magenta text-white text-sm font-semibold hover:opacity-90">
                   Get Started Free
                 </button>
               </>
@@ -103,25 +72,21 @@ export function Navigation() {
       {open && (
         <div className="md:hidden glass border-t">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <Link href="/#products" className="block px-3 py-2">Products</Link>
-            <Link href="/#features" className="block px-3 py-2">Features</Link>
-            <Link href="/#pricing" className="block px-3 py-2">Pricing</Link>
-            <Link href="/about" className="block px-3 py-2">About</Link>
-            <Link href="/blog" className="block px-3 py-2">Blog</Link>
-            <Link href="/contact" className="block px-3 py-2">Contact</Link>
-            <div className="px-3 py-2 flex items-center justify-between">
-              <span>Dark Mode</span>
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? (
-                  <Sun className="w-5 h-5 text-yellow-500" />
-                ) : (
-                  <Moon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                )}
-              </button>
+            <Link href="/#products"     className="block px-3 py-2 text-sm" onClick={() => setOpen(false)}>Products</Link>
+            <Link href="/#how-it-works" className="block px-3 py-2 text-sm" onClick={() => setOpen(false)}>How It Works</Link>
+            <Link href="/#features"     className="block px-3 py-2 text-sm" onClick={() => setOpen(false)}>Features</Link>
+            <Link href="/#pricing"      className="block px-3 py-2 text-sm" onClick={() => setOpen(false)}>Pricing</Link>
+            <Link href="/#contact"      className="block px-3 py-2 text-sm" onClick={() => setOpen(false)}>Contact</Link>
+            <div className="px-3 py-2 border-t border-gray-100 mt-2">
+              {session ? (
+                <button onClick={() => { clearUnifiedAuthSession(); signOut({ callbackUrl: '/' }); }} className="w-full text-left text-sm hover:text-teal transition">
+                  Logout
+                </button>
+              ) : (
+                <button onClick={() => signIn()} className="w-full text-left text-sm font-semibold text-teal">
+                  Get Started Free →
+                </button>
+              )}
             </div>
           </div>
         </div>

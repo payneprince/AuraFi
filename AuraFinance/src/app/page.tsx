@@ -15,6 +15,7 @@ import { Integration } from "@/components/Integration";
 import { Footer } from "@/components/Footer";
 import { BackToTop } from "@/components/BackToTop";
 import { LiveChat } from "@/components/LiveChat";
+import { MarketTicker } from "@/components/MarketTicker";
 import { authOptions } from "@/lib/auth";
 
 export default async function Home() {
@@ -26,6 +27,10 @@ export default async function Home() {
   return (
     <main className="min-h-screen">
       <Navigation />
+      <div className="h-16" />
+      <div className="sticky top-16 z-40">
+        <MarketTicker />
+      </div>
       <Hero />
       <Products />
       <Stats />

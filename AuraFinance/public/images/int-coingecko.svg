@@ -1,0 +1,10 @@
+<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <title>CoinGecko</title>
+  <circle cx="12" cy="12" r="12" fill="#8DC63F"/>
+  <circle cx="8.8" cy="9.2" r="2.1" fill="white"/>
+  <circle cx="9.4" cy="9.8" r="1.2" fill="#1a1a1a"/>
+  <ellipse cx="12.5" cy="15.2" rx="5.2" ry="3.8" fill="white" opacity="0.92"/>
+  <path d="M7.5 11.8 Q7 16 9.5 18.2 Q12 20 15 18.5 Q17.8 17 18 14.5" fill="#8DC63F" stroke="none"/>
+  <path d="M15.5 8.5 Q17.5 7 19 8.5" stroke="#5a8a20" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+  <path d="M10 16 Q12.5 17.5 15 16" stroke="#5a8a20" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+</svg>
