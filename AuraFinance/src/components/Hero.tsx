@@ -1,8 +1,23 @@
 "use client";
 
-import { ArrowDown, Shield, Users, Headphones, ChevronDown } from "lucide-react";
+import { Fragment, useState, useEffect } from "react";
+import { ArrowDown, Shield, Users, Headphones, ChevronDown, Play, X } from "lucide-react";
+
+const YT_ID = "S-ns66i-Lbc";
 
 export function Hero() {
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    if (!demo) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDemo(false); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [demo]);
   return (
     <section className="relative min-h-[82vh] flex items-center justify-center overflow-hidden pt-16">
 
@@ -57,6 +72,12 @@ export function Hero() {
             Get Started Free
           </button>
           <button
+            onClick={() => setDemo(true)}
+            className="px-8 py-3.5 rounded-full border border-white/30 text-white text-base font-semibold hover:bg-white/10 hover:border-white/50 transition-[background-color,border-color] duration-200 flex items-center gap-2"
+          >
+            <Play className="h-4 w-4 fill-white" /> Watch Demo
+          </button>
+          <button
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             className="px-8 py-3.5 rounded-full border border-white/30 text-white text-base font-semibold hover:bg-white/10 hover:border-white/50 transition-[background-color,border-color] duration-200 flex items-center gap-2"
           >
@@ -74,13 +95,13 @@ export function Hero() {
             { icon: Shield,     label: "Bank-Level Security" },
             { icon: Headphones, label: "24/7 Support" },
           ].map(({ icon: Icon, label }, i) => (
-            <>
-              <div key={label} className="flex items-center gap-2">
+            <Fragment key={label}>
+              <div className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-teal flex-shrink-0" />
                 <span className="text-white/70 text-sm font-medium">{label}</span>
               </div>
-              {i < 2 && <span key={`sep-${i}`} className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />}
-            </>
+              {i < 2 && <span className="hidden sm:block w-1 h-1 rounded-full bg-white/20" />}
+            </Fragment>
           ))}
         </div>
       </div>
@@ -101,6 +122,32 @@ export function Hero() {
           animation: hero-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
       `}</style>
+
+      {/* YouTube lightbox */}
+      {demo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          onClick={() => setDemo(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl mx-4 aspect-video"
+            onClick={e => e.stopPropagation()}
+          >
+            <iframe
+              src={`https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0&modestbranding=1`}
+              allow="autoplay; fullscreen"
+              allowFullScreen
+              className="w-full h-full rounded-2xl shadow-2xl"
+            />
+            <button
+              onClick={() => setDemo(false)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors duration-150 flex items-center gap-1.5 text-sm"
+            >
+              <X className="h-5 w-5" /> Close
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

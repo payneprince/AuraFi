@@ -1469,7 +1469,7 @@ export default function PortfolioPage() {
 
                         <div className="flex gap-1.5 mb-2">
                           {[50, 100, 500, 1000].map((a) => (
-                            <button key={a} onClick={() => setFundingAmount(String(a))}
+                            <button key={`amount-${a}`} onClick={() => setFundingAmount(String(a))}
                               className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 ${
                                 fundingAmount === String(a)
                                   ? fundingAction === 'deposit' ? 'bg-green-500/20 border-green-500/50 text-green-500' : 'bg-red-500/20 border-red-500/50 text-red-500'

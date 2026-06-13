@@ -9,8 +9,19 @@ const fmt = (n: number) =>
     ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : `$${n.toFixed(n < 1 ? 4 : 2)}`;
 
+const FALLBACK: Coin[] = [
+  { id: 'bitcoin',     symbol: 'BTC',  price: 67420,  change: 2.14  },
+  { id: 'ethereum',    symbol: 'ETH',  price: 3520,   change: 1.87  },
+  { id: 'solana',      symbol: 'SOL',  price: 148.30, change: 3.21  },
+  { id: 'binancecoin', symbol: 'BNB',  price: 582.40, change: -0.45 },
+  { id: 'ripple',      symbol: 'XRP',  price: 0.6182, change: 1.12  },
+  { id: 'cardano',     symbol: 'ADA',  price: 0.4521, change: -1.03 },
+  { id: 'avalanche-2', symbol: 'AVAX', price: 36.84,  change: 4.56  },
+  { id: 'polkadot',    symbol: 'DOT',  price: 7.23,   change: -0.78 },
+];
+
 export function MarketTicker() {
-  const [coins, setCoins] = useState<Coin[]>([]);
+  const [coins, setCoins] = useState<Coin[]>(FALLBACK);
 
   const load = async () => {
     try {
@@ -24,8 +35,6 @@ export function MarketTicker() {
     const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, []);
-
-  if (coins.length === 0) return null;
 
   const items = [...coins, ...coins];
 
