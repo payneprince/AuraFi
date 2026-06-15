@@ -9,7 +9,7 @@ import { getUser } from 'lib/shared/mock-data';
 import Image from 'next/image';
 import AuraAIChat from '@/components/AuraAIChat';
 import UserProfileMenu from '@/components/UserProfileMenu';
-import { AlertTriangle, Moon, Sun, Landmark, Wallet, TrendingUp, ArrowRight, ArrowLeftRight, Activity, PieChart, Receipt, Target, Sparkles } from 'lucide-react';
+import { AlertTriangle, Moon, Sun, TrendingUp, ArrowRight, ArrowLeftRight, Activity, PieChart, Receipt, Target, Sparkles } from 'lucide-react';
 import { writeUnifiedAuthSession } from '../../../../shared/unified-auth';
 import { AURAFINANCE_STORAGE_KEYS } from '@/lib/financeStateKeys';
 import {
@@ -301,7 +301,74 @@ export default function DashboardPage() {
     setChartHover({ index: nearest });
   };
 
-  if (status === 'loading') return <div>Loading...</div>;
+  if (status === 'loading') return (
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-[#0f172a] to-slate-900 flex flex-col items-center justify-center gap-8 overflow-hidden animate-in fade-in duration-500">
+      {/* Ambient glow blobs */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-2/3 w-80 h-80 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+      <div className="absolute top-2/3 left-1/3 w-56 h-56 rounded-full bg-magenta/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-1/3 right-1/4 w-40 h-40 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
+
+      {/* Logo with concentric spinning rings */}
+      <div className="relative animate-in zoom-in-75 fade-in duration-700" style={{ width: 130, height: 130 }}>
+        {/* Outer ring — slow, primary → magenta */}
+        <div
+          className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary/70 border-r-magenta/30 animate-spin"
+          style={{ animationDuration: '3.5s' }}
+        />
+        {/* Middle ring — reverse, magenta → primary */}
+        <div
+          className="absolute inset-[9px] rounded-full border-2 border-transparent border-t-magenta/60 border-r-primary/25 animate-spin"
+          style={{ animationDuration: '2.2s', animationDirection: 'reverse' }}
+        />
+        {/* Inner ring — fast, white */}
+        <div
+          className="absolute inset-[18px] rounded-full border border-transparent border-t-white/30 border-r-white/10 animate-spin"
+          style={{ animationDuration: '1.4s' }}
+        />
+        {/* Ping glow */}
+        <div
+          className="absolute inset-0 rounded-full bg-primary/8 animate-ping"
+          style={{ animationDuration: '2.4s' }}
+        />
+        {/* Logo image */}
+        <div className="absolute inset-[24px] rounded-full overflow-hidden bg-white shadow-2xl ring-2 ring-white/10">
+          <Image
+            src="/images/suiteloading.jpg"
+            alt="Aura Finance"
+            width={82}
+            height={82}
+            className="w-full h-full object-cover"
+            priority
+          />
+        </div>
+      </div>
+
+      {/* Brand name */}
+      <div
+        className="text-center space-y-1.5 animate-in fade-in slide-in-from-bottom-3 duration-700"
+        style={{ animationDelay: '200ms' }}
+      >
+        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-white to-magenta bg-clip-text text-transparent">
+          Aura Finance
+        </h1>
+        <p className="text-xs text-white/35 tracking-wide">Loading your dashboard…</p>
+      </div>
+
+      {/* Bouncing dots */}
+      <div
+        className="flex items-center gap-2 animate-in fade-in duration-700"
+        style={{ animationDelay: '400ms' }}
+      >
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-magenta animate-bounce"
+            style={{ animationDelay: `${i * 160}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
   if (!session) return null;
 
   const isDemoUser = sessionUserId === '1';
@@ -348,7 +415,6 @@ export default function DashboardPage() {
   const vestDash = (vestAlloc / 100) * donutCirc;
   const walletDash = (walletAlloc / 100) * donutCirc;
 
-  const recentTransactions = mockUser?.bank?.transactions?.slice(-5).reverse() ?? [];
   const mockHoldings = (mockUser?.vest?.portfolio ?? []).map((holding, index: number) => {
     const row = (holding && typeof holding === 'object') ? (holding as Record<string, unknown>) : {};
     return {
@@ -425,12 +491,6 @@ export default function DashboardPage() {
   const openLauncherApp = (app: 'bank' | 'vest' | 'wallet') => {
     const port = app === 'bank' ? 3001 : app === 'vest' ? 3002 : 3003;
     window.open(buildAppUrl(port, `?userId=${sessionUserId}`), '_blank', 'noopener,noreferrer');
-  };
-
-  const appLabel = (app: 'bank' | 'wallet' | 'vest') => {
-    if (app === 'bank') return 'AuraBank';
-    if (app === 'wallet') return 'AuraWallet';
-    return 'AuraVest';
   };
 
   const handleQuickTransfer = async () => {
@@ -642,7 +702,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={toggleDarkMode}
-              className="h-10 w-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center"
+              className="h-10 w-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/90 hover:bg-slate-100 dark:hover:bg-slate-700 hover:scale-105 active:scale-95 flex items-center justify-center transition-all duration-200"
               aria-label="Toggle dark mode"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

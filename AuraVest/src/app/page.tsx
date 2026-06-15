@@ -169,7 +169,33 @@ export default function HomePage() {
   }, []);
 
   if (!isReady) {
-    return null;
+    return (
+      <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-[#0f172a] to-black flex flex-col items-center justify-center gap-8 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-2/3 w-72 h-72 rounded-full bg-red-600/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/3 right-1/4 w-48 h-48 rounded-full bg-red-900/10 blur-3xl pointer-events-none" />
+
+        <div className="relative" style={{ width: 130, height: 130 }}>
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-red-500/70 border-r-red-800/30 animate-spin" style={{ animationDuration: '3.5s' }} />
+          <div className="absolute inset-[9px] rounded-full border-2 border-transparent border-t-red-800/60 border-r-red-500/25 animate-spin" style={{ animationDuration: '2.2s', animationDirection: 'reverse' }} />
+          <div className="absolute inset-[18px] rounded-full border border-transparent border-t-white/20 animate-spin" style={{ animationDuration: '1.4s' }} />
+          <div className="absolute inset-0 rounded-full bg-red-600/8 animate-ping" style={{ animationDuration: '2.4s' }} />
+          <div className="absolute inset-[24px] rounded-full overflow-hidden bg-white shadow-2xl ring-2 ring-white/10">
+            <img src="/images/vest.jpeg" alt="AuraVest" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        <div className="text-center space-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-red-500 via-white to-red-800 bg-clip-text text-transparent">AuraVest</h1>
+          <p className="text-xs text-white/35 tracking-wide">Loading your portfolio…</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 to-red-800 animate-bounce" style={{ animationDelay: `${i * 160}ms` }} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return <DashboardClient />;

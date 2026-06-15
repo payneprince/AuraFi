@@ -137,7 +137,7 @@ export default function AccountsPage({ userId }: { userId: number }) {
       <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
-          className="px-6 py-3 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-semibold rounded-lg hover:from-magenta-600 hover:to-teal-600 transition shadow-lg"
+          className="px-6 py-3 bg-gradient-to-r from-magenta-500 to-teal-500 text-white font-semibold rounded-lg hover:from-magenta-600 hover:to-teal-600 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 transition-all duration-300 shadow-lg"
         >
           + Add Account
         </button>
@@ -447,13 +447,13 @@ export default function AccountsPage({ userId }: { userId: number }) {
               <div className="pt-4 border-t border-slate-100 flex gap-3">
                 <button
                   onClick={() => setViewDetailsAccountId(account.id)}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 hover:-translate-y-0.5 active:scale-95 text-slate-700 font-medium rounded-lg transition-all duration-200"
                 >
                   View Details
                 </button>
                 <button
                   onClick={() => setTransferFromAccountId(account.id)}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-magenta-500 to-teal-500 hover:from-magenta-600 hover:to-teal-600 text-white font-medium rounded-lg transition-all hover:shadow-lg"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-magenta-500 to-teal-500 hover:from-magenta-600 hover:to-teal-600 hover:-translate-y-0.5 hover:shadow-lg active:scale-95 text-white font-medium rounded-lg transition-all duration-200"
                 >
                   Transfer
                 </button>

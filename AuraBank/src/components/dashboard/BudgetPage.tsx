@@ -4,6 +4,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Wallet, TrendingDown, PiggyBank, Info, CheckCircle2, AlertTriangle, Receipt } from 'lucide-react';
 import { getCategoryStyle } from './TransactionsPage';
 
+const getSpinColor = (textClass: string, isOver: boolean) => {
+  if (isOver) return 'border-t-red-500/80 border-r-red-500/30';
+  if (textClass.includes('magenta')) return 'border-t-magenta-500/80 border-r-magenta-500/30';
+  if (textClass.includes('mint'))    return 'border-t-mint-500/80 border-r-mint-500/30';
+  if (textClass.includes('teal'))    return 'border-t-teal-400/80 border-r-teal-400/30';
+  if (textClass.includes('amber'))   return 'border-t-amber-400/80 border-r-amber-400/30';
+  if (textClass.includes('red'))     return 'border-t-red-400/80 border-r-red-400/30';
+  if (textClass.includes('green'))   return 'border-t-green-400/80 border-r-green-400/30';
+  return 'border-t-slate-400/80 border-r-slate-400/30';
+};
+
 export default function BudgetPage() {
   const { budgets, transactions } = useAuth();
 
@@ -107,6 +118,7 @@ export default function BudgetPage() {
             const percentage = Math.min((budget.spent / budget.limit) * 100, 100);
             const isOverBudget = budget.spent > budget.limit;
             const { Icon: CategoryIcon, bg: iconBg, text: iconText } = getCategoryStyle(budget.category);
+            const spin = getSpinColor(iconText, isOverBudget);
 
             return (
               <div
@@ -116,9 +128,12 @@ export default function BudgetPage() {
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`relative w-10 h-10 rounded-full ${iconBg} ${iconText} flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110`}>
-                      {isOverBudget && <span className="absolute inset-0 rounded-full bg-red-400/40 animate-ping" />}
-                      <CategoryIcon className="relative w-[18px] h-[18px]" />
+                    <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110" style={{ width: 40, height: 40 }}>
+                      <div className={`absolute inset-0 rounded-full border-2 border-transparent ${spin} group-hover:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                      {isOverBudget && <span className="absolute inset-0 rounded-full bg-red-400/30 animate-ping" />}
+                      <div className={`absolute inset-[3px] rounded-full ${iconBg} ${iconText} flex items-center justify-center`}>
+                        <CategoryIcon className="w-4 h-4" />
+                      </div>
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-medium text-text-dark truncate">{budget.category}</h4>

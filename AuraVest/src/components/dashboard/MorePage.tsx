@@ -3,14 +3,13 @@
 
 import {
   Settings,
-  Shield, 
-  Wallet, 
-  Bell, 
-  FileText, 
-  HelpCircle, 
-  BookOpen, 
-  Gift, 
-  LogOut, 
+  Shield,
+  Bell,
+  FileText,
+  HelpCircle,
+  BookOpen,
+  Gift,
+  LogOut,
   Smartphone,
   ChevronRight,
 } from 'lucide-react';
@@ -57,26 +56,29 @@ export default function MorePage() {
   const menuSections = [
     {
       title: 'Security',
+      accent: { bg: 'bg-red-500/15', text: 'text-red-400', spin: 'border-t-red-500/80 border-r-red-500/30' },
       items: [
         { icon: Shield, label: 'Two-Factor Authentication', description: twoFactor ? 'Enabled' : 'Disabled', toggle: true, value: twoFactor, onChange: setTwoFactor },
         { icon: Settings, label: 'Transaction Limits', description: 'Set spending limits' },
         { icon: Smartphone, label: 'Biometric Login', description: 'Face ID / Fingerprint' },
-      ]
+      ],
     },
     {
       title: 'Preferences',
+      accent: { bg: 'bg-orange-500/15', text: 'text-orange-400', spin: 'border-t-orange-500/80 border-r-orange-500/30' },
       items: [
         { icon: Bell, label: 'Notifications', description: notifications ? 'Enabled' : 'Disabled', toggle: true, value: notifications, onChange: setNotifications },
-      ]
+      ],
     },
     {
       title: 'Resources',
+      accent: { bg: 'bg-amber-500/15', text: 'text-amber-400', spin: 'border-t-amber-500/80 border-r-amber-500/30' },
       items: [
-        { icon: BookOpen, label: 'Educational Resources', description: 'Learn about investing', link: '/learn' },
+        { icon: BookOpen, label: 'Educational Resources', description: 'Learn about investing' },
         { icon: FileText, label: 'Tax Reporting', description: 'Download tax documents' },
-        { 
-          icon: FileText, 
-          label: 'Transaction History', 
+        {
+          icon: FileText,
+          label: 'Transaction History',
           description: 'Export CSV/PDF',
           action: () => {
             const url = exportTransactionsCSV();
@@ -86,31 +88,27 @@ export default function MorePage() {
               link.download = `auravest-transactions-${new Date().toISOString().split('T')[0]}.csv`;
               link.click();
             }
-          }
+          },
         },
-      ]
+      ],
     },
     {
       title: 'Support',
+      accent: { bg: 'bg-rose-500/15', text: 'text-rose-400', spin: 'border-t-rose-500/80 border-r-rose-500/30' },
       items: [
         { icon: HelpCircle, label: 'Help Center', description: 'FAQs and support' },
         { icon: Gift, label: 'Referral Program', description: 'Invite friends, earn rewards' },
-      ]
-    }
+      ],
+    },
   ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Settings and additional features</p>
-      </div>
-
       {/* User Profile Card */}
       <button
         type="button"
         onClick={() => setShowUserDetails(true)}
-        className="group w-full text-left gradient-primary rounded-xl p-5 text-white transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl cursor-pointer animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+        className="group w-full text-left gradient-primary rounded-xl p-5 text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-red-500/20 cursor-pointer animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
       >
         <div className="flex items-center gap-3">
           <div className="relative flex-shrink-0" style={{ width: 48, height: 48 }}>
@@ -133,42 +131,43 @@ export default function MorePage() {
       {menuSections.map((section, idx) => (
         <div
           key={idx}
-          className="bg-card border border-border rounded-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
+          className="rounded-xl border border-white/10 bg-black/40 overflow-hidden hover:border-white/20 hover:shadow-lg hover:shadow-black/20 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-300"
           style={{ animationDelay: `${(idx + 1) * 80}ms` }}
         >
-          <div className="p-3 border-b border-border">
-            <h3 className="font-semibold text-sm">{section.title}</h3>
+          <div className="px-4 py-3 border-b border-white/10">
+            <h3 className="font-semibold text-sm text-white/90">{section.title}</h3>
           </div>
           <div>
-            {section.items.map((item: any, itemIdx) => {
+            {section.items.map((item: any, itemIdx: number) => {
               const Icon = item.icon;
               return (
                 <button
                   key={itemIdx}
                   onClick={() => {
-                    if (item.toggle && item.onChange) {
-                      item.onChange(!item.value);
-                    } else if (item.action) {
-                      item.action();
-                    }
+                    if (item.toggle && item.onChange) item.onChange(!item.value);
+                    else if (item.action) item.action();
                   }}
-                  className="w-full flex items-center justify-between p-4 hover:bg-accent transition-colors border-b border-border last:border-b-0 text-left"
+                  className="group w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors duration-200 border-b border-white/10 last:border-b-0 text-left"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Icon className="w-4 h-4 text-primary" />
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative flex-shrink-0 transition-transform duration-300 group-hover:-translate-y-0.5" style={{ width: 36, height: 36 }}>
+                      <div className={`absolute inset-0 rounded-full border-2 border-transparent ${section.accent.spin} group-hover:animate-spin`} style={{ animationDuration: '2.5s' }} />
+                      <div className={`absolute inset-[2.5px] rounded-full ${section.accent.bg} ${section.accent.text} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-white truncate">{item.label}</p>
+                      <p className="text-xs text-white/60 truncate">{item.description}</p>
                     </div>
                   </div>
+
                   {item.toggle ? (
-                    <div className={`w-8 h-4 rounded-full transition-colors ${item.value ? 'bg-primary' : 'bg-muted'}`}>
-                      <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${item.value ? 'ml-4' : 'ml-0.5'}`} />
+                    <div className={`w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-300 ${item.value ? 'bg-red-500' : 'bg-white/20'}`}>
+                      <div className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform duration-300 ${item.value ? 'ml-4' : 'ml-0.5'}`} />
                     </div>
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    <ChevronRight className="w-4 h-4 text-white/50 flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5" />
                   )}
                 </button>
               );
@@ -178,15 +177,16 @@ export default function MorePage() {
       ))}
 
       {/* Logout Button */}
-      <button 
-        className="w-full flex items-center justify-center gap-2 p-4 bg-card border border-border rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+      <button
+        className="group w-full flex items-center justify-center gap-2 p-4 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/10 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+        style={{ animationDelay: `${(menuSections.length + 1) * 80}ms` }}
         onClick={() => {
           clearUnifiedAuthSession();
           sessionStorage.removeItem('paynesuite_userId');
           window.location.href = buildAppUrl(3000, '/login');
         }}
       >
-        <LogOut className="w-4 h-4" />
+        <LogOut className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
         <span className="font-semibold">Logout</span>
       </button>
     </div>

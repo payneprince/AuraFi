@@ -327,7 +327,33 @@ export default function Dashboard() {
   };
 
   if (!isReady) {
-    return null;
+    return (
+      <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-[#0B1E39] to-black flex flex-col items-center justify-center gap-8 overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-2/3 w-72 h-72 rounded-full bg-green-500/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/3 right-1/4 w-48 h-48 rounded-full bg-emerald-900/10 blur-3xl pointer-events-none" />
+
+        <div className="relative" style={{ width: 130, height: 130 }}>
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-500/70 border-r-emerald-800/30 animate-spin" style={{ animationDuration: '3.5s' }} />
+          <div className="absolute inset-[9px] rounded-full border-2 border-transparent border-t-emerald-800/60 border-r-green-500/25 animate-spin" style={{ animationDuration: '2.2s', animationDirection: 'reverse' }} />
+          <div className="absolute inset-[18px] rounded-full border border-transparent border-t-white/20 animate-spin" style={{ animationDuration: '1.4s' }} />
+          <div className="absolute inset-0 rounded-full bg-green-500/8 animate-ping" style={{ animationDuration: '2.4s' }} />
+          <div className="absolute inset-[24px] rounded-full overflow-hidden bg-white shadow-2xl ring-2 ring-white/10">
+            <img src="/images/wallet.jpg" alt="AuraWallet" className="w-full h-full object-cover" />
+          </div>
+        </div>
+
+        <div className="text-center space-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-green-400 via-white to-emerald-600 bg-clip-text text-transparent">AuraWallet</h1>
+          <p className="text-xs text-white/35 tracking-wide">Loading your wallet…</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="w-2 h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 animate-bounce" style={{ animationDelay: `${i * 160}ms` }} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const renderSection = () => {
