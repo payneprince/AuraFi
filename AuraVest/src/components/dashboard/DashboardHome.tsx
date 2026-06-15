@@ -989,20 +989,67 @@ export default function DashboardHome({ onNavigate }: { onNavigate?: (tab: strin
                   style={{ animationDelay: `${i * 40}ms` }}>
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Asset logo or icon */}
-                    <div className="relative flex-shrink-0">
-                      <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center text-white text-[10px] font-bold ${logo ? 'bg-muted' : isBuy || tx.type === 'sell' ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-gradient-to-br from-blue-500 to-cyan-500'}`}>
-                        {logo ? (
-                          <img src={logo} alt={tx.asset} className="w-full h-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          isDeposit ? <ArrowDownRight className="w-4 h-4" /> :
-                          isWithdrawal ? <ArrowUpRight className="w-4 h-4" /> :
-                          <span>{(tx.asset || '??').slice(0, 2)}</span>
-                        )}
-                      </div>
-                      {/* Type badge overlay */}
-                      <span className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded border ${typeColor}`}>{typeLabel}</span>
-                    </div>
+                    {(() => {
+                      const method = (tx.method || '').toLowerCase();
+                      const name  = (tx.assetName || '').toLowerCase();
+                      const curr  = (tx.currency || '').toUpperCase();
+
+                      // Platform logo for deposits / withdrawals
+                      let platformLogo: string | null = null;
+                      if (isDeposit || isWithdrawal) {
+                        if (method.includes('paystack') || name.includes('momo') || name.includes('card') || curr === 'GHS') {
+                          platformLogo = '/app-logos/paystack.png';
+                        } else if (method.includes('bank') || name.includes('bank')) {
+                          platformLogo = '/app-logos/bank.jpg';
+                        } else if (method.includes('wallet') || name.includes('wallet')) {
+                          platformLogo = '/app-logos/wallet.jpeg';
+                        }
+                      }
+
+                      const displayLogo = logo || platformLogo;
+                      const bgClass = displayLogo
+                        ? 'bg-muted'
+                        : isBuy || tx.type === 'sell'
+                        ? 'bg-gradient-to-br from-purple-500 to-blue-500'
+                        : isDeposit
+                        ? 'bg-gradient-to-br from-blue-500 to-cyan-400'
+                        : 'bg-gradient-to-br from-orange-500 to-amber-400';
+
+                      return (
+                        <div className="relative flex-shrink-0">
+                          <div className={`w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center text-white text-[10px] font-bold ${bgClass}`}>
+                            {displayLogo && (
+                              <img
+                                src={displayLogo}
+                                alt={tx.asset}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const img = e.currentTarget;
+                                  img.style.display = 'none';
+                                  const fb = img.nextElementSibling as HTMLElement | null;
+                                  if (fb) fb.style.display = 'flex';
+                                }}
+                              />
+                            )}
+                            {/* Fallback: dollar badge for deposits/withdrawals, initials for trades */}
+                            <span
+                              style={{ display: displayLogo ? 'none' : undefined }}
+                              className="flex flex-col items-center justify-center w-full h-full"
+                            >
+                              {isDeposit || isWithdrawal ? (
+                                <>
+                                  <span className="text-sm font-black leading-none">$</span>
+                                  <span className="text-[7px] font-bold tracking-widest leading-none opacity-70">USD</span>
+                                </>
+                              ) : (
+                                (tx.asset || '??').slice(0, 2)
+                              )}
+                            </span>
+                          </div>
+                          <span className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded border ${typeColor}`}>{typeLabel}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate leading-tight">
                         {isDeposit ? 'Deposit' : isWithdrawal ? 'Withdrawal' : `${isBuy ? 'Bought' : 'Sold'} ${tx.assetName || tx.asset}`}

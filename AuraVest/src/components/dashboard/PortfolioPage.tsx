@@ -2485,7 +2485,7 @@ export default function PortfolioPage() {
                     <div className="flex gap-1.5 mt-2">
                       {['50', '100', '250', '500'].map((v) => (
                         <button
-                          key={v}
+                          key={`dca-amt-${v}`}
                           onClick={() => setDcaAmount(v)}
                           className={`flex-1 py-1 text-[11px] rounded-lg border transition-all font-medium ${dcaAmount === v ? 'bg-purple-500/20 border-purple-400/50 text-purple-400' : 'border-border bg-background hover:bg-accent'}`}
                         >

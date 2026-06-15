@@ -1402,52 +1402,75 @@ export default function MarketsPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {nftAssets.map((nft) => {
+            {nftAssets.map((nft, idx) => {
               const isPositive = typeof nft.change24h === 'number' && nft.change24h >= 0;
               return (
                 <div
                   key={nft.id}
-                  className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-all hover:scale-105 cursor-pointer animate-fadeIn"
+                  onClick={() => handleAssetClick(nft)}
+                  className="group relative rounded-2xl overflow-hidden border border-purple-500/20 hover:border-purple-400/50 bg-gradient-to-b from-[#110018] to-[#07000f] cursor-pointer transition-[border-color,box-shadow,transform] duration-300 hover:shadow-xl hover:shadow-purple-500/15 hover:-translate-y-1 will-change-transform"
                 >
-                  <div className="h-32 bg-gray-100 relative overflow-hidden flex items-center justify-center">
+                  {/* Shine sweep on hover */}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out bg-gradient-to-r from-transparent via-white/[0.04] to-transparent pointer-events-none z-10" />
+
+                  {/* Image area */}
+                  <div className="relative aspect-[4/3] overflow-hidden">
                     <img
                       src={nft.image}
                       alt={nft.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
-                        const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (fallback) fallback.style.display = 'flex';
+                        const fb = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (fb) fb.style.display = 'flex';
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 flex items-center justify-center text-white font-bold text-4xl hidden">
-                      {nft.symbol.slice(0, 2)}
+                    {/* Image fallback */}
+                    <div className="hidden absolute inset-0 bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 items-center justify-center text-white font-black text-4xl">
+                      {nft.symbol?.slice(0, 2) ?? '??'}
                     </div>
+
+                    {/* Rank badge */}
+                    <span className="absolute top-2.5 left-2.5 z-10 text-[10px] font-black px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-purple-300 border border-purple-500/40">
+                      #{idx + 1}
+                    </span>
+
+                    {/* 24h change pill */}
+                    <span className={`absolute top-2.5 right-2.5 z-10 text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm border ${isPositive ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+                      {isPositive ? '▲' : '▼'} {Math.abs(nft.change24h ?? 0).toFixed(1)}%
+                    </span>
+
+                    {/* Bottom gradient overlay */}
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#07000f] to-transparent" />
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-sm mb-2 line-clamp-1">{nft.name}</h3>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Floor Price</span>
-                        <span className="font-medium">{nft.price} ETH</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">24h Volume</span>
-                        <span className="font-medium">{(nft.volume24h / 1000000).toFixed(1)}M ETH</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Change</span>
-                        <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
-                          {formatPercent(nft.change24h)}%
-                        </span>
-                      </div>
+
+                  {/* Card body */}
+                  <div className="px-3.5 pt-2.5 pb-3.5">
+                    {/* Name */}
+                    <h3 className="font-bold text-sm text-white/90 line-clamp-1 mb-2.5 group-hover:text-purple-200 transition-colors duration-200">
+                      {nft.name}
+                    </h3>
+
+                    {/* Floor price — hero stat */}
+                    <div className="mb-2.5">
+                      <p className="text-[9px] text-purple-400/60 uppercase tracking-widest font-semibold mb-0.5">Floor Price</p>
+                      <p className="text-lg font-black text-white tabular-nums leading-tight">
+                        {nft.price} <span className="text-sm font-semibold text-purple-400/70">ETH</span>
+                      </p>
                     </div>
+
+                    {/* Volume sub-stat */}
+                    <div className="flex items-center justify-between text-[10px] mb-3 border-t border-white/[0.06] pt-2.5">
+                      <span className="text-white/35 font-medium">24h Vol</span>
+                      <span className="text-white/60 font-semibold tabular-nums">
+                        {(nft.volume24h / 1_000_000).toFixed(1)}M ETH
+                      </span>
+                    </div>
+
+                    {/* CTA */}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAssetClick(nft);
-                      }}
-                      className="mt-3 w-full py-2 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); handleAssetClick(nft); }}
+                      className="w-full py-2 rounded-xl text-xs font-bold text-purple-300 border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 hover:border-purple-400/50 hover:text-purple-200 transition-[background-color,border-color,color] duration-200"
                     >
                       View Collection
                     </button>

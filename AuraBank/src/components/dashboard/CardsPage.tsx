@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Lock, Unlock, Settings, Wallet, X, Plus, Wifi } from 'lucide-react';
+import { Lock, Unlock, Settings, Wallet, X, Plus, Wifi, RefreshCw } from 'lucide-react';
 import { CardSettingsModal } from './CardSettingsModal';
 import { CardReplacementModal } from './CardReplacementModal';
 import { AddCardModal } from './AddCardModal';
@@ -67,9 +67,9 @@ export default function CardsPage() {
       case 'visa':
         return 'from-blue-400 to-blue-800';
       case 'mastercard':
-        return 'from-orange-300 to-red-600';
+        return 'from-zinc-800 to-black';
       case 'amex':
-        return 'from-teal-300 to-cyan-800';
+        return 'from-emerald-700 to-emerald-950';
       default:
         return 'from-slate-600 to-slate-800';
     }
@@ -79,23 +79,21 @@ export default function CardsPage() {
     // Fully inside the card bounds so nothing gets clipped.
     const base = 'absolute bottom-4 right-4 sm:bottom-5 sm:right-5 w-24 h-24 sm:w-28 sm:h-28 group-hover:scale-105 transition-all duration-500 pointer-events-none origin-bottom-right';
     if (brand === 'visa') {
-      // The wordmark turns white/silver via filter so it reads on the blue tile, where its native blue would otherwise vanish.
       return (
-        <div className={`${base} opacity-[0.24] group-hover:opacity-[0.4] [filter:brightness(0)_invert(1)]`}>
-          <img src="/visa.svg" alt="" className="w-full h-full object-contain" />
+        <div className="absolute bottom-1 right-3 sm:bottom-2 sm:right-4 w-32 h-32 sm:w-36 sm:h-36 group-hover:scale-105 transition-all duration-500 pointer-events-none origin-bottom-right opacity-[0.24] group-hover:opacity-[0.4] [filter:brightness(0)_invert(1)]">
+          <img src="/visa.svg" alt="" className="w-full h-full object-contain object-bottom" />
         </div>
       );
     }
     if (brand === 'mastercard') {
-      // Keeps its red/yellow circles intact (inverting them would merge the two rings into a flat blob) — soft-light blending lets the natural colours melt into the gradient instead.
       return (
-        <div className={`${base} opacity-[0.5] group-hover:opacity-[0.65] [mix-blend-mode:soft-light]`}>
+        <div className={`${base} opacity-[0.45] group-hover:opacity-[0.65] [mix-blend-mode:screen]`}>
           <img src="/mastercard.svg" alt="" className="w-full h-full object-contain" />
         </div>
       );
     }
     return (
-      <div className={`${base} opacity-[0.24] group-hover:opacity-[0.4]`}>
+      <div className={`${base} opacity-[0.24] group-hover:opacity-[0.4] flex items-end justify-end`}>
         <span className="text-4xl italic font-black tracking-widest text-white">AMEX</span>
       </div>
     );
@@ -261,7 +259,7 @@ export default function CardsPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <Wifi className="w-5 h-5 rotate-90 text-white/55" strokeWidth={2.25} />
+                        <Wifi className="w-7 h-7 rotate-90 text-white/55" strokeWidth={2.25} />
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium backdrop-blur-sm border ${
                           card.status === 'active' ? 'bg-green-500/10 border-green-200/30 text-green-50' :
                           card.status === 'blocked' ? 'bg-red-500/10 border-red-200/30 text-red-50' :
@@ -278,14 +276,35 @@ export default function CardsPage() {
 
                     {/* Chip + card number */}
                     <div className="space-y-4">
-                      {/* EMV chip */}
-                      <div className="relative w-12 h-9 rounded-[5px] bg-gradient-to-br from-yellow-100 via-yellow-300 to-yellow-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(120,80,0,0.35)] transition-transform duration-300 group-hover:scale-105">
-                        <div className="absolute inset-[3px] grid grid-cols-3 grid-rows-2 gap-[2px]">
+                      {/* EMV chip — ISO/IEC 7816 6-contact layout */}
+                      <div
+                        className="relative w-[52px] h-[40px] rounded-[5px] overflow-hidden transition-transform duration-300 group-hover:scale-105 flex-shrink-0"
+                        style={{
+                          background: 'linear-gradient(150deg,#f7e98e 0%,#c8920c 22%,#f0d060 42%,#b07808 60%,#e4c030 78%,#a86e04 100%)',
+                          boxShadow: 'inset 0 1.5px 2px rgba(255,245,180,0.75), inset 0 -2px 4px rgba(90,50,0,0.55), 0 3px 8px rgba(0,0,0,0.45)',
+                        }}
+                      >
+                        {/* diagonal metallic sheen */}
+                        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(140deg,rgba(255,255,255,0.28) 0%,transparent 48%,rgba(0,0,0,0.12) 100%)' }} />
+                        {/* horizontal centre groove */}
+                        <div className="absolute left-[4px] right-[4px] top-1/2 -translate-y-px h-px" style={{ background: 'rgba(100,55,0,0.28)' }} />
+                        {/* vertical column grooves */}
+                        <div className="absolute top-[4px] bottom-[4px] w-px" style={{ left: 'calc(33.3% - 0.5px)', background: 'rgba(100,55,0,0.22)' }} />
+                        <div className="absolute top-[4px] bottom-[4px] w-px" style={{ left: 'calc(66.6% - 0.5px)', background: 'rgba(100,55,0,0.22)' }} />
+                        {/* 6 contact pads — 2 rows × 3 cols */}
+                        <div className="absolute inset-[5px] grid grid-cols-3 grid-rows-2 gap-[3px]">
                           {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="rounded-[1px] bg-yellow-700/20 border border-yellow-800/15" />
+                            <div
+                              key={i}
+                              className="rounded-[2px]"
+                              style={{
+                                background: 'linear-gradient(150deg,rgba(255,235,110,0.4) 0%,rgba(160,100,8,0.38) 100%)',
+                                border: '0.75px solid rgba(120,72,4,0.32)',
+                                boxShadow: 'inset 0 1px 0 rgba(255,248,190,0.35), 0 1px 1.5px rgba(0,0,0,0.18)',
+                              }}
+                            />
                           ))}
                         </div>
-                        <div className="absolute inset-x-0 top-1/2 h-px bg-yellow-800/25" />
                       </div>
 
                       <p
@@ -312,9 +331,10 @@ export default function CardsPage() {
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleFlip(card.id); }}
-                        className="flex-shrink-0 self-end mb-0.5 text-[10px] font-semibold tracking-widest uppercase text-white/50 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white/60 transition-colors duration-300"
+                        className="flex-shrink-0 self-end translate-y-2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white/60 hover:text-white transition-all duration-300 hover:rotate-180"
+                        title="Flip card"
                       >
-                        View CVV
+                        <RefreshCw className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -322,55 +342,70 @@ export default function CardsPage() {
 
                 {/* ───────── Back face ───────── */}
                 <div className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-hidden bg-gradient-to-br ${getCardGradient(card.brand, card.isVirtual)} rounded-2xl text-white shadow-2xl`}>
+                  {/* diagonal texture */}
                   <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay" style={{ backgroundImage: 'repeating-linear-gradient(125deg, #fff 0px, #fff 1px, transparent 1px, transparent 11px)' }} />
+                  {/* top-right gloss */}
+                  <div className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none" />
 
-                  {/* issuer mark — logo + wordmark, mirroring the front */}
-                  <div className="absolute top-5 left-6 sm:left-7 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0 ring-1 ring-white/20 opacity-80">
-                      <img src="/dblogo.jpg" alt="AuraBank" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    </div>
-                    <span className="text-sm font-bold tracking-wide opacity-50" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
-                      AuraBank
-                    </span>
-                  </div>
-
-                  {/* magnetic stripe */}
-                  <div className="mt-[3.4rem] h-10 w-full bg-slate-950/85" />
-
-                  {/* signature panel + CVV */}
-                  <div className="relative px-6 sm:px-7 mt-5">
-                    <p className="text-[8px] uppercase tracking-[0.25em] text-white/35 mb-1.5">Authorized Signature</p>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-9 bg-white/95 rounded-sm flex items-center px-3 overflow-hidden relative">
-                        <div className="absolute inset-0 opacity-60" style={{ backgroundImage: 'repeating-linear-gradient(125deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 7px)' }} />
-                        <p className="relative italic text-slate-500 text-sm truncate">{card.cardHolder}</p>
+                  {/* Top bar — issuer + flip button */}
+                  <div className="relative flex items-center justify-between px-6 sm:px-7 pt-5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md overflow-hidden flex-shrink-0 ring-1 ring-white/20 opacity-80">
+                        <img src="/dblogo.jpg" alt="AuraBank" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       </div>
-                      <div className="bg-white rounded-sm px-3 py-1.5 text-center shadow-sm flex-shrink-0 min-w-[58px]">
-                        <p className="text-[8px] uppercase tracking-wider text-slate-400 leading-none mb-0.5">CVV</p>
-                        <p className="font-mono text-slate-900 font-bold tracking-[0.25em] text-sm">{card.cvv}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* hologram */}
-                  <div
-                    className="absolute left-6 sm:left-7 top-[9rem] w-9 h-9 rounded-full opacity-50 shadow-inner"
-                    style={{ background: 'conic-gradient(from 180deg, #fbcfe8, #bfdbfe, #bbf7d0, #fef9c3, #fbcfe8)' }}
-                  />
-
-                  <div className="absolute bottom-6 left-6 right-6 sm:left-7 sm:right-7 flex items-end justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[9px] text-white/40 font-mono tracking-wider">{maskCardNumber(card.cardNumber)}</p>
-                      <p className="text-[9px] text-white/35 mt-1 max-w-[190px] leading-snug">
-                        Lost or stolen? Contact AuraBank support 24/7 — see app for details.
-                      </p>
+                      <span className="text-sm font-bold tracking-wide opacity-50" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>AuraBank</span>
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleFlip(card.id); }}
-                      className="flex-shrink-0 text-[10px] font-semibold tracking-widest uppercase text-white/50 underline decoration-white/25 underline-offset-4 hover:text-white hover:decoration-white/60 transition-colors duration-300"
+                      className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white/60 hover:text-white transition-all duration-300 hover:rotate-180"
+                      title="Flip card"
                     >
-                      View front
+                      <RefreshCw className="w-3.5 h-3.5" />
                     </button>
+                  </div>
+
+                  {/* Magnetic stripe */}
+                  <div className="relative mt-4 h-12 w-full overflow-hidden">
+                    <div className="absolute inset-0 bg-slate-950/90" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/[0.03] via-white/[0.07] to-white/[0.03]" />
+                    <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white/[0.05] to-transparent" />
+                    <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white/[0.05] to-transparent" />
+                  </div>
+
+                  {/* Signature panel + CVV */}
+                  <div className="px-6 sm:px-7 mt-4">
+                    <p className="text-[8px] uppercase tracking-[0.25em] text-white/35 mb-1.5">Authorized Signature</p>
+                    <div className="flex items-stretch gap-3">
+                      <div className="flex-1 relative rounded-sm overflow-hidden" style={{ height: 42 }}>
+                        <div className="absolute inset-0 bg-white/95" />
+                        <div className="absolute inset-0 opacity-75" style={{ backgroundImage: 'repeating-linear-gradient(125deg, #d4d4d4 0 1.5px, transparent 1.5px 8px)' }} />
+                        <div className="relative h-full flex items-center px-3">
+                          <p className="italic text-slate-500 text-sm truncate">{card.cardHolder}</p>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 bg-white rounded-sm shadow-sm flex flex-col items-center justify-center px-3 min-w-[64px]" style={{ height: 42 }}>
+                        <p className="text-[7px] uppercase tracking-[0.2em] text-slate-400 leading-none">CVV</p>
+                        <p className="font-mono text-slate-900 font-bold tracking-[0.3em] text-base leading-tight mt-0.5">{card.cvv}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom row — hologram + card info */}
+                  <div className="absolute bottom-5 left-6 right-6 sm:left-7 sm:right-7 flex items-end justify-between gap-3">
+                    <div className="flex items-end gap-3">
+                      {/* hologram sticker */}
+                      <div
+                        className="relative flex-shrink-0 w-10 h-7 rounded-[4px] overflow-hidden shadow-md opacity-80"
+                        style={{ background: 'conic-gradient(from 0deg,#f0abfc,#818cf8,#67e8f9,#86efac,#fde68a,#fca5a5,#f0abfc)' }}
+                      >
+                        <div className="absolute inset-0 bg-white/15" />
+                        <div className="absolute inset-0 opacity-50" style={{ backgroundImage: 'repeating-linear-gradient(45deg,rgba(255,255,255,0.35) 0 1px,transparent 1px 5px),repeating-linear-gradient(-45deg,rgba(255,255,255,0.35) 0 1px,transparent 1px 5px)' }} />
+                      </div>
+                      <div className="min-w-0 mb-0.5">
+                        <p className="text-[9px] text-white/40 font-mono tracking-wider">{maskCardNumber(card.cardNumber)}</p>
+                        <p className="text-[8px] text-white/28 mt-0.5 leading-snug">Lost or stolen? Contact support 24/7</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

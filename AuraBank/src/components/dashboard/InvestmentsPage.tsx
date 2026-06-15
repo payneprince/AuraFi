@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Landmark, Clock, ShieldCheck, TrendingUp, ExternalLink, Building2, Lightbulb } from 'lucide-react';
 
 const tBillRates = [
@@ -73,6 +73,15 @@ const getRateStyle = (color: string) => {
 export default function InvestmentsPage() {
   const openAuraVest = () => window.open('http://localhost:3002', '_self');
 
+  const [inflation, setInflation] = useState<{ rate: number | null; year: string }>({ rate: null, year: '' });
+
+  useEffect(() => {
+    fetch('/api/economic-data')
+      .then(r => r.json())
+      .then(d => setInflation({ rate: d.inflationRate, year: d.year }))
+      .catch(() => {});
+  }, []);
+
   const auctionCountdown = useMemo(() => {
     const now = new Date();
     const day = now.getDay();
@@ -131,8 +140,12 @@ export default function InvestmentsPage() {
             <Landmark className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-slate-500">BOG Policy Rate</p>
-            <p className="text-lg font-bold text-text-dark tabular-nums">14.0%</p>
+            <p className="text-xs text-slate-500">
+              Ghana Inflation{inflation.year ? ` (${inflation.year})` : ''}
+            </p>
+            <p className="text-lg font-bold text-text-dark tabular-nums">
+              {inflation.rate !== null ? `${inflation.rate}%` : '14.0%'}
+            </p>
           </div>
         </div>
         <div className="bg-surface rounded-2xl shadow-lg border border-slate-200 p-4 flex items-center gap-3 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">

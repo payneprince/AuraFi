@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, TrendingUp, TrendingDown, Zap, Star, Bell, Check } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Zap, Star, Bell, Check, Newspaper, ExternalLink } from 'lucide-react';
 import { getWatchlist, addToWatchlist, removeFromWatchlist } from '@/lib/mockAPI';
 
 function DetailSparkline({ price, change24h, symbol, isPositive }: { price: number; change24h: number; symbol: string; isPositive: boolean }) {
@@ -85,8 +85,12 @@ function DetailSparkline({ price, change24h, symbol, isPositive }: { price: numb
   );
 }
 
+type NewsItem = { headline: string; url: string; source: string; datetime: number };
+
 export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
   const [tradeHoldings, setTradeHoldings] = useState<any[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [alertPrice, setAlertPrice] = useState('');
   const [alertDir, setAlertDir] = useState<'above' | 'below'>('above');
@@ -144,6 +148,22 @@ export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
 
   useEffect(() => {
     setTradeHoldings(JSON.parse(localStorage.getItem('auravest_trade_holdings') || '[]'));
+  }, [asset?.symbol]);
+
+  useEffect(() => {
+    if (!previewImg) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPreviewImg(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [previewImg]);
+
+  useEffect(() => {
+    if (assetClass !== 'Stocks' || isLocalGhanaStock) return;
+    setNews([]);
+    fetch(`/api/news?symbol=${encodeURIComponent(asset?.symbol ?? '')}`)
+      .then(r => r.json())
+      .then(d => setNews(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [asset?.symbol]);
 
   useEffect(() => {
@@ -269,22 +289,67 @@ export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Sample Collection</p>
               <div className="grid grid-cols-2 gap-3">
-                {[1, 2].map((v) => (
-                  <div key={v} className="bg-muted rounded-xl overflow-hidden border border-border">
-                    <div className="aspect-square overflow-hidden">
-                      <img src={`/nft/${asset.id === '1' ? 'bayc' : `nft-${asset.id}`}-variant${v}.jpg`} alt="" className="w-full h-full object-cover"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement)?.classList.remove('hidden'); }} />
-                      <div className="hidden w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 items-center justify-center text-white font-bold text-2xl aspect-square">
-                        {asset.symbol?.slice(0, 2)}
+                {[1, 2].map((v) => {
+                  const src = `/nft/${asset.id === '1' ? 'bayc' : `nft-${asset.id}`}-variant${v}.jpg`;
+                  const tokenId = `#${Math.floor(asset.symbol.charCodeAt(0) * 137 + v * 3791) % 9999 + 1}`;
+                  return (
+                    <div key={v} className="group bg-muted rounded-xl overflow-hidden border border-border hover:border-purple-500/40 transition-[border-color] duration-200">
+                      <div
+                        className="aspect-square overflow-hidden relative cursor-zoom-in"
+                        onClick={() => setPreviewImg(src)}
+                      >
+                        <img
+                          src={src}
+                          alt={tokenId}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            (e.currentTarget.nextElementSibling as HTMLElement)?.classList.remove('hidden');
+                          }}
+                        />
+                        <div className="hidden w-full h-full bg-gradient-to-br from-purple-500 to-blue-500 items-center justify-center text-white font-bold text-2xl aspect-square">
+                          {asset.symbol?.slice(0, 2)}
+                        </div>
+                        {/* Zoom hint */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-white text-xs font-semibold bg-black/50 px-2.5 py-1 rounded-full backdrop-blur-sm">
+                            View
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <p className="text-xs font-semibold">{tokenId}</p>
+                        <p className="text-[10px] text-muted-foreground">Floor: {asset.price} ETH</p>
                       </div>
                     </div>
-                    <div className="px-2.5 py-2">
-                      <p className="text-xs font-semibold">#{Math.floor(asset.symbol.charCodeAt(0) * 137 + v * 3791) % 9999 + 1}</p>
-                      <p className="text-[10px] text-muted-foreground">Floor: {asset.price} ETH</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* Lightbox */}
+              {previewImg && (
+                <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                  onClick={() => setPreviewImg(null)}
+                >
+                  <div
+                    className="relative max-w-sm w-full mx-4 animate-in zoom-in-75 fade-in duration-300"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img
+                      src={previewImg}
+                      alt="NFT preview"
+                      className="w-full rounded-2xl shadow-2xl shadow-purple-500/20 border border-white/10"
+                    />
+                    <button
+                      onClick={() => setPreviewImg(null)}
+                      className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm transition-colors duration-150"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div>
@@ -396,6 +461,55 @@ export default function AssetDetailsModal({ asset, onClose, onTrade }: any) {
               <p className="text-xs text-green-300 font-semibold">
                 Alert set: notify when {asset.symbol} goes {alertDir} {isLocalGhanaStock ? 'GH¢' : '$'}{Number(alertPrice).toLocaleString()}
               </p>
+            </div>
+          )}
+
+          {/* Latest news — only shown for international stocks when Finnhub key is set */}
+          {news.length > 0 && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/40 border-b border-border">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  <Newspaper className="w-3 h-3" /> Market News
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Live
+                </span>
+              </div>
+
+              {/* Articles */}
+              <div className="divide-y divide-border">
+                {news.map((item, i) => (
+                  <a
+                    key={i}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-3 px-3.5 py-3 bg-background hover:bg-muted/30 transition-colors duration-150 group"
+                  >
+                    {/* Index badge */}
+                    <span className="flex-shrink-0 w-5 h-5 rounded-md bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black mt-0.5">
+                      {i + 1}
+                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-150">
+                        {item.headline}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          {item.source}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {item.datetime ? new Date(item.datetime * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-60 transition-opacity duration-150" />
+                  </a>
+                ))}
+              </div>
             </div>
           )}
         </div>

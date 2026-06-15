@@ -90,6 +90,47 @@ export default function DashboardHome({ userId, onNavigate }: { userId: number; 
         </div>
       </div>
 
+      {/* Monthly Cash Flow */}
+      {(() => {
+        const now = new Date();
+        const y = now.getFullYear(), mo = now.getMonth();
+        let income = 0, spending = 0;
+        for (const tx of transactions) {
+          const d = new Date(tx.date);
+          if (d.getFullYear() !== y || d.getMonth() !== mo) continue;
+          const amt = Math.abs(Number(tx.amount) || 0);
+          if (tx.type === 'credit') income += amt; else spending += amt;
+        }
+        const net = income - spending;
+        const monthName = now.toLocaleString('default', { month: 'short' });
+        const stats = [
+          { label: 'Income', dot: 'bg-mint-500', value: formatCurrency(income), sub: monthName, accent: 'text-mint-600', bar: 'bg-mint-500', pct: income > 0 ? 100 : 0 },
+          { label: 'Spending', dot: 'bg-red-400', value: formatCurrency(spending), sub: monthName, accent: 'text-red-500', bar: 'bg-red-400', pct: income > 0 ? Math.min((spending / income) * 100, 100) : 0 },
+          { label: 'Net Flow', dot: net >= 0 ? 'bg-teal-500' : 'bg-orange-400', value: (net >= 0 ? '+' : '') + formatCurrency(net), sub: net >= 0 ? 'Positive' : 'Negative', accent: net >= 0 ? 'text-teal-600' : 'text-orange-500', bar: net >= 0 ? 'bg-teal-500' : 'bg-orange-400', pct: income > 0 ? Math.min((Math.abs(net) / income) * 100, 100) : 0 },
+        ];
+        return (
+          <div className="bg-surface rounded-2xl border border-navy-700 shadow-sm px-5 py-3 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '220ms' }}>
+            <div className="flex items-stretch divide-x divide-navy-700">
+              {stats.map((s, i) => (
+                <div key={s.label} className={`flex-1 flex flex-col gap-0.5 ${i === 0 ? 'pr-5' : i === 1 ? 'px-5' : 'pl-5'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{s.label}</p>
+                  </div>
+                  <p className={`text-sm font-bold tabular-nums ${s.accent}`}>{s.value}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className="flex-1 h-[3px] bg-navy-200/60 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${s.bar} transition-all duration-700`} style={{ width: `${s.pct}%` }} />
+                    </div>
+                    <span className="text-[10px] text-slate-400 flex-shrink-0">{s.sub}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Accounts List */}
       <div className="bg-surface rounded-2xl shadow-lg border border-navy-700 p-6">
         <div className="flex items-center justify-between mb-6">

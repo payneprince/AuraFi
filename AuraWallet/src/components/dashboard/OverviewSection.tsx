@@ -402,11 +402,22 @@ export default function OverviewSection({ walletBalance, insight, onTransferComp
             );
           })}
 
-          <div className="rounded-xl p-3 bg-white/5 border border-white/10 hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both" style={{ animationDelay: '150ms' }}>
-            <p className="text-white/75 text-xs font-medium">Wallet Health</p>
-            <p className="text-white font-bold text-lg mt-1">Excellent</p>
-            <p className="text-green-300 text-xs mt-0.5">No security flags</p>
-          </div>
+          {(() => {
+            const health = walletBalance < 20
+              ? { label: 'Critical', sub: 'Add funds soon', color: 'text-red-400', border: 'border-red-500/20', bg: 'bg-red-500/5' }
+              : walletBalance < 100
+              ? { label: 'Low', sub: 'Consider topping up', color: 'text-orange-400', border: 'border-orange-500/20', bg: 'bg-orange-500/5' }
+              : walletBalance < 500
+              ? { label: 'Good', sub: `${bankAccounts.length} account${bankAccounts.length !== 1 ? 's' : ''} linked`, color: 'text-yellow-300', border: 'border-yellow-500/20', bg: 'bg-yellow-500/5' }
+              : { label: 'Excellent', sub: 'No security flags', color: 'text-green-300', border: 'border-white/10', bg: 'bg-white/5' };
+            return (
+              <div className={`rounded-xl p-3 ${health.bg} border ${health.border} hover:border-white/20 hover:-translate-y-0.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both`} style={{ animationDelay: '150ms' }}>
+                <p className="text-white/75 text-xs font-medium">Wallet Health</p>
+                <p className={`font-bold text-lg mt-1 ${health.color}`}>{health.label}</p>
+                <p className={`text-xs mt-0.5 ${health.color} opacity-80`}>{health.sub}</p>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
