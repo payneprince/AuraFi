@@ -8,6 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "AuraVest - Invest Smarter, Grow Stronger",
   description: "Multi-asset investment platform",
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

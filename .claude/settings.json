@@ -48,7 +48,26 @@
       "Bash(PLAYWRIGHT_BROWSERS_PATH='/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers' NODE_PATH=/Users/PAYNE/.npm/_npx/e41f203b7505f1fb/node_modules node -e ' *)",
       "Bash(PLAYWRIGHT_BROWSERS_PATH=\"/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers\" npx -y playwright install chromium --with-deps)",
       "Bash(PLAYWRIGHT_BROWSERS_PATH=\"/Users/PAYNE/Desktop/Aura Finance/.tmpwork/pw-browsers\" npx -y playwright install chromium-headless-shell)",
-      "Bash(npx --yes playwright --version)"
+      "Bash(npx --yes playwright --version)",
+      "WebFetch(domain:www.calbank.net)",
+      "WebFetch(domain:www.fidelitybank.com.gh)",
+      "Bash(npx playwright *)",
+      "Bash(node -e \"require\\('playwright'\\)\")",
+      "Bash(claude mcp *)",
+      "mcp__magic__21st_magic_component_refiner",
+      "mcp__magic__logo_search",
+      "Bash(ls \"/Users/PAYNE/Desktop/Aura Finance/.claude/skills/\" 2>/dev/null || ls ~/.claude/skills/ 2>/dev/null || echo \"no skills dir\")",
+      "Read(//Users/PAYNE/.claude/**)",
+      "Bash(git restore *)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -r \"stripe\\\\|paystack\\\\|paypal\\\\|visa\\\\|mastercard\\\\|plaid\\\\|coinbase\\\\|binance\\\\|apple.*pay\\\\|google.*pay\\\\|aws\\\\|cloudflare\\\\|mongodb\\\\|firebase\\\\|mpesa\\\\|momo\\\\|mtn\" \"/Users/PAYNE/Desktop/Aura Finance\" --include=\"*.ts\" --include=\"*.tsx\" -l -i)",
+      "Bash(curl -L -o int-binance.png \"https://logo.clearbit.com/binance.com\")",
+      "Bash(curl -L -o int-coingecko.png \"https://logo.clearbit.com/coingecko.com\")",
+      "Bash(curl -L -o int-groq.png \"https://logo.clearbit.com/groq.com\")",
+      "Bash(curl -L --connect-timeout 10 -o int-binance.png \"https://cdn.simpleicons.org/binance\")",
+      "Bash(curl -L --connect-timeout 10 -o int-coingecko.png \"https://cdn.simpleicons.org/coingecko\")",
+      "Bash(curl -L --connect-timeout 10 -o int-groq.svg \"https://cdn.simpleicons.org/groq\")",
+      "Bash(curl -sL --connect-timeout 10 -w \"%{http_code}\" \"https://cdn.simpleicons.org/binancecoin\" -o int-binance2.svg)",
+      "Bash(curl -sL --connect-timeout 10 -w \"%{http_code}\" \"https://cdn.simpleicons.org/coingecko\" -o test-cg.svg)"
     ]
   }
 }

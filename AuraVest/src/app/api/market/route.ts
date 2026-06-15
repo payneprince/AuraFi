@@ -75,7 +75,7 @@ async function fetchCrypto() {
   return data;
 }
 
-// ── Single symbol via Yahoo Finance v8 chart ─────────────────────────────────
+// ── Yahoo Finance fallback ────────────────────────────────────────────────────
 
 type YFMeta = {
   symbol?: string; shortName?: string; longName?: string;
@@ -103,7 +103,32 @@ function changePercent(current: number, previous: number): number {
   return Number((((current - previous) / previous) * 100).toFixed(2));
 }
 
-// ── Stocks ────────────────────────────────────────────────────────────────────
+// ── Finnhub primary source ────────────────────────────────────────────────────
+
+type FinnhubQuote = { c: number; d: number; dp: number; h: number; l: number; o: number; pc: number };
+
+const STOCK_NAMES: Record<string, string> = {
+  AAPL: 'Apple Inc.', MSFT: 'Microsoft Corp.', GOOGL: 'Alphabet Inc.',
+  TSLA: 'Tesla Inc.', AMZN: 'Amazon.com Inc.', NVDA: 'NVIDIA Corp.',
+  META: 'Meta Platforms', JPM: 'JPMorgan Chase', V: 'Visa Inc.', NFLX: 'Netflix Inc.',
+};
+
+async function fetchFinnhubSymbol(symbol: string, key: string): Promise<FinnhubQuote | null> {
+  try {
+    const res = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${key}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    if (!res.ok) return null;
+    const q = (await res.json()) as FinnhubQuote;
+    if (!q.c) return null; // c=0 means symbol not found
+    return q;
+  } catch {
+    return null;
+  }
+}
+
+// ── Stocks (Finnhub primary → Yahoo Finance fallback) ────────────────────────
 
 const STOCK_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN', 'NVDA', 'META', 'JPM', 'V', 'NFLX'];
 
@@ -111,24 +136,56 @@ async function fetchStocks() {
   const cached = getCached<unknown[]>('stocks');
   if (cached) return cached;
 
-  const metas = await Promise.all(STOCK_SYMBOLS.map(fetchYFSymbol));
+  const finnhubKey = process.env.FINNHUB_API_KEY;
 
+  if (finnhubKey) {
+    const quotes = await Promise.all(STOCK_SYMBOLS.map((s) => fetchFinnhubSymbol(s, finnhubKey)));
+    const data = quotes
+      .map((q, i) => {
+        if (!q) return null;
+        const sym = STOCK_SYMBOLS[i];
+        return {
+          id: sym,
+          name: STOCK_NAMES[sym] ?? sym,
+          symbol: sym,
+          price: q.c,
+          change24h: Number((q.dp ?? 0).toFixed(2)),
+          marketCap: 0,
+          volume24h: 0,
+          exchange: 'NASDAQ',
+          image: STOCK_ICON_SLUGS[sym]
+            ? `https://cdn.simpleicons.org/${STOCK_ICON_SLUGS[sym]}`
+            : sym,
+        };
+      })
+      .filter(Boolean);
+
+    if (data.length >= STOCK_SYMBOLS.length * 0.5) {
+      setCache('stocks', data);
+      return data;
+    }
+    // Fall through to Yahoo if Finnhub returned fewer than half the symbols
+  }
+
+  // Yahoo Finance fallback
+  const metas = await Promise.all(STOCK_SYMBOLS.map(fetchYFSymbol));
   const data = metas
     .map((meta, i) => {
       if (!meta?.regularMarketPrice) return null;
       const prev = meta.chartPreviousClose ?? meta.previousClose ?? meta.regularMarketPrice;
+      const sym = STOCK_SYMBOLS[i];
       return {
-        id: STOCK_SYMBOLS[i],
-        name: meta.shortName ?? meta.longName ?? STOCK_SYMBOLS[i],
-        symbol: STOCK_SYMBOLS[i],
+        id: sym,
+        name: meta.shortName ?? meta.longName ?? sym,
+        symbol: sym,
         price: meta.regularMarketPrice,
         change24h: changePercent(meta.regularMarketPrice, prev),
         marketCap: meta.marketCap ?? 0,
         volume24h: meta.regularMarketVolume ?? 0,
         exchange: meta.exchangeName ?? 'NASDAQ',
-        image: STOCK_ICON_SLUGS[STOCK_SYMBOLS[i]]
-          ? `https://cdn.simpleicons.org/${STOCK_ICON_SLUGS[STOCK_SYMBOLS[i]]}`
-          : STOCK_SYMBOLS[i],
+        image: STOCK_ICON_SLUGS[sym]
+          ? `https://cdn.simpleicons.org/${STOCK_ICON_SLUGS[sym]}`
+          : sym,
       };
     })
     .filter(Boolean);

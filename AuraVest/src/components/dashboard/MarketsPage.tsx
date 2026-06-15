@@ -1746,7 +1746,7 @@ export default function MarketsPage() {
 
                         <div className="flex gap-2">
                           <div className="flex gap-1.5 flex-1">
-                            {[asset.minimumAmount, 500, 1000].map((amt: number) => (
+                            {Array.from(new Set([asset.minimumAmount, 500, 1000])).map((amt: number) => (
                               <button key={amt} onClick={() => openLocalConfirm(asset.id, amt)}
                                 className="flex-1 py-1.5 text-[10px] rounded-lg border border-border bg-background hover:bg-accent hover:border-teal-500/40 transition-all font-medium">
                                 {amt === asset.minimumAmount ? 'Min' : `GHS ${amt}`}

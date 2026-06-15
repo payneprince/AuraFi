@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Aura Finance - Your Complete Financial Ecosystem",
   description: "Banking, Investing, Payments, and AI-Powered Insights - All in One Place",
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

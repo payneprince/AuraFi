@@ -34,12 +34,7 @@ Core goals:
 - shared/: cross-app shared logic and utilities
 - scripts/: operational and integration scripts
 - ARCHITECTURE.md: technical architecture deep dive
-- QUICK_START.md: implementation-oriented guide
-- IMPLEMENTATION_PLAN.md: phased roadmap
 - DIAGRAMS.md: visual/system diagrams
-- COMPARISON.md: implementation status and parity matrix
-- EXECUTIVE_SUMMARY.md: high-level project narrative
-- INDEX.md: index of documentation files
 
 ## 4. Tech Stack
 
@@ -154,13 +149,8 @@ AuraFinance:
 ## 11. Documentation Map
 
 Read in this order for onboarding:
-1. EXECUTIVE_SUMMARY.md
-2. INDEX.md
-3. QUICK_START.md
-4. ARCHITECTURE.md
-5. IMPLEMENTATION_PLAN.md
-6. COMPARISON.md
-7. DIAGRAMS.md
+1. ARCHITECTURE.md
+2. DIAGRAMS.md
 
 ## 12. Notes
 
@@ -168,10 +158,3 @@ Read in this order for onboarding:
 - Runtime behavior depends on all four apps being available when testing full cross-app flows.
 - Some integration behavior uses persisted local state files under .data/.
 
----
-
-If you want, the next step can be generating role-specific docs as separate files, for example:
-- docs/DEVELOPER_GUIDE.md
-- docs/API_REFERENCE.md
-- docs/QA_CHECKLIST.md
-- docs/DEPLOYMENT.md

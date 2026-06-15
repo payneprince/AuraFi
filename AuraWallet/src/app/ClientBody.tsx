@@ -9,8 +9,10 @@ export default function ClientBody({
 }) {
   // Remove any extension-added classes during hydration
   useEffect(() => {
-    // This runs only on the client after hydration
     document.body.className = "antialiased";
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   }, []);
 
   return <div className="antialiased">{children}</div>;

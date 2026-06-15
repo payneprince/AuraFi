@@ -22,6 +22,7 @@ import { AURAVEST_STORAGE_KEYS } from '@/lib/vestStateKeys';
 import { claimCrossAppTransfersForApp } from '../../../../shared/cross-app-transfer-sync';
 import { readUnifiedAuthSession, subscribeUnifiedAuthSession } from '../../../../shared/unified-auth';
 import { TransferToastContainer, TransferToastData } from '@/components/TransferToast';
+import CommandPalette from '@/components/CommandPalette';
 
 export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<'home' | 'markets' | 'portfolio' | 'trade' | 'more' | 'learn'>('home');
@@ -306,6 +307,7 @@ export default function DashboardClient() {
 
       <AuraAIChat />
       <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
+      <CommandPalette onNavigate={(tab) => setActiveTab(tab)} />
     </div>
   );
 }

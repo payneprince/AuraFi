@@ -12,6 +12,7 @@ import SettingsSection from '@/components/dashboard/SettingsSection';
 import { WalletSection } from '@/components/dashboard/types';
 import { walletSectionTitles } from '@/components/dashboard/navigation';
 import { TransferToastContainer, TransferToastData } from './TransferToast';
+import CommandPalette from './CommandPalette';
 import {
   readUnifiedAuthSession,
   writeUnifiedAuthSession,
@@ -403,6 +404,7 @@ export default function Dashboard() {
       </div>
       <AuraChat userId={user.id} />
       <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
+      <CommandPalette onNavigate={(section) => setCurrentSection(section)} />
     </div>
   );
 }

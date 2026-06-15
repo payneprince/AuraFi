@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AuraBank Digital Banking - Secure Online Banking",
   description: "A secure, interactive banking simulation built by Prince Tackie",
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({

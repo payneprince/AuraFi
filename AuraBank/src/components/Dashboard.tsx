@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { subscribeUnifiedAuthSession } from '../../../shared/unified-auth';
 import { useAuth } from '@/contexts/AuthContext';
+import CommandPalette from './CommandPalette';
 import { TransferToastContainer } from './TransferToast';
 
 type PageType = 'home' | 'accounts' | 'transactions' | 'bills' | 'cards' | 'budget' | 'investments' | 'profile';
@@ -163,6 +164,9 @@ export default function Dashboard() {
 
       {/* Transfer notifications */}
       <TransferToastContainer toasts={transferToasts} onDismiss={dismissTransferToast} />
+
+      {/* Command palette — ⌘K / Ctrl+K */}
+      <CommandPalette onNavigate={(page) => setCurrentPage(page)} />
     </div>
   );
 }
