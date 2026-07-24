@@ -1262,13 +1262,13 @@ export default function MarketsPage() {
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {GOLDBOD_PRODUCTS.map((product, idx) => {
-                  const usdPrice = spotPerGram * product.grams;
-                  const ghsPrice = product.fixedGhsPrice ?? (usdPrice * GHS);
+                  const ghsPrice = product.fixedGhsPrice;
+                  const usdEquivalent = GHS > 0 ? ghsPrice / GHS : ghsPrice / 16.5;
                   return (
                     <div
                       key={idx}
                       className="relative bg-gradient-to-b from-amber-950/40 to-card border border-amber-500/20 rounded-2xl overflow-hidden hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all duration-200 group cursor-pointer"
-                      onClick={() => !product.etf && handleAssetClick(goldAssets.find((a: any) => a.id === 'gold-spot-gram'))}
+                      onClick={() => handleAssetClick(goldAssets.find((a: any) => a.id === 'gold-spot-gram'))}
                     >
                       {product.badge && (
                         <span className={`absolute top-2.5 right-2.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white ${product.badgeColor}`}>
@@ -1290,7 +1290,7 @@ export default function MarketsPage() {
                         <p className="font-bold text-xs text-amber-300 mb-0.5">{product.label}</p>
                         <p className="text-[10px] text-muted-foreground mb-2 leading-tight">{product.desc}</p>
                         <p className="text-base font-black text-foreground">GH¢{ghsPrice.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                        <p className="text-[10px] text-amber-500/60 font-semibold">≈ ${usdPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD</p>
+                        <p className="text-[10px] text-amber-500/60 font-semibold">≈ ${usdEquivalent.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD</p>
 
                         <a
                           href="https://goldbodjewellery.gov.gh"
