@@ -1099,32 +1099,34 @@ export default function MarketsPage() {
             img: '/goldbod/tablet-1g.jpg',
             badge: 'Popular',
             badgeColor: 'bg-amber-500',
+            fixedGhsPrice: 1846.52,
           },
           {
             grams: 5,
-            label: '5g Gold Bar',
-            desc: 'Mid-tier 24K investment bar',
+            label: '5g Gold Tablet',
+            desc: 'Mid-tier 24K investment tablet',
             img: '/goldbod/bar-5g.jpg',
             badge: null,
             badgeColor: '',
+            fixedGhsPrice: 9232.59,
           },
           {
             grams: 10,
-            label: '10g Gold Bar',
+            label: '10g Gold Tablet',
             desc: 'Premium 24K store of value',
             img: '/goldbod/bar-10g.jpg',
             badge: 'Best Value',
             badgeColor: 'bg-emerald-600',
+            fixedGhsPrice: 18311.30,
           },
           {
-            grams: 0,
-            label: 'NewGold ETF (GLD.GH)',
-            desc: 'Ghana Stock Exchange listed · ABSA-backed',
-            img: '/goldbod/newgold-etf.png',
-            badge: 'GSE',
-            badgeColor: 'bg-blue-600',
-            etf: true,
-            etfPrice: spotPerOunce / 1.1,
+            grams: 31,
+            label: '31g Gold Tablet',
+            desc: 'Large 24K investment tablet · GoldBod certified',
+            img: '/goldbod/tablet-1g.jpg',
+            badge: 'Premium',
+            badgeColor: 'bg-amber-700',
+            fixedGhsPrice: 55811.00,
           },
         ];
 
@@ -1260,8 +1262,8 @@ export default function MarketsPage() {
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {GOLDBOD_PRODUCTS.map((product, idx) => {
-                  const usdPrice = product.etf ? (product.etfPrice ?? 0) : spotPerGram * product.grams;
-                  const ghsPrice = usdPrice * GHS;
+                  const usdPrice = spotPerGram * product.grams;
+                  const ghsPrice = product.fixedGhsPrice ?? (usdPrice * GHS);
                   return (
                     <div
                       key={idx}
@@ -1291,13 +1293,13 @@ export default function MarketsPage() {
                         <p className="text-[10px] text-amber-500/60 font-semibold">≈ ${usdPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD</p>
 
                         <a
-                          href={product.etf ? 'https://mystocks.africa/buy/newgold-issuer-limited-etf-gse' : 'https://goldbodjewellery.gov.gh'}
+                          href="https://goldbodjewellery.gov.gh"
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
                           className="mt-2.5 w-full block text-center py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 text-[10px] font-bold border border-amber-500/20 transition-colors"
                         >
-                          {product.etf ? 'Buy on GSE →' : 'Buy on GoldBod →'}
+                          Buy on GoldBod →
                         </a>
                       </div>
                     </div>

@@ -39,9 +39,9 @@ function buildGoldBodOptions(spotList: any[]) {
   const change24h = Number(spotGram?.change24h) || 0;
   return [
     { id: 'gold-1g-tablet', name: '1g Gold Tablet', symbol: 'GOLD-1G', price: pricePerGram, change24h, image: '/goldbod/tablet-1g.jpg' },
-    { id: 'gold-5g-bar', name: '5g Gold Bar', symbol: 'GOLD-5G', price: pricePerGram * 5, change24h, image: '/goldbod/bar-5g.jpg' },
-    { id: 'gold-10g-bar', name: '10g Gold Bar', symbol: 'GOLD-10G', price: pricePerGram * 10, change24h, image: '/goldbod/bar-10g.jpg' },
-    { id: 'gold-etf', name: 'NewGold ETF (GLD.GH)', symbol: 'GLD.GH', price: pricePerOunce / 1.1, change24h, image: '/goldbod/newgold-etf.png' },
+    { id: 'gold-5g-tablet', name: '5g Gold Tablet', symbol: 'GOLD-5G', price: pricePerGram * 5, change24h, image: '/goldbod/bar-5g.jpg' },
+    { id: 'gold-10g-tablet', name: '10g Gold Tablet', symbol: 'GOLD-10G', price: pricePerGram * 10, change24h, image: '/goldbod/bar-10g.jpg' },
+    { id: 'gold-31g-tablet', name: '31g Gold Tablet', symbol: 'GOLD-31G', price: pricePerGram * 31, change24h, image: '/goldbod/tablet-1g.jpg' },
   ];
 }
 
