@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Plus, ArrowUpRight, ArrowDownRight, Home, BarChart2, Activity, Briefcase, Menu, TrendingUp } from "lucide-react";
+import { Bell, Search, Plus, ArrowUpRight, ArrowDownRight, Home, BarChart2, Activity, Briefcase, Menu, TrendingUp, Send, CreditCard, Receipt, Repeat, Wallet, History, Bot, Target, Lightbulb, MessageCircle, LucideIcon } from "lucide-react";
 
 type ProductPromo = {
   name: string;
@@ -19,6 +19,8 @@ type ProductPromo = {
   cta: string;
   port: number;
   path?: string;
+  phoneActions: Array<{ icon: LucideIcon; label: string }>;
+  phoneNav: Array<{ icon: LucideIcon; label: string; active: boolean }>;
   theme: {
     overlay: string;
     glow: string;
@@ -75,6 +77,19 @@ export default function Products() {
         watchlist: ["Checking", "Savings Vault", "Virtual Card", "Scheduled Bills"],
         cta: "Open AuraBank",
         port: 3001,
+        phoneActions: [
+          { icon: Send, label: "Transfer" },
+          { icon: CreditCard, label: "Cards" },
+          { icon: Receipt, label: "Bills" },
+          { icon: ArrowDownRight, label: "Receive" },
+        ],
+        phoneNav: [
+          { icon: Home, label: "Home", active: true },
+          { icon: Wallet, label: "Accounts", active: false },
+          { icon: CreditCard, label: "Cards", active: false },
+          { icon: Receipt, label: "Bills", active: false },
+          { icon: Menu, label: "More", active: false },
+        ],
         theme: {
           overlay: "from-[#060911]/95 via-[#070d1c]/90 to-[#09142a]/95",
           glow: "bg-[radial-gradient(50%_35%_at_68%_38%,rgba(217,30,120,0.45),transparent_60%),radial-gradient(45%_36%_at_78%_75%,rgba(64,201,201,0.36),transparent_65%)]",
@@ -114,6 +129,19 @@ export default function Products() {
         watchlist: ["US Equities", "Crypto", "Gold", "NFTs"],
         cta: "Open AuraVest",
         port: 3002,
+        phoneActions: [
+          { icon: Plus, label: "Buy" },
+          { icon: ArrowDownRight, label: "Sell" },
+          { icon: Activity, label: "Trade" },
+          { icon: BarChart2, label: "Markets" },
+        ],
+        phoneNav: [
+          { icon: Home, label: "Home", active: true },
+          { icon: BarChart2, label: "Markets", active: false },
+          { icon: Activity, label: "Trade", active: false },
+          { icon: Briefcase, label: "Portfolio", active: false },
+          { icon: Menu, label: "More", active: false },
+        ],
         theme: {
           overlay: "from-[#050b19]/95 via-[#071427]/90 to-[#0b1f3c]/95",
           glow: "bg-[radial-gradient(50%_35%_at_68%_38%,rgba(220,38,38,0.48),transparent_60%),radial-gradient(45%_36%_at_78%_75%,rgba(239,68,68,0.38),transparent_65%)]",
@@ -153,6 +181,19 @@ export default function Products() {
         watchlist: ["QR Pay", "Bills", "Split Groups", "Top-ups"],
         cta: "Open AuraWallet",
         port: 3003,
+        phoneActions: [
+          { icon: Send, label: "Send" },
+          { icon: ArrowDownRight, label: "Receive" },
+          { icon: Repeat, label: "Swap" },
+          { icon: Plus, label: "Top Up" },
+        ],
+        phoneNav: [
+          { icon: Home, label: "Home", active: true },
+          { icon: Wallet, label: "Wallet", active: false },
+          { icon: TrendingUp, label: "Crypto", active: false },
+          { icon: History, label: "History", active: false },
+          { icon: Menu, label: "More", active: false },
+        ],
         theme: {
           overlay: "from-[#030b18]/95 via-[#051425]/90 to-[#082038]/95",
           glow: "bg-[radial-gradient(50%_35%_at_68%_38%,rgba(14,165,233,0.45),transparent_60%),radial-gradient(45%_36%_at_78%_75%,rgba(45,212,191,0.35),transparent_65%)]",
@@ -193,6 +234,19 @@ export default function Products() {
         cta: "Open AuraAI",
         port: 3000,
         path: "/login",
+        phoneActions: [
+          { icon: MessageCircle, label: "Ask AI" },
+          { icon: Lightbulb, label: "Insights" },
+          { icon: Target, label: "Goals" },
+          { icon: Bot, label: "Advisor" },
+        ],
+        phoneNav: [
+          { icon: Home, label: "Home", active: true },
+          { icon: Lightbulb, label: "Insights", active: false },
+          { icon: Target, label: "Goals", active: false },
+          { icon: MessageCircle, label: "Chat", active: false },
+          { icon: Menu, label: "More", active: false },
+        ],
         theme: {
           overlay: "from-[#06091a]/95 via-[#0b1230]/90 to-[#10243f]/95",
           glow: "bg-[radial-gradient(50%_35%_at_68%_38%,rgba(129,140,248,0.45),transparent_60%),radial-gradient(45%_36%_at_78%_75%,rgba(45,212,191,0.34),transparent_65%)]",
@@ -442,12 +496,7 @@ export default function Products() {
                           </div>
 
                           <div className="grid grid-cols-4 gap-1.5 py-1.5">
-                            {[
-                              { icon: Plus, label: "Buy" },
-                              { icon: ArrowDownRight, label: "Sell" },
-                              { icon: ArrowUpRight, label: "Trade" },
-                              { icon: ArrowUpRight, label: "Send" },
-                            ].map(({ icon: Icon, label }) => (
+                            {activeProduct.phoneActions.map(({ icon: Icon, label }) => (
                               <button key={label} className="flex flex-col items-center gap-0.5 bg-white/5 rounded-lg p-1.5">
                                 <div className={`w-6 h-6 ${activeProduct.theme.phoneActionBg} rounded-full flex items-center justify-center`}>
                                   <Icon className={`w-3 h-3 ${activeProduct.theme.phoneActionIcon}`} />
@@ -475,13 +524,7 @@ export default function Products() {
 
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-black/90 border-t border-white/5 px-2 py-2">
                           <div className="flex justify-around items-center">
-                            {[
-                              { icon: Home, label: "Home", active: true },
-                              { icon: BarChart2, label: "Markets", active: false },
-                              { icon: Activity, label: "Trade", active: false },
-                              { icon: Briefcase, label: "Portfolio", active: false },
-                              { icon: Menu, label: "More", active: false },
-                            ].map(({ icon: Icon, label, active }) => (
+                            {activeProduct.phoneNav.map(({ icon: Icon, label, active }) => (
                               <button key={label} className="flex flex-col items-center gap-0.5 w-10">
                                 <Icon className={`w-3.5 h-3.5 ${active ? activeProduct.theme.phoneNavActive : "text-white/30"}`} />
                                 <span className={`text-[6px] font-medium ${active ? activeProduct.theme.phoneNavActive : "text-white/30"}`}>{label}</span>

@@ -174,12 +174,10 @@ export function Footer() {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70" />
-              FDIC Insured
+              PWA Ready
             </span>
             <span className="text-white/10">|</span>
-            <span>Member SIPC</span>
-            <span className="text-white/10">|</span>
-            <span>ISO 27001 Certified</span>
+            <span>Demo Platform</span>
           </div>
         </div>
 

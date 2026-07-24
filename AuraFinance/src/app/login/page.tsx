@@ -527,19 +527,14 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 rounded-xl border-slate-200 dark:border-slate-700 font-medium"
-              onClick={openSignupModal}
-            >
-              Create Account
-            </Button>
-            <Button asChild variant="ghost" className="h-11 rounded-xl text-slate-500 hover:text-slate-700 font-medium">
-              <Link href="/contact">Contact Sales</Link>
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-11 rounded-xl border-slate-200 dark:border-slate-700 font-medium"
+            onClick={openSignupModal}
+          >
+            Create Account
+          </Button>
         </div>
       </div>
 

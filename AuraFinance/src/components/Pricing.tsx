@@ -5,45 +5,47 @@ import { Check } from "lucide-react";
 
 const PLANS = [
   {
-    name: "Free",
+    name: "Starter",
     monthly: 0,
     annual: 0,
     features: [
-      "Full AuraBank access",
-      "Basic AuraWallet features",
-      "10 AuraVest trades / month",
-      "Basic AuraAI insights",
+      "Full AuraBank dashboard access",
+      "AuraWallet payments & MoMo deposits",
+      "Up to 10 AuraVest trades / month",
+      "Basic Aura AI financial guidance",
+      "PWA installation on any device",
     ],
-    cta: "Start Free",
+    cta: "Coming Soon",
     popular: false,
   },
   {
     name: "Plus",
-    monthly: 2.99,
-    annual: 1.99,
+    monthly: 29.99,
+    annual: 19.99,
     features: [
-      "Everything in Free",
+      "Everything in Starter",
       "Unlimited AuraVest trades",
-      "Advanced AuraAI features",
-      "Priority support",
-      "2% cashback rewards",
+      "Full Aura AI with portfolio context",
+      "Real-time price alerts",
+      "Advanced spend analytics",
+      "Priority in-app support",
     ],
-    cta: "Upgrade to Plus",
+    cta: "Coming Soon",
     popular: true,
   },
   {
     name: "Premium",
-    monthly: 9.99,
-    annual: 7.99,
+    monthly: 79.99,
+    annual: 59.99,
     features: [
       "Everything in Plus",
-      "Dedicated account manager",
-      "Premium investment research",
-      "Higher savings APY",
-      "5% cashback rewards",
-      "Early access to features",
+      "Dedicated financial advisor access",
+      "Biometric login (Face ID / Fingerprint)",
+      "AI fraud monitoring & alerts",
+      "Early access to new features",
+      "Multi-user household accounts",
     ],
-    cta: "Go Premium",
+    cta: "Coming Soon",
     popular: false,
   },
 ];
@@ -69,9 +71,9 @@ export function Pricing() {
             Pricing
           </span>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">
-            Transparent Pricing, No Surprises
+            Planned Pricing for Commercial Launch
           </h2>
-          <p className="text-white/50 text-sm">Choose the plan that fits your financial goals.</p>
+          <p className="text-white/50 text-sm">These tiers represent the commercial roadmap for Aura Finance. The current platform is fully accessible as a demonstration.</p>
 
           {/* Billing toggle */}
           <div className="inline-flex items-center gap-3 mt-4 bg-white/5 border border-white/10 rounded-full px-1.5 py-1.5">
@@ -122,13 +124,13 @@ export function Pricing() {
                     <span className="text-4xl font-extrabold text-white">Free</span>
                   ) : (
                     <>
-                      <span className="text-4xl font-extrabold text-white">${price}</span>
+                      <span className="text-4xl font-extrabold text-white">GHS {price}</span>
                       <span className="text-white/40 text-sm ml-1">/ mo</span>
                       {annual && plan.monthly > 0 && (
-                        <p className="text-white/30 text-xs mt-1 line-through">${plan.monthly} / mo</p>
+                        <p className="text-white/30 text-xs mt-1 line-through">GHS {plan.monthly} / mo</p>
                       )}
                       {annual && plan.monthly > 0 && (
-                        <p className="text-teal text-xs mt-0.5">Billed ${(price * 12).toFixed(2)} / year</p>
+                        <p className="text-teal text-xs mt-0.5">Billed GHS {(price * 12).toFixed(2)} / year</p>
                       )}
                     </>
                   )}
@@ -174,7 +176,7 @@ export function Pricing() {
 
         {/* Footer note */}
         <p className="text-center text-white/25 text-xs mt-5">
-          No credit card required for Free plan · Cancel anytime · All prices in USD
+          Planned tiers for commercial deployment · Current demo is fully free · All prices in GHS
         </p>
 
       </div>

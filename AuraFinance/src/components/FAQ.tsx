@@ -10,11 +10,11 @@ const FAQS = [
   },
   {
     q: "Is my money safe?",
-    a: "Yes. We use 256-bit encryption, two-factor authentication, biometric login, and 24/7 fraud monitoring. AuraBank accounts are FDIC insured up to $250,000.",
+    a: "Security is built into the architecture. All API keys are stored server-side and never exposed to the client. User data is isolated by account across all four apps. Biometric login and AI fraud monitoring are planned for production deployment.",
   },
   {
     q: "How much does it cost?",
-    a: "Free plan covers all core features. Plus is $9.99/month with unlimited trades and advanced AI. Premium is $24.99/month with a dedicated account manager.",
+    a: "The current platform is fully free — a complete demonstration of Aura Finance. Planned commercial tiers start at GHS 29.99/month (Plus) and GHS 79.99/month (Premium), billed in Ghanaian cedis at launch.",
   },
   {
     q: "Can I transfer between products instantly?",
@@ -22,7 +22,7 @@ const FAQS = [
   },
   {
     q: "What cryptocurrencies are supported?",
-    a: "AuraVest supports 50+ cryptocurrencies including Bitcoin, Ethereum, Solana, and more. New coins are added regularly based on user demand.",
+    a: "AuraVest provides live crypto prices and charts via CoinGecko, covering major coins including Bitcoin, Ethereum, Solana, and more. Real-time OHLC candlestick data is streamed via Binance WebSocket.",
   },
   {
     q: "Are there any hidden fees?",
@@ -30,11 +30,11 @@ const FAQS = [
   },
   {
     q: "How do I get started?",
-    a: "Sign up, verify your identity in under 2 minutes, and get instant access to all four products. No credit card needed for the free plan.",
+    a: "Visit any of the four apps — AuraBank, AuraVest, AuraWallet, or AuraAI — sign up with an email and password, and get instant access to the full platform. No credit card or identity verification required.",
   },
   {
     q: "Can I cancel anytime?",
-    a: "Yes — upgrade, downgrade, or cancel at any time. If you cancel a paid plan, you keep access until the end of your billing period.",
+    a: "Paid plans are not yet live — the platform is in demo mode and fully free. When commercial tiers launch, you will be able to upgrade, downgrade, or cancel at any time with no lock-in.",
   },
 ];
 

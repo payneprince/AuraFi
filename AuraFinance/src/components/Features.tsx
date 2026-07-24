@@ -3,14 +3,14 @@
 import { Zap, Shield, Sparkles, BarChart, DollarSign, Headphones, Link, Globe } from "lucide-react";
 
 const FEATURES = [
-  { icon: Zap,         title: "All-in-One Platform",      desc: "Stop juggling multiple apps. Everything you need in one place." },
-  { icon: Shield,      title: "Bank-Level Security",       desc: "256-bit encryption, biometric auth, and fraud protection." },
+  { icon: Zap,         title: "All-in-One Platform",      desc: "Stop juggling multiple apps. Banking, investing, payments, and AI — all in one suite." },
+  { icon: Shield,      title: "Secure by Design",         desc: "Server-side API proxying, environment key isolation, and user-scoped data namespacing." },
   { icon: DollarSign,  title: "Zero Hidden Fees",          desc: "Transparent pricing with no surprises, ever." },
-  { icon: Sparkles,    title: "Real-Time Everything",      desc: "Instant transfers, live market data, immediate insights." },
-  { icon: BarChart,    title: "AI-Powered Intelligence",   desc: "Smart recommendations that adapt to your goals." },
-  { icon: Headphones,  title: "24/7 Support",              desc: "Human support when you need it, AI help anytime." },
-  { icon: Link,        title: "Seamless Integration",      desc: "Money flows between products without friction." },
-  { icon: Globe,       title: "Global Access",             desc: "Multi-currency support for international transactions." },
+  { icon: Sparkles,    title: "Real-Time Everything",      desc: "Live stock quotes, crypto prices, and candlestick charts powered by Finnhub, CoinGecko, and Binance WebSocket." },
+  { icon: BarChart,    title: "AI-Powered Intelligence",   desc: "Aura AI uses your real balances, portfolio, and transactions to give you personalised financial guidance." },
+  { icon: Headphones,  title: "Aura AI, Always On",       desc: "Your AI financial assistant is available across all four apps, any time — no waiting, no appointments." },
+  { icon: Link,        title: "Seamless Integration",      desc: "A unified ledger keeps your money in sync across AuraBank, AuraVest, and AuraWallet in real time." },
+  { icon: Globe,       title: "Mobile Money Ready",        desc: "Built for Ghana — Paystack MoMo integration and live GHS/USD exchange rates via Frankfurter." },
 ];
 
 export function Features() {

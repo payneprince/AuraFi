@@ -3,20 +3,14 @@
 import { Shield, Lock, Eye, FileCheck, Bell, Award } from "lucide-react";
 
 const FEATURES = [
-  { icon: Shield,    title: "256-bit Encryption",  desc: "Military-grade encryption across every transaction and data point." },
-  { icon: Lock,      title: "Two-Factor Auth",      desc: "Multiple identity verification layers on every login attempt." },
-  { icon: Eye,       title: "Biometric Login",      desc: "Fingerprint & Face ID so you never need to type a password." },
-  { icon: Bell,      title: "Fraud Monitoring",     desc: "AI scans every transaction in real time and alerts you instantly." },
-  { icon: FileCheck, title: "FDIC Insured",         desc: "Your deposits are protected up to $250,000 by federal insurance." },
-  { icon: Award,     title: "ISO 27001 Certified",  desc: "Globally recognised information security management standard." },
+  { icon: Shield,    title: "Server-Side API Security",   desc: "All API keys are stored exclusively in server-side environment variables — never exposed in the client bundle." },
+  { icon: Lock,      title: "Secure Route Proxying",      desc: "Every external API call is routed through server-side handlers, preventing direct key exposure or CORS leakage." },
+  { icon: Eye,       title: "User Data Isolation",        desc: "Each user's banking, portfolio, and wallet data is stored in isolated, userId-namespaced directories." },
+  { icon: Eye,       title: "Biometric Login",            desc: "Fingerprint and Face ID authentication — planned for production deployment to eliminate password-based access." },
+  { icon: Bell,      title: "Fraud Monitoring",           desc: "AI-powered real-time transaction scanning and instant alerts — on the roadmap for the next development phase." },
+  { icon: Award,     title: "PWA Secure Context",         desc: "All four apps are served as Progressive Web Apps, which enforce HTTPS secure context in production environments." },
 ];
 
-const STATS = [
-  { value: "99.99%", label: "Uptime SLA" },
-  { value: "$250K",  label: "FDIC Coverage" },
-  { value: "0",      label: "Data Breaches" },
-  { value: "24/7",   label: "Threat Monitoring" },
-];
 
 export function Security() {
   return (
@@ -36,19 +30,6 @@ export function Security() {
             <Shield size={11} /> Security
           </span>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">Your Security is Our Priority</h2>
-          <p className="text-gray-400 text-sm max-w-md mx-auto">
-            We protect your money and data with the same infrastructure used by the world's leading banks.
-          </p>
-        </div>
-
-        {/* Stats strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-          {STATS.map(({ value, label }) => (
-            <div key={label} className="text-center rounded-xl bg-white/[0.04] border border-white/8 py-4">
-              <p className="text-2xl font-extrabold text-white">{value}</p>
-              <p className="text-gray-500 text-xs mt-0.5">{label}</p>
-            </div>
-          ))}
         </div>
 
         {/* Feature cards with gradient border */}
