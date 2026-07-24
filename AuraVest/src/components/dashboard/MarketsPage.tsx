@@ -1233,7 +1233,7 @@ export default function MarketsPage() {
                 {/* CTA buttons */}
                 <div className="flex flex-wrap gap-2 mt-4">
                   <a
-                    href="https://jewellery.goldbod.gov.gh"
+                    href="https://goldbodjewellery.gov.gh"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black text-xs font-bold transition-all duration-150 hover:shadow-lg hover:shadow-amber-500/30"
@@ -1291,7 +1291,7 @@ export default function MarketsPage() {
                         <p className="text-[10px] text-amber-500/60 font-semibold">≈ ${usdPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })} USD</p>
 
                         <a
-                          href={product.etf ? 'https://mystocks.africa/buy/newgold-issuer-limited-etf-gse' : 'https://jewellery.goldbod.gov.gh'}
+                          href={product.etf ? 'https://mystocks.africa/buy/newgold-issuer-limited-etf-gse' : 'https://goldbodjewellery.gov.gh'}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -1324,7 +1324,7 @@ export default function MarketsPage() {
               </h3>
               <div className="flex flex-col sm:flex-row gap-3">
                 {[
-                  { step: '1', title: 'Visit the platform', desc: 'Go to jewellery.goldbod.gov.gh or a physical showroom in Accra or Kumasi' },
+                  { step: '1', title: 'Visit the platform', desc: 'Go to goldbodjewellery.gov.gh or a physical showroom in Accra or Kumasi' },
                   { step: '2', title: 'Pick your product', desc: 'Choose from 1g tablets up to 12.5kg Good Delivery bars — all 24K certified' },
                   { step: '3', title: 'Pay at official rate', desc: 'Price is pegged to the Bank of Ghana reference rate — no hidden fees' },
                   { step: '4', title: 'Take delivery', desc: 'Physical collection or secure vault storage with full blockchain traceability' },
