@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Plus, ArrowUpRight, ArrowDownRight, Home, BarChart2, Activity, Briefcase, Menu, TrendingUp, Send, CreditCard, Receipt, Repeat, Wallet, History, Bot, Target, Lightbulb, MessageCircle, LucideIcon } from "lucide-react";
+import { Bell, Search, Plus, ArrowDownRight, Home, BarChart2, Activity, Briefcase, Menu, TrendingUp, Send, CreditCard, Receipt, Repeat, Wallet, History, Bot, Target, Lightbulb, MessageCircle, LucideIcon } from "lucide-react";
 
 type ProductPromo = {
   name: string;

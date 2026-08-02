@@ -1,6 +1,6 @@
 'use client';
 
-import { Shield, Lock, Eye, FileCheck, Bell, Award } from "lucide-react";
+import { Shield, Lock, Eye, Bell, Award } from "lucide-react";
 
 const FEATURES = [
   { icon: Shield,    title: "Server-Side API Security",   desc: "All API keys are stored exclusively in server-side environment variables — never exposed in the client bundle." },
