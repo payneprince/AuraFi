@@ -4,7 +4,7 @@ const ROW_A = [
   { name: "Ella Mensah",    role: "Small Business Owner", text: "Aura Finance saved me $500 in fees by switching to AuraBank. The seamless integration between all products is incredible!" },
   { name: "John Abaka",     role: "Investor",             text: "I grew my portfolio 23% in my first year with AuraVest. The real-time analytics and low fees are unbeatable." },
   { name: "Prince Tackie",  role: "Freelancer",           text: "AuraAI helped me save $2,400 this year by optimizing my spending and finding better investment opportunities." },
-  { name: "Abena Asante",   role: "Entrepreneur",         text: "Managing payroll and personal savings from one dashboard changed everything. I can't imagine going back to separate apps." },
+  { name: "Michael Olise",   role: "Footballer",         text: "Managing payroll and personal savings from one dashboard changed everything. I can't imagine going back to separate apps." },
   { name: "Kweku Darko",    role: "Software Engineer",    text: "The AuraVest crypto tools are on par with dedicated exchanges, but I also get my banking right there. Incredible value." },
 ];
 
